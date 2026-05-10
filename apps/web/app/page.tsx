@@ -8,11 +8,14 @@ import {
 import { AuthPanel } from '@/components/auth-panel';
 import { HttpBehaviorDemos } from '@/components/http-behavior-demos';
 import { SampleRequestCard } from '@/components/sample-request-card';
+import { getServerSession } from '@/lib/auth-server';
 
-export default function Home() {
+export default async function Home() {
+  const initialSession = await getServerSession();
+
   return (
     <div className="flex flex-col gap-6 p-8">
-      <AuthPanel />
+      <AuthPanel initialSession={initialSession} />
 
       <Card className="max-w-sm">
         <CardHeader>

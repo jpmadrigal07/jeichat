@@ -15,7 +15,16 @@ import { cn } from '@/lib/utils';
 const inputClass =
   'flex h-8 w-full rounded-md border border-border bg-background px-2 text-xs outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30';
 
-export function AuthPanel() {
+export type AuthPanelInitialSession = Awaited<
+  ReturnType<typeof authClient.getSession>
+>;
+
+type AuthPanelProps = {
+  /** From {@link getServerSession} on the server — avoids an empty flash before `useSession` finishes. */
+  initialSession?: AuthPanelInitialSession;
+};
+
+export function AuthPanel({ initialSession }: AuthPanelProps = {}) {
   const sessionState = authClient.useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -53,7 +62,11 @@ export function AuthPanel() {
     await authClient.signOut();
   }
 
-  const user = sessionState.data?.user;
+  const user = sessionState.isPending
+    ? (initialSession?.error == null && initialSession?.data?.user
+        ? initialSession.data.user
+        : sessionState.data?.user)
+    : sessionState.data?.user;
 
   return (
     <Card className="max-w-md">
