@@ -8,6 +8,7 @@ import {
 } from '@tanstack/react-query';
 import { lazy, Suspense, useState } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { isApiError } from '@/lib/api-error';
 
 const ReactQueryDevtools = lazy(() =>
@@ -64,7 +65,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
+      <TooltipProvider>
+        {children}
+      </TooltipProvider>
       <Toaster position="bottom-right" />
       {process.env.NODE_ENV === 'development' ? (
         <Suspense fallback={null}>
