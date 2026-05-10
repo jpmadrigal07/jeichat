@@ -19,27 +19,41 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "db:generate": "drizzle-kit generate --config=./src/database/drizzle.config.ts",
+    "db:migrate": "drizzle-kit migrate --config=./src/database/drizzle.config.ts",
+    "db:push": "drizzle-kit push --config=./src/database/drizzle.config.ts",
+    "db:studio": "drizzle-kit studio --config=./src/database/drizzle.config.ts"
   },
   "dependencies": {
-    "dotenv": "^16.5.0",
     "@nestjs/common": "^11.1.19",
+    "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.1.19",
     "@nestjs/platform-express": "^11.1.19",
+    "@thallesp/nestjs-better-auth": "^2.6.0",
+    "@upstash/redis": "^1.38.0",
+    "better-auth": "^1.6.10",
+    "better-sqlite3": "^12.9.0",
+    "dotenv": "^16.5.0",
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.20.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
-    "@repo/typescript-config": "*",
     "@eslint/eslintrc": "^3.2.0",
     "@eslint/js": "^9.18.0",
     "@nestjs/cli": "^11.0.21",
     "@nestjs/schematics": "^11.1.0",
     "@nestjs/testing": "^11.1.19",
+    "@repo/typescript-config": "*",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
+    "@types/pg": "^8.20.0",
     "@types/supertest": "^7.0.0",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
@@ -70,6 +84,9 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "setupFilesAfterEnv": [
+      "<rootDir>/../test/jest-setup-unit.ts"
+    ]
   }
 }

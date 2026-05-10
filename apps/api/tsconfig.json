@@ -4,6 +4,7 @@
     "target": "ES2023",
     "lib": ["ES2023"],
     "incremental": true,
+    "declaration": false,
     "declarationMap": false,
     "strict": false,
     "strictNullChecks": true,
