@@ -6,8 +6,11 @@ import { AuthIntegrationModule } from './auth/auth.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
+import { ExportModule } from './export/export.module';
+import { GatewayModule } from './gateway/gateway.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 import { ChannelsModule } from './channels/channels.module';
+import { MessagesModule } from './messages/messages.module';
 
 // Load .env from repo root (works from apps/api/dist or apps/api/src) or cwd
 const envFilePath =
@@ -25,8 +28,11 @@ const envFilePath =
     }),
     DatabaseModule,
     AuthIntegrationModule,
+    GatewayModule,
     WorkspacesModule,
     ChannelsModule,
+    MessagesModule,
+    ExportModule,
   ],
   controllers: [AppController],
   providers: [AppService],
