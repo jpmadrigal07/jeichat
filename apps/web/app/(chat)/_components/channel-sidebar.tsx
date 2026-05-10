@@ -1,12 +1,19 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Hash, Plus } from 'lucide-react';
+import { Hash, Plus, ChevronDown, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Tooltip,
   TooltipContent,
@@ -15,12 +22,14 @@ import {
 import { useChannels } from '../_hooks/use-channels';
 import { useWorkspaces } from '../_hooks/use-workspaces';
 import { CreateChannelDialog } from './create-channel-dialog';
+import { WorkspaceSettingsDialog } from './workspace-settings-dialog';
 
 export function ChannelSidebar() {
   const params = useParams<{ workspaceId?: string; channelId?: string }>();
   const workspaceId = params.workspaceId;
   const { data: workspaces } = useWorkspaces();
   const { data: channels, isLoading } = useChannels(workspaceId ?? '');
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const activeWorkspace = workspaces?.find((ws) => ws.id === workspaceId);
 
@@ -36,10 +45,23 @@ export function ChannelSidebar() {
 
   return (
     <div className="flex w-60 flex-col border-r bg-sidebar/50">
-      <div className="flex h-12 items-center justify-between px-4 border-b">
-        <span className="truncate font-semibold text-sm">
-          {activeWorkspace?.name ?? 'Workspace'}
-        </span>
+      <div className="flex h-12 items-center px-4 border-b">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-1 truncate font-semibold text-sm hover:text-foreground/80 transition-colors">
+              <span className="truncate">
+                {activeWorkspace?.name ?? 'Workspace'}
+              </span>
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
+              <Settings className="mr-2 h-4 w-4" />
+              Workspace Settings
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <ScrollArea className="flex-1">
@@ -92,6 +114,14 @@ export function ChannelSidebar() {
           )}
         </div>
       </ScrollArea>
+
+      {activeWorkspace && (
+        <WorkspaceSettingsDialog
+          workspace={activeWorkspace}
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+        />
+      )}
     </div>
   );
 }
