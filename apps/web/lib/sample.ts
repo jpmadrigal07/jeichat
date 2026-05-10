@@ -6,26 +6,27 @@ export type SampleResponse = {
   servedAt: string;
 };
 
-export async function fetchSample(): Promise<
-  { ok: true; data: SampleResponse } | { ok: false; error: string }
-> {
+export const sampleQueryKey = ['sample'] as const;
+
+function formatSampleError(err: unknown): string {
+  if (isAxiosError(err)) {
+    const detail =
+      err.response?.data != null
+        ? ` ${typeof err.response.data === 'string' ? err.response.data : JSON.stringify(err.response.data)}`
+        : '';
+    return `${err.message} (${err.response?.status ?? err.code ?? 'no response'})${detail}`.trim();
+  }
+  return err instanceof Error ? err.message : 'Could not reach the API.';
+}
+
+/**
+ * Fetches `GET /sample`. Throws on failure so TanStack Query can populate `error` / `isError`.
+ */
+export async function fetchSample(): Promise<SampleResponse> {
   try {
     const { data } = await api.get<SampleResponse>('/sample');
-    return { ok: true, data };
+    return data;
   } catch (err) {
-    if (isAxiosError(err)) {
-      const detail =
-        err.response?.data != null
-          ? ` ${typeof err.response.data === 'string' ? err.response.data : JSON.stringify(err.response.data)}`
-          : '';
-      return {
-        ok: false,
-        error: `${err.message} (${err.response?.status ?? err.code ?? 'no response'})${detail}`.trim(),
-      };
-    }
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : 'Could not reach the API.',
-    };
+    throw new Error(formatSampleError(err));
   }
 }
