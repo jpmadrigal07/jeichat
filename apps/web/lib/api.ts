@@ -1,4 +1,5 @@
-import axios from 'axios';
+import axios, { type AxiosInstance } from 'axios';
+import { axiosErrorToApiError } from '@/lib/api-error';
 
 function normalizeBaseUrl(url: string | undefined): string {
   if (!url) return '';
@@ -8,29 +9,54 @@ function normalizeBaseUrl(url: string | undefined): string {
 const baseURL = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 
 /**
- * Shared Axios instance for the Nest API. Set `NEXT_PUBLIC_API_URL` in `.env` (see repo `.env.example`).
+ * Defaults shared by the production client and small demo clients (same interceptors).
  */
-export const api = axios.create({
-  baseURL,
-  /** Resolve `url` only against `baseURL` (no accidental absolute-URL override of the API host). */
-  allowAbsoluteUrls: false,
-  headers: {
-    common: {
-      Accept: 'application/json',
+function createAxiosInstance(
+  overrides: Record<string, unknown>,
+): AxiosInstance {
+  const instance = axios.create({
+    allowAbsoluteUrls: false,
+    headers: {
+      common: {
+        Accept: 'application/json',
+      },
+      post: { 'Content-Type': 'application/json' },
+      put: { 'Content-Type': 'application/json' },
+      patch: { 'Content-Type': 'application/json' },
     },
-    post: { 'Content-Type': 'application/json' },
-    put: { 'Content-Type': 'application/json' },
-    patch: { 'Content-Type': 'application/json' },
-  },
-  responseType: 'json',
-  timeout: 30_000,
-  timeoutErrorMessage: 'Request timed out',
-  withCredentials: process.env.NEXT_PUBLIC_API_CREDENTIALS === 'true',
-  /** REST APIs rarely need long redirect chains; keeps behavior predictable. */
-  maxRedirects: 3,
-  /** `?id=1&id=2` style arrays — common for Nest/Express query parsers. */
-  paramsSerializer: { indexes: null },
-  transitional: {
-    clarifyTimeoutError: true,
-  },
+    responseType: 'json',
+    timeout: 30_000,
+    timeoutErrorMessage: 'Request timed out',
+    withCredentials: process.env.NEXT_PUBLIC_API_CREDENTIALS === 'true',
+    maxRedirects: 3,
+    paramsSerializer: { indexes: null },
+    transitional: {
+      clarifyTimeoutError: true,
+    },
+    ...overrides,
+  });
+  instance.interceptors.response.use(
+    (response) => response,
+    (error) => Promise.reject(axiosErrorToApiError(error)),
+  );
+  return instance;
+}
+
+/**
+ * Shared Axios instance for the Nest API. Set `NEXT_PUBLIC_API_URL` in `.env` (see repo `.env.example`).
+ *
+ * Pass `{ signal }` from TanStack Query's `queryFn` / `mutationFn` so navigations and cache
+ * invalidation abort in-flight requests (`AbortController`).
+ */
+export const api = createAxiosInstance({
+  baseURL,
+});
+
+/**
+ * Intentionally unreachable host/port — connection refused, for testing React Query retry
+ * (no HTTP status; retries once by default in `Providers`).
+ */
+export const unreachableDemoApi = createAxiosInstance({
+  baseURL: 'http://127.0.0.1:59999',
+  timeout: 8_000,
 });

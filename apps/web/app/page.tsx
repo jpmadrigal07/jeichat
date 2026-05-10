@@ -5,6 +5,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { HttpBehaviorDemos } from '@/components/http-behavior-demos';
 import { SampleRequestCard } from '@/components/sample-request-card';
 
 export default function Home() {
@@ -23,6 +24,8 @@ export default function Home() {
       </Card>
 
       <SampleRequestCard />
+
+      <HttpBehaviorDemos />
     </div>
   );
 }

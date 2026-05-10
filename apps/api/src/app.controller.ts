@@ -14,4 +14,9 @@ export class AppController {
   getSample(): SampleResponse {
     return this.appService.getSample();
   }
+
+  @Get('demo/slow')
+  getSlow(): Promise<{ ok: true }> {
+    return this.appService.getSlow();
+  }
 }

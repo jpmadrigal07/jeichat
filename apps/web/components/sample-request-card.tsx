@@ -8,7 +8,16 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { isApiError } from '@/lib/api-error';
 import { fetchSample, sampleQueryKey } from '@/lib/sample';
+
+function showConnectionHint(error: unknown): boolean {
+  if (!isApiError(error)) return true;
+  if (error.isCancelled) return false;
+  /** Server responded — problem is not “API unreachable”. */
+  if (error.statusCode !== undefined) return false;
+  return true;
+}
 
 /** Cache / staleness tuned for this demo endpoint (see also root `Providers` defaults). */
 const SAMPLE_STALE_MS = 60 * 1000;
@@ -18,7 +27,7 @@ export function SampleRequestCard() {
   const { data, error, isPending, isFetching, failureCount, refetch } =
     useQuery({
       queryKey: sampleQueryKey,
-      queryFn: fetchSample,
+      queryFn: ({ signal }) => fetchSample({ signal }),
       staleTime: SAMPLE_STALE_MS,
       gcTime: SAMPLE_GC_MS,
     });
@@ -41,10 +50,23 @@ export function SampleRequestCard() {
           <p className="text-muted-foreground">Loading sample…</p>
         ) : error ? (
           <p className="text-destructive">
-            {error.message} — start the API (e.g.{' '}
-            <code className="text-xs">bun run dev</code> from the repo root)
-            and set <code className="text-xs">NEXT_PUBLIC_API_URL</code> in{' '}
-            <code className="text-xs">.env</code>.
+            {isApiError(error) && error.statusCode !== undefined ? (
+              <>
+                <span className="font-medium">[{error.statusCode}]</span>{' '}
+                {error.message}
+              </>
+            ) : (
+              error.message
+            )}
+            {showConnectionHint(error) ? (
+              <>
+                {' '}
+                — If the API is down, start it (e.g.{' '}
+                <code className="text-xs">bun run dev</code> from the repo root)
+                and set <code className="text-xs">NEXT_PUBLIC_API_URL</code> in{' '}
+                <code className="text-xs">.env</code>.
+              </>
+            ) : null}
           </p>
         ) : (
           <>

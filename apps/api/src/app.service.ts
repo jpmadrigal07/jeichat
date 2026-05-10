@@ -17,4 +17,10 @@ export class AppService {
       servedAt: new Date().toISOString(),
     };
   }
+
+  /** Used by the web app to demo `AbortSignal` + Axios cancel (long delay). */
+  async getSlow(): Promise<{ ok: true }> {
+    await new Promise((resolve) => setTimeout(resolve, 25_000));
+    return { ok: true };
+  }
 }
