@@ -6,6 +6,7 @@ import { AuthIntegrationModule } from './auth/auth.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
+import { WorkspacesModule } from './workspaces/workspaces.module';
 
 // Load .env from repo root (works from apps/api/dist or apps/api/src) or cwd
 const envFilePath =
@@ -23,6 +24,7 @@ const envFilePath =
     }),
     DatabaseModule,
     AuthIntegrationModule,
+    WorkspacesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
