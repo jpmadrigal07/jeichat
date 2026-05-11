@@ -94,7 +94,7 @@ export function ChannelView({ params, userId }: Props) {
   if (isLoading) {
     return (
       <>
-        <ChannelHeader channel={channel} />
+        <ChannelHeader channel={channel} channelId={channelId} />
         <div className="flex-1 flex flex-col gap-3 p-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="flex gap-3">
@@ -112,7 +112,7 @@ export function ChannelView({ params, userId }: Props) {
 
   return (
     <>
-      <ChannelHeader channel={channel} />
+      <ChannelHeader channel={channel} channelId={channelId} />
       <MessageList
         messages={messages}
         currentUserId={userId}
