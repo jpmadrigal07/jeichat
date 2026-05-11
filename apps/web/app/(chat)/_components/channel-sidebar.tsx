@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Hash, Plus, ChevronDown, Settings } from 'lucide-react';
+import { Hash, Plus, ChevronDown, Settings, MoreHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -23,6 +23,8 @@ import { useChannels } from '../_hooks/use-channels';
 import { useWorkspaces } from '../_hooks/use-workspaces';
 import { CreateChannelDialog } from './create-channel-dialog';
 import { WorkspaceSettingsDialog } from './workspace-settings-dialog';
+import { ChannelSettingsDialog } from './channel-settings-dialog';
+import type { Channel } from '../_libs/channels';
 
 export function ChannelSidebar() {
   const params = useParams<{ workspaceId?: string; channelId?: string }>();
@@ -30,6 +32,7 @@ export function ChannelSidebar() {
   const { data: workspaces } = useWorkspaces();
   const { data: channels, isLoading } = useChannels(workspaceId ?? '');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
 
   const activeWorkspace = workspaces?.find((ws) => ws.id === workspaceId);
 
@@ -93,21 +96,43 @@ export function ChannelSidebar() {
               {channels?.map((channel) => {
                 const isActive = channel.id === params.channelId;
                 return (
-                  <Button
+                  <div
                     key={channel.id}
-                    variant={isActive ? 'secondary' : 'ghost'}
-                    size="sm"
-                    className={cn(
-                      'justify-start gap-1.5 h-8 px-2 font-normal',
-                      isActive && 'font-medium',
-                    )}
-                    asChild
+                    className="group relative flex items-center"
                   >
-                    <Link href={`/w/${workspaceId}/c/${channel.id}`}>
-                      <Hash className="h-4 w-4 shrink-0 text-muted-foreground" />
-                      <span className="truncate">{channel.name}</span>
-                    </Link>
-                  </Button>
+                    <Button
+                      variant={isActive ? 'secondary' : 'ghost'}
+                      size="sm"
+                      className={cn(
+                        'justify-start gap-1.5 h-8 px-2 font-normal w-full',
+                        isActive && 'font-medium',
+                      )}
+                      asChild
+                    >
+                      <Link href={`/w/${workspaceId}/c/${channel.id}`}>
+                        <Hash className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate">{channel.name}</span>
+                      </Link>
+                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          className="absolute right-1 hidden h-6 w-6 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground group-hover:flex"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreHorizontal className="h-3.5 w-3.5" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" side="right">
+                        <DropdownMenuItem
+                          onSelect={() => setEditingChannel(channel)}
+                        >
+                          <Settings className="mr-2 h-4 w-4" />
+                          Channel Settings
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 );
               })}
             </div>
@@ -120,6 +145,17 @@ export function ChannelSidebar() {
           workspace={activeWorkspace}
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
+        />
+      )}
+
+      {editingChannel && (
+        <ChannelSettingsDialog
+          workspaceId={workspaceId}
+          channel={editingChannel}
+          open={!!editingChannel}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) setEditingChannel(null);
+          }}
         />
       )}
     </div>

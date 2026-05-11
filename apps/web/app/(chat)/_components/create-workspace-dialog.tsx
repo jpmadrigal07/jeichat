@@ -37,7 +37,7 @@ export function CreateWorkspaceDialog({
       {
         onSuccess: (workspace) => {
           closeRef.current?.click();
-          router.push(`/w/${workspace.id}/c/general`);
+          router.push(`/w/${workspace.id}`);
         },
       },
     );

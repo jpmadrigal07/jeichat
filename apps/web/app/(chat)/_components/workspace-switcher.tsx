@@ -44,7 +44,7 @@ export function WorkspaceSwitcher({
         return (
           <Tooltip key={ws.id}>
             <TooltipTrigger asChild>
-              <Link href={`/w/${ws.id}/c/general`}>
+              <Link href={`/w/${ws.id}`}>
                 <Avatar
                   className={cn(
                     'h-12 w-12 transition-all',
