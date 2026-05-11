@@ -14,9 +14,11 @@ export default function WorkspacePage() {
     if (channels && channels.length > 0) {
       const general =
         channels.find((c) => c.name === 'general') ?? channels[0];
-      startTransition(() => {
-        router.replace(`/w/${workspaceId}/c/${general.id}`);
-      });
+      if (general) {
+        startTransition(() => {
+          router.replace(`/w/${workspaceId}/c/${general.id}`);
+        });
+      }
     }
   }, [channels, workspaceId, router]);
 
