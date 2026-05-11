@@ -69,16 +69,16 @@ export function WorkspaceSwitcher({
         );
       })}
 
-      <CreateWorkspaceDialog>
-        <Tooltip>
+      <Tooltip>
+        <CreateWorkspaceDialog>
           <TooltipTrigger asChild>
             <button className="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-dashed border-muted-foreground/25 text-muted-foreground transition-all hover:rounded-xl hover:border-primary hover:text-primary">
               <Plus className="h-5 w-5" />
             </button>
           </TooltipTrigger>
-          <TooltipContent side="right">Create workspace</TooltipContent>
-        </Tooltip>
-      </CreateWorkspaceDialog>
+        </CreateWorkspaceDialog>
+        <TooltipContent side="right">Create workspace</TooltipContent>
+      </Tooltip>
     </div>
   );
 }
