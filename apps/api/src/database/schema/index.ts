@@ -5,3 +5,4 @@ export * from './workspaces';
 export * from './channels';
 export * from './messages';
 export * from './workspace-members';
+export * from './channel-reads';

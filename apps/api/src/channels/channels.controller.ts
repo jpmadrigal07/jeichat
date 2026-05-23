@@ -37,6 +37,30 @@ export class ChannelsController {
     return this.channelsService.findAll(workspaceId, session.user.id);
   }
 
+  @Get('unread-counts')
+  getUnreadCounts(
+    @Param('workspaceId') workspaceId: string,
+    @Session() session: UserSession<typeof auth>,
+  ) {
+    return this.channelsService.getUnreadCounts(
+      workspaceId,
+      session.user.id,
+    );
+  }
+
+  @Post(':id/read')
+  markAsRead(
+    @Param('workspaceId') workspaceId: string,
+    @Param('id') id: string,
+    @Session() session: UserSession<typeof auth>,
+  ) {
+    return this.channelsService.markAsRead(
+      workspaceId,
+      id,
+      session.user.id,
+    );
+  }
+
   @Get(':id')
   findOne(
     @Param('workspaceId') workspaceId: string,

@@ -27,8 +27,6 @@ export function useSocket(
       socket.connect();
     }
 
-    socket.emit('join_channel', { channelId });
-
     const handleNewMessage = (message: Message) => {
       if (message.channelId === channelIdRef.current) {
         addMessageToCache(queryClient, channelIdRef.current, message);
@@ -63,7 +61,6 @@ export function useSocket(
     socket.on('user_typing', handleUserTyping);
 
     return () => {
-      socket.emit('leave_channel', { channelId });
       socket.off('new_message', handleNewMessage);
       socket.off('message_updated', handleMessageUpdated);
       socket.off('message_deleted', handleMessageDeleted);

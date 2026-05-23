@@ -3,9 +3,9 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, count, eq, gt, inArray, isNull, ne, or } from 'drizzle-orm';
 import { DrizzleService } from '../database/drizzle.service';
-import { channels } from '../database/schema';
+import { channelReads, channels, messages } from '../database/schema';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 
 @Injectable()
@@ -83,6 +83,67 @@ export class ChannelsService {
       .returning();
 
     return channel;
+  }
+
+  async getUnreadCounts(workspaceId: string, userId: string) {
+    await this.workspacesService.verifyMembership(workspaceId, userId);
+
+    const workspaceChannels = await this.drizzle.db
+      .select({ id: channels.id })
+      .from(channels)
+      .where(eq(channels.workspaceId, workspaceId));
+
+    const channelIds = workspaceChannels.map((channel) => channel.id);
+    if (channelIds.length === 0) return {};
+
+    const rows = await this.drizzle.db
+      .select({
+        channelId: messages.channelId,
+        unreadCount: count(messages.id),
+      })
+      .from(messages)
+      .leftJoin(
+        channelReads,
+        and(
+          eq(channelReads.channelId, messages.channelId),
+          eq(channelReads.userId, userId),
+        ),
+      )
+      .where(
+        and(
+          inArray(messages.channelId, channelIds),
+          ne(messages.senderId, userId),
+          or(
+            isNull(channelReads.lastReadAt),
+            gt(messages.createdAt, channelReads.lastReadAt),
+          ),
+        ),
+      )
+      .groupBy(messages.channelId);
+
+    const result: Record<string, number> = {};
+    for (const row of rows) {
+      result[row.channelId] = Number(row.unreadCount);
+    }
+
+    return result;
+  }
+
+  async markAsRead(workspaceId: string, channelId: string, userId: string) {
+    await this.findOne(workspaceId, channelId, userId);
+
+    const now = new Date();
+    await this.drizzle.db
+      .insert(channelReads)
+      .values({
+        userId,
+        channelId,
+        lastReadAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [channelReads.userId, channelReads.channelId],
+        set: { lastReadAt: now },
+      });
   }
 
   async remove(workspaceId: string, id: string, userId: string) {

@@ -1,7 +1,8 @@
 'use client';
 
-import { use, useCallback, useMemo, useRef, useState } from 'react';
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useChannels } from '../../../../_hooks/use-channels';
+import { useMarkChannelRead } from '../../../../_hooks/use-unread-counts';
 import {
   useMessages,
   useSendMessage,
@@ -35,6 +36,11 @@ export function ChannelView({ params, userId }: Props) {
   const sendMutation = useSendMessage(channelId);
   const editMutation = useEditMessage(channelId);
   const deleteMutation = useDeleteMessage(channelId);
+  const { mutate: markChannelRead } = useMarkChannelRead(workspaceId);
+
+  useEffect(() => {
+    markChannelRead(channelId);
+  }, [channelId, markChannelRead]);
 
   const [typingUsers, setTypingUsers] = useState<Map<string, string>>(new Map());
   const typingTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());

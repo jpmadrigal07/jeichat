@@ -13,6 +13,12 @@ export function channelsQueryKey(workspaceId: string) {
   return ['workspaces', workspaceId, 'channels'] as const;
 }
 
+export function unreadCountsQueryKey(workspaceId: string) {
+  return [...channelsQueryKey(workspaceId), 'unread'] as const;
+}
+
+export type UnreadCounts = Record<string, number>;
+
 export async function fetchChannels(
   workspaceId: string,
   ctx?: { signal?: AbortSignal },
@@ -64,4 +70,24 @@ export async function deleteChannel(
   channelId: string,
 ): Promise<void> {
   await api.delete(`/workspaces/${workspaceId}/channels/${channelId}`);
+}
+
+export async function fetchUnreadCounts(
+  workspaceId: string,
+  ctx?: { signal?: AbortSignal },
+): Promise<UnreadCounts> {
+  const { data } = await api.get<UnreadCounts>(
+    `/workspaces/${workspaceId}/channels/unread-counts`,
+    { signal: ctx?.signal },
+  );
+  return data;
+}
+
+export async function markChannelAsRead(
+  workspaceId: string,
+  channelId: string,
+): Promise<void> {
+  await api.post(
+    `/workspaces/${workspaceId}/channels/${channelId}/read`,
+  );
 }

@@ -17,7 +17,7 @@ export default async function ChatLayout({
   return (
     <div className="flex h-screen overflow-hidden">
       <WorkspaceSidebar user={session.data.user} />
-      <ChannelSidebar />
+      <ChannelSidebar user={session.data.user} />
       <main className="flex flex-1 flex-col min-w-0">{children}</main>
     </div>
   );
