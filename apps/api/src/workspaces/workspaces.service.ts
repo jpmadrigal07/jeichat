@@ -1,9 +1,10 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { DrizzleService } from '../database/drizzle.service';
 import {
   workspaces,
@@ -96,8 +97,49 @@ export class WorkspacesService {
     await this.drizzle.db.delete(workspaces).where(eq(workspaces.id, id));
   }
 
-  async addMember(workspaceId: string, ownerId: string, targetUserId: string) {
+  async findMembers(workspaceId: string, userId: string) {
+    await this.verifyMembership(workspaceId, userId);
+
+    return this.drizzle.db
+      .select({
+        id: workspaceMembers.id,
+        workspaceId: workspaceMembers.workspaceId,
+        userId: workspaceMembers.userId,
+        role: workspaceMembers.role,
+        joinedAt: workspaceMembers.joinedAt,
+        name: user.name,
+        email: user.email,
+        image: user.image,
+      })
+      .from(workspaceMembers)
+      .innerJoin(user, eq(workspaceMembers.userId, user.id))
+      .where(eq(workspaceMembers.workspaceId, workspaceId));
+  }
+
+  async addMember(
+    workspaceId: string,
+    ownerId: string,
+    payload: { email?: string; userId?: string },
+  ) {
     await this.verifyOwnership(workspaceId, ownerId);
+
+    let targetUserId = payload.userId?.trim();
+
+    if (payload.email) {
+      const email = payload.email.trim().toLowerCase();
+      const [targetUser] = await this.drizzle.db
+        .select()
+        .from(user)
+        .where(sql`lower(${user.email}) = ${email}`);
+
+      if (!targetUser) throw new NotFoundException('User not found');
+
+      targetUserId = targetUser.id;
+    }
+
+    if (!targetUserId) {
+      throw new BadRequestException('email or userId is required');
+    }
 
     const [existingMember] = await this.drizzle.db
       .select()

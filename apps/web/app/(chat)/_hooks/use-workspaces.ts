@@ -6,7 +6,11 @@ import {
   createWorkspace,
   updateWorkspace,
   deleteWorkspace,
+  fetchWorkspaceMembers,
+  addWorkspaceMember,
+  removeWorkspaceMember,
   workspacesQueryKey,
+  workspaceMembersQueryKey,
 } from '../_libs/workspaces';
 
 export function useWorkspaces() {
@@ -43,6 +47,39 @@ export function useDeleteWorkspace() {
     mutationFn: deleteWorkspace,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: workspacesQueryKey });
+    },
+  });
+}
+
+export function useWorkspaceMembers(workspaceId: string) {
+  return useQuery({
+    queryKey: workspaceMembersQueryKey(workspaceId),
+    queryFn: ({ signal }) => fetchWorkspaceMembers(workspaceId, { signal }),
+    enabled: !!workspaceId,
+  });
+}
+
+export function useAddWorkspaceMember(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { email: string }) =>
+      addWorkspaceMember(workspaceId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceMembersQueryKey(workspaceId),
+      });
+    },
+  });
+}
+
+export function useRemoveWorkspaceMember(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => removeWorkspaceMember(workspaceId, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceMembersQueryKey(workspaceId),
+      });
     },
   });
 }

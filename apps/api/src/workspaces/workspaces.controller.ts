@@ -57,13 +57,21 @@ export class WorkspacesController {
     return this.workspacesService.remove(id, session.user.id);
   }
 
+  @Get(':id/members')
+  findMembers(
+    @Param('id') id: string,
+    @Session() session: UserSession<typeof auth>,
+  ) {
+    return this.workspacesService.findMembers(id, session.user.id);
+  }
+
   @Post(':id/members')
   addMember(
     @Param('id') id: string,
-    @Body() body: { userId: string },
+    @Body() body: { email?: string; userId?: string },
     @Session() session: UserSession<typeof auth>,
   ) {
-    return this.workspacesService.addMember(id, session.user.id, body.userId);
+    return this.workspacesService.addMember(id, session.user.id, body);
   }
 
   @Delete(':id/members/:userId')
