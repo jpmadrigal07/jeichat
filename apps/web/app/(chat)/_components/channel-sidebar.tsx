@@ -24,6 +24,7 @@ import { CreateChannelDialog } from './create-channel-dialog';
 import { WorkspaceSettingsDialog } from './workspace-settings-dialog';
 import { ChannelSettingsDialog } from './channel-settings-dialog';
 import { UserBar } from './user-bar';
+import { ResizableSidebar } from './resizable-sidebar';
 import type { Channel } from '../_libs/channels';
 
 type User = {
@@ -57,18 +58,18 @@ export function ChannelSidebar({ user }: { user: User }) {
 
   if (!workspaceId) {
     return (
-      <div className="flex w-60 flex-col border-r bg-sidebar/50">
+      <ResizableSidebar className="border-r bg-sidebar/50">
         <div className="flex h-12 items-center px-4 font-semibold border-b">
           Select a workspace
         </div>
         <div className="flex-1" />
         <UserBar user={user} />
-      </div>
+      </ResizableSidebar>
     );
   }
 
   return (
-    <div className="flex w-60 flex-col border-r bg-sidebar/50">
+    <ResizableSidebar className="border-r bg-sidebar/50">
       <div className="flex h-12 items-center px-4 border-b">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -196,6 +197,6 @@ export function ChannelSidebar({ user }: { user: User }) {
           }}
         />
       )}
-    </div>
+    </ResizableSidebar>
   );
 }
