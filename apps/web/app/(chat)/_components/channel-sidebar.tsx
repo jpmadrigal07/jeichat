@@ -23,10 +23,14 @@ import { formatUnreadCount } from '../_helpers/format-unread-count';
 import { CreateChannelDialog } from './create-channel-dialog';
 import { WorkspaceSettingsDialog } from './workspace-settings-dialog';
 import { ChannelSettingsDialog } from './channel-settings-dialog';
+import { UserBar } from './user-bar';
 import type { Channel } from '../_libs/channels';
 
 type User = {
   id: string;
+  name: string;
+  email: string;
+  image?: string | null;
 };
 
 export function ChannelSidebar({ user }: { user: User }) {
@@ -57,6 +61,8 @@ export function ChannelSidebar({ user }: { user: User }) {
         <div className="flex h-12 items-center px-4 font-semibold border-b">
           Select a workspace
         </div>
+        <div className="flex-1" />
+        <UserBar user={user} />
       </div>
     );
   }
@@ -169,6 +175,8 @@ export function ChannelSidebar({ user }: { user: User }) {
           )}
         </div>
       </ScrollArea>
+
+      <UserBar user={user} />
 
       {activeWorkspace && (
         <WorkspaceSettingsDialog

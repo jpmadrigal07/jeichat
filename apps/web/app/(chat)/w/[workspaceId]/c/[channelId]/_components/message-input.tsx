@@ -4,6 +4,7 @@ import { useRef, useCallback } from 'react';
 import { SendHorizonal } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { chatMessageFooterClass } from '../../../../../_helpers/chat-footer-classes';
 
 type MessageInputProps = {
   channelName: string | undefined;
@@ -53,8 +54,8 @@ export function MessageInput({
   }
 
   return (
-    <div className="border-t p-4 shrink-0">
-      <div className="flex items-end gap-2 rounded-lg border bg-muted/30 px-3 py-2">
+    <div className={chatMessageFooterClass}>
+      <div className="flex w-full items-end gap-2 rounded-lg border bg-muted/30 px-3 py-2">
         <Textarea
           ref={textareaRef}
           placeholder={`Message #${channelName ?? '...'}`}
