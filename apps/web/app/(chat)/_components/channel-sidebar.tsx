@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Hash, Plus, ChevronDown, Settings, MoreHorizontal } from 'lucide-react';
@@ -17,7 +17,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useChannels } from '../_hooks/use-channels';
 import { useUnreadCounts } from '../_hooks/use-unread-counts';
-import { useWorkspaceSocket } from '../_hooks/use-workspace-socket';
 import { useWorkspaces } from '../_hooks/use-workspaces';
 import { formatUnreadCount } from '../_helpers/format-unread-count';
 import { CreateChannelDialog } from './create-channel-dialog';
@@ -42,17 +41,6 @@ export function ChannelSidebar({ user }: { user: User }) {
   const { data: unreadCounts } = useUnreadCounts(workspaceId ?? '');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
-
-  const channelIds = useMemo(
-    () => channels?.map((channel) => channel.id) ?? [],
-    [channels],
-  );
-  useWorkspaceSocket(
-    workspaceId ?? '',
-    channelIds,
-    params.channelId,
-    user.id,
-  );
 
   const activeWorkspace = workspaces?.find((ws) => ws.id === workspaceId);
 

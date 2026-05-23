@@ -1,6 +1,7 @@
 'use client';
 
 import { useWorkspaces } from '../_hooks/use-workspaces';
+import { useGlobalUnreadSocket } from '../_hooks/use-global-unread-socket';
 import { WorkspaceSwitcher } from './workspace-switcher';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -15,7 +16,13 @@ type User = {
 
 export function WorkspaceSidebar({ user }: { user: User }) {
   const { data: workspaces, isLoading } = useWorkspaces();
-  const params = useParams<{ workspaceId?: string }>();
+  const params = useParams<{ workspaceId?: string; channelId?: string }>();
+
+  useGlobalUnreadSocket({
+    workspaces: workspaces ?? [],
+    activeChannelId: params.channelId,
+    userId: user.id,
+  });
 
   return (
     <div className="flex w-[72px] flex-col items-center gap-2 bg-sidebar py-3 border-r">
