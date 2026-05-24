@@ -10,8 +10,10 @@ export default async function Home() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-8">
-      <AuthPanel initialSession={initialSession} />
-    </div>
+    <main className="flex min-h-screen w-full items-center justify-center bg-background p-4 sm:p-8">
+      <div className="w-full max-w-lg min-w-0 px-1">
+        <AuthPanel initialSession={initialSession} />
+      </div>
+    </main>
   );
 }

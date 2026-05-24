@@ -13,6 +13,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useCreateWorkspace } from '../_hooks/use-workspaces';
 
 export function CreateWorkspaceDialog({
@@ -45,7 +50,12 @@ export function CreateWorkspaceDialog({
 
   return (
     <Dialog>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DialogTrigger asChild>{children}</DialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="right">Create workspace</TooltipContent>
+      </Tooltip>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create a workspace</DialogTitle>

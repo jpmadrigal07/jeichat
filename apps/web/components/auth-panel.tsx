@@ -13,7 +13,7 @@ import { authClient } from '@/lib/auth-client';
 import { cn } from '@/lib/utils';
 
 const inputClass =
-  'flex h-8 w-full rounded-md border border-border bg-background px-2 text-xs outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30';
+  'flex h-9 w-full rounded-md border border-border bg-background px-3 text-sm outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30';
 
 export type AuthPanelInitialSession = Awaited<
   ReturnType<typeof authClient.getSession>
@@ -69,16 +69,16 @@ export function AuthPanel({ initialSession }: AuthPanelProps = {}) {
     : sessionState.data?.user;
 
   return (
-    <Card className="max-w-md">
-      <CardHeader>
-        <CardTitle>Better Auth</CardTitle>
-        <CardDescription>
-          Sessions are issued by the Nest API (
-          <code className="rounded bg-muted px-1 py-0.5 text-[0.65rem]">
+    <Card className="w-full min-w-0 max-w-lg overflow-visible">
+      <CardHeader className="min-w-0">
+        <CardTitle>Sign in to JeiChat</CardTitle>
+        <CardDescription className="min-w-0 break-words text-pretty">
+          Sessions are issued by the Nest API at{' '}
+          <code className="inline-block max-w-full break-all rounded bg-muted px-1 py-0.5 font-mono text-[0.65rem] whitespace-normal">
             {baseURLDisplay()}
           </code>
-          ). Enable{' '}
-          <code className="rounded bg-muted px-1 py-0.5 text-[0.65rem]">
+          . Set{' '}
+          <code className="inline-block max-w-full break-all rounded bg-muted px-1 py-0.5 font-mono text-[0.65rem] whitespace-normal">
             NEXT_PUBLIC_API_CREDENTIALS=true
           </code>{' '}
           for cookie credentials on API calls.

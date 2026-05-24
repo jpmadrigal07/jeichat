@@ -1,7 +1,18 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { Pencil, Trash2, X, Check } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,6 +21,9 @@ import type { Message } from '../_libs/messages';
 type MessageItemProps = {
   message: Message;
   isOwn: boolean;
+  isEditing: boolean;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
   onEdit: (messageId: string, content: string) => void;
   onDelete: (messageId: string) => void;
 };
@@ -29,8 +43,15 @@ function getInitials(name: string | undefined | null): string {
     .slice(0, 2);
 }
 
-export function MessageItem({ message, isOwn, onEdit, onDelete }: MessageItemProps) {
-  const [editing, setEditing] = useState(false);
+export function MessageItem({
+  message,
+  isOwn,
+  isEditing,
+  onStartEdit,
+  onCancelEdit,
+  onEdit,
+  onDelete,
+}: MessageItemProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isEdited = message.updatedAt !== message.createdAt;
 
@@ -39,7 +60,7 @@ export function MessageItem({ message, isOwn, onEdit, onDelete }: MessageItemPro
     if (value && value !== message.content) {
       onEdit(message.id, value);
     }
-    setEditing(false);
+    onCancelEdit();
   }
 
   function handleEditKeyDown(e: React.KeyboardEvent) {
@@ -48,7 +69,7 @@ export function MessageItem({ message, isOwn, onEdit, onDelete }: MessageItemPro
       handleSaveEdit();
     }
     if (e.key === 'Escape') {
-      setEditing(false);
+      onCancelEdit();
     }
   }
 
@@ -74,7 +95,7 @@ export function MessageItem({ message, isOwn, onEdit, onDelete }: MessageItemPro
           )}
         </div>
 
-        {editing ? (
+        {isEditing ? (
           <div className="mt-1">
             <Textarea
               ref={textareaRef}
@@ -84,7 +105,7 @@ export function MessageItem({ message, isOwn, onEdit, onDelete }: MessageItemPro
               autoFocus
             />
             <div className="flex gap-1 mt-1">
-              <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+              <Button size="sm" variant="ghost" onClick={onCancelEdit}>
                 <X className="h-3.5 w-3.5 mr-1" />
                 Cancel
               </Button>
@@ -101,24 +122,45 @@ export function MessageItem({ message, isOwn, onEdit, onDelete }: MessageItemPro
         )}
       </div>
 
-      {isOwn && !editing && (
+      {isOwn && !isEditing && (
         <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
           <Button
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            onClick={() => setEditing(true)}
+            onClick={onStartEdit}
           >
             <Pencil className="h-3.5 w-3.5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-destructive hover:text-destructive"
-            onClick={() => onDelete(message.id)}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-destructive hover:text-destructive"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete message?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This message will be permanently deleted. This action cannot
+                  be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  variant="destructive"
+                  onClick={() => onDelete(message.id)}
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       )}
     </div>

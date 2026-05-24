@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Loader2 } from 'lucide-react';
 import { MessageItem } from './message-item';
@@ -16,6 +16,8 @@ type MessageListProps = {
   onDelete: (messageId: string) => void;
   typingUsers: string[];
 };
+
+const EDITING_ROW_ESTIMATE = 160;
 
 function formatDateSeparator(dateStr: string): string {
   const date = new Date(dateStr);
@@ -54,6 +56,13 @@ function buildListItems(messages: Message[]): ListItem[] {
   return items;
 }
 
+function getListItemKey(item: ListItem, editingMessageId: string | null): string {
+  if (item.type === 'date') return `date-${item.date}`;
+  return editingMessageId === item.message.id
+    ? `${item.message.id}-editing`
+    : item.message.id;
+}
+
 export function MessageList({
   messages,
   currentUserId,
@@ -65,20 +74,60 @@ export function MessageList({
   typingUsers,
 }: MessageListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const items = buildListItems(messages);
   const wasAtBottomRef = useRef(true);
   const prevItemCountRef = useRef(items.length);
+  const prevEditingMessageIdRef = useRef<string | null>(null);
 
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => parentRef.current,
+    getItemKey: (index) => {
+      const item = items[index];
+      return item ? getListItemKey(item, editingMessageId) : index;
+    },
     estimateSize: (index) => {
       const item = items[index];
       if (item?.type === 'date') return 40;
-      return 52;
+      if (item?.type === 'message' && item.message.id === editingMessageId) {
+        return EDITING_ROW_ESTIMATE;
+      }
+      return 72;
     },
     overscan: 10,
+    useAnimationFrameWithResizeObserver: true,
   });
+
+  const remeasureMessageRow = useCallback(
+    (messageId: string) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const index = items.findIndex(
+            (item) => item.type === 'message' && item.message.id === messageId,
+          );
+          if (index === -1) return;
+
+          const el = parentRef.current?.querySelector<HTMLElement>(
+            `[data-index="${index}"]`,
+          );
+          if (el) {
+            virtualizer.measureElement(el);
+          }
+        });
+      });
+    },
+    [items, virtualizer],
+  );
+
+  useEffect(() => {
+    const messageId = editingMessageId ?? prevEditingMessageIdRef.current;
+    prevEditingMessageIdRef.current = editingMessageId;
+
+    if (messageId) {
+      remeasureMessageRow(messageId);
+    }
+  }, [editingMessageId, remeasureMessageRow]);
 
   const isAtBottom = useCallback(() => {
     const el = parentRef.current;
@@ -133,13 +182,14 @@ export function MessageList({
           if (item.type === 'date') {
             return (
               <div
-                key={`date-${item.date}`}
+                key={getListItemKey(item, editingMessageId)}
+                data-index={virtualRow.index}
+                ref={virtualizer.measureElement}
                 style={{
                   position: 'absolute',
                   top: 0,
                   left: 0,
                   width: '100%',
-                  height: `${virtualRow.size}px`,
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
                 className="flex items-center px-4"
@@ -155,7 +205,9 @@ export function MessageList({
 
           return (
             <div
-              key={item.message.id}
+              key={getListItemKey(item, editingMessageId)}
+              data-index={virtualRow.index}
+              ref={virtualizer.measureElement}
               style={{
                 position: 'absolute',
                 top: 0,
@@ -167,6 +219,9 @@ export function MessageList({
               <MessageItem
                 message={item.message}
                 isOwn={item.message.senderId === currentUserId}
+                isEditing={editingMessageId === item.message.id}
+                onStartEdit={() => setEditingMessageId(item.message.id)}
+                onCancelEdit={() => setEditingMessageId(null)}
                 onEdit={onEdit}
                 onDelete={onDelete}
               />

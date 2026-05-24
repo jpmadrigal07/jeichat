@@ -14,6 +14,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useCreateChannel } from '../_hooks/use-channels';
 
 export function CreateChannelDialog({
@@ -48,7 +53,12 @@ export function CreateChannelDialog({
 
   return (
     <Dialog>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DialogTrigger asChild>{children}</DialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="right">Create channel</TooltipContent>
+      </Tooltip>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create a channel</DialogTitle>

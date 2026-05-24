@@ -45,7 +45,7 @@ export function UserBar({ user }: { user: User }) {
   return (
     <>
       <div className={chatUserFooterClass}>
-        <div className="flex w-full items-center gap-1">
+        <div className="flex h-11 w-full items-center gap-1 rounded-lg border bg-muted/30 px-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
