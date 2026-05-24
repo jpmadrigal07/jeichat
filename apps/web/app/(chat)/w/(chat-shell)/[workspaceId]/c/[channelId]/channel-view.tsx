@@ -13,6 +13,7 @@ import { useSocket } from './_hooks/use-socket';
 import { ChannelHeader } from './_components/channel-header';
 import { MessageList } from './_components/message-list';
 import { MessageInput } from './_components/message-input';
+import { TypingIndicator } from './_components/typing-indicator';
 import { Skeleton } from '@/components/ui/skeleton';
 
 type Props = {
@@ -119,17 +120,19 @@ export function ChannelView({ params, userId }: Props) {
   return (
     <>
       <ChannelHeader channel={channel} channelId={channelId} />
-      <MessageList
-        key={channelId}
-        messages={messages}
-        currentUserId={userId}
-        hasNextPage={hasNextPage}
-        isFetchingNextPage={isFetchingNextPage}
-        fetchNextPage={fetchNextPage}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        typingUsers={typingNames}
-      />
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <MessageList
+          key={channelId}
+          messages={messages}
+          currentUserId={userId}
+          hasNextPage={hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          fetchNextPage={fetchNextPage}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+        <TypingIndicator users={typingNames} />
+      </div>
       <MessageInput
         channelName={channel?.name}
         onSend={handleSend}

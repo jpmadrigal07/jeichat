@@ -14,7 +14,6 @@ type MessageListProps = {
   fetchNextPage: () => void;
   onEdit: (messageId: string, content: string) => void;
   onDelete: (messageId: string) => void;
-  typingUsers: string[];
 };
 
 const EDITING_ROW_ESTIMATE = 160;
@@ -71,7 +70,6 @@ export function MessageList({
   fetchNextPage,
   onEdit,
   onDelete,
-  typingUsers,
 }: MessageListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -351,12 +349,6 @@ export function MessageList({
           );
         })}
       </div>
-      {typingUsers.length > 0 && (
-        <div className="px-4 py-1.5 text-xs text-muted-foreground">
-          {typingUsers.join(', ')}{' '}
-          {typingUsers.length === 1 ? 'is' : 'are'} typing...
-        </div>
-      )}
     </div>
   );
 }
