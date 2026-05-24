@@ -6,12 +6,12 @@ export function TypingIndicator({ users }: TypingIndicatorProps) {
   if (users.length === 0) return null;
 
   return (
-    <div className="absolute inset-x-0 bottom-0 z-10 bg-background/25 px-4 py-2 backdrop-blur-2xl backdrop-saturate-150">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+    <div className="absolute inset-x-0 bottom-0 z-10 bg-background/10 px-4 py-1.5 backdrop-blur-xl backdrop-saturate-125">
+      <div className="flex items-center gap-1.5 text-[11px] leading-none text-muted-foreground">
         <span className="flex items-center gap-0.5" aria-hidden="true">
-          <span className="h-1 w-1 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
-          <span className="h-1 w-1 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
-          <span className="h-1 w-1 animate-bounce rounded-full bg-muted-foreground" />
+          <span className="size-[3px] animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
+          <span className="size-[3px] animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
+          <span className="size-[3px] animate-bounce rounded-full bg-muted-foreground" />
         </span>
         <span>
           {users.length === 1 && (
