@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import { SendHorizonal } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -10,17 +10,35 @@ type MessageInputProps = {
   channelName: string | undefined;
   onSend: (content: string) => void;
   onTyping: () => void;
-  disabled?: boolean;
+  sendDisabled?: boolean;
 };
+
+function focusTextarea(textarea: HTMLTextAreaElement | null) {
+  requestAnimationFrame(() => {
+    textarea?.focus();
+  });
+}
 
 export function MessageInput({
   channelName,
   onSend,
   onTyping,
-  disabled,
+  sendDisabled,
 }: MessageInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wasSendDisabledRef = useRef(false);
+
+  useEffect(() => {
+    focusTextarea(textareaRef.current);
+  }, [channelName]);
+
+  useEffect(() => {
+    if (wasSendDisabledRef.current && !sendDisabled) {
+      focusTextarea(textareaRef.current);
+    }
+    wasSendDisabledRef.current = !!sendDisabled;
+  }, [sendDisabled]);
 
   const handleInput = useCallback(() => {
     if (typingTimeoutRef.current) return;
@@ -39,12 +57,13 @@ export function MessageInput({
 
   function submit() {
     const value = textareaRef.current?.value.trim();
-    if (!value) return;
+    if (!value || sendDisabled) return;
     onSend(value);
     if (textareaRef.current) {
       textareaRef.current.value = '';
       textareaRef.current.style.height = 'auto';
     }
+    focusTextarea(textareaRef.current);
   }
 
   function handleAutoResize(e: React.FormEvent<HTMLTextAreaElement>) {
@@ -61,19 +80,20 @@ export function MessageInput({
           placeholder={`Message #${channelName ?? '...'}`}
           className="min-h-[24px] max-h-[200px] resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
           rows={1}
+          autoFocus
           onKeyDown={handleKeyDown}
           onInput={(e) => {
             handleAutoResize(e);
             handleInput();
           }}
-          disabled={disabled}
         />
         <Button
           size="icon"
           variant="ghost"
           className="h-7 w-7 shrink-0"
+          onMouseDown={(e) => e.preventDefault()}
           onClick={submit}
-          disabled={disabled}
+          disabled={sendDisabled}
         >
           <SendHorizonal className="h-4 w-4" />
         </Button>
