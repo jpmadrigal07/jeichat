@@ -82,6 +82,8 @@ export function MessageList({
   const prevEditingMessageIdRef = useRef<string | null>(null);
   const pinFrameRef = useRef<number | null>(null);
   const itemCountRef = useRef(items.length);
+  const wasFetchingNextPageRef = useRef(false);
+  const scrollHeightBeforePrependRef = useRef(0);
   itemCountRef.current = items.length;
 
   const virtualizer = useVirtualizer({
@@ -153,6 +155,24 @@ export function MessageList({
     if (!el) return true;
     return el.scrollHeight - el.scrollTop - el.clientHeight < 50;
   }, []);
+
+  useLayoutEffect(() => {
+    const el = parentRef.current;
+    if (!el) return;
+
+    if (isFetchingNextPage && !wasFetchingNextPageRef.current) {
+      scrollHeightBeforePrependRef.current = el.scrollHeight;
+    }
+
+    if (wasFetchingNextPageRef.current && !isFetchingNextPage) {
+      const heightDiff = el.scrollHeight - scrollHeightBeforePrependRef.current;
+      if (heightDiff > 0) {
+        el.scrollTop += heightDiff;
+      }
+    }
+
+    wasFetchingNextPageRef.current = isFetchingNextPage;
+  }, [isFetchingNextPage, items.length]);
 
   useLayoutEffect(() => {
     if (pinFrameRef.current !== null) {

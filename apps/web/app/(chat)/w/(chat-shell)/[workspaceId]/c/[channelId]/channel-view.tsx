@@ -9,6 +9,7 @@ import {
   useEditMessage,
   useDeleteMessage,
 } from './_hooks/use-messages';
+import { flattenMessagePages } from './_libs/messages';
 import { useSocket } from './_hooks/use-socket';
 import { ChannelHeader } from './_components/channel-header';
 import { MessageList } from './_components/message-list';
@@ -31,7 +32,7 @@ export function ChannelView({ params, userId }: Props) {
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
-    isLoading,
+    isPending,
   } = useMessages(channelId);
 
   const sendMutation = useSendMessage(channelId);
@@ -77,8 +78,8 @@ export function ChannelView({ params, userId }: Props) {
   const { emitTyping } = useSocket(channelId, handleTyping);
 
   const messages = useMemo(
-    () => data?.pages.flatMap((page) => page.data) ?? [],
-    [data],
+    () => flattenMessagePages(data?.pages),
+    [data?.pages],
   );
 
   const typingNames = useMemo(
@@ -98,7 +99,7 @@ export function ChannelView({ params, userId }: Props) {
     deleteMutation.mutate(messageId);
   }
 
-  if (isLoading) {
+  if (isPending) {
     return (
       <>
         <ChannelHeader channel={channel} channelId={channelId} />

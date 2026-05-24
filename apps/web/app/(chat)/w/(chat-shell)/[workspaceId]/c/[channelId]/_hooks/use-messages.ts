@@ -11,9 +11,13 @@ import {
   editMessage,
   deleteMessage,
   messagesQueryKey,
+  MESSAGES_PAGE_SIZE,
   type Message,
   type MessagesResponse,
 } from '../_libs/messages';
+
+const MESSAGES_STALE_TIME_MS = 5 * 60 * 1000;
+const MESSAGES_GC_TIME_MS = 30 * 60 * 1000;
 
 export function useMessages(channelId: string) {
   return useInfiniteQuery({
@@ -21,8 +25,14 @@ export function useMessages(channelId: string) {
     queryFn: ({ pageParam, signal }) =>
       fetchMessages(channelId, pageParam, { signal }),
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.data.length < MESSAGES_PAGE_SIZE
+        ? undefined
+        : (lastPage.nextCursor ?? undefined),
     enabled: !!channelId,
+    staleTime: MESSAGES_STALE_TIME_MS,
+    gcTime: MESSAGES_GC_TIME_MS,
+    refetchOnWindowFocus: false,
   });
 }
 

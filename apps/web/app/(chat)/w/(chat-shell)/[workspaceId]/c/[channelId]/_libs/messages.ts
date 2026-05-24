@@ -18,8 +18,30 @@ export type MessagesResponse = {
   nextCursor: string | null;
 };
 
+/** Messages loaded per infinite-query page (initial channel open + each scroll-up fetch). */
+export const MESSAGES_PAGE_SIZE = 50;
+
 export function messagesQueryKey(channelId: string) {
   return ['channels', channelId, 'messages'] as const;
+}
+
+export function flattenMessagePages(
+  pages: MessagesResponse[] | undefined,
+): Message[] {
+  if (!pages?.length) return [];
+
+  const seen = new Set<string>();
+  const result: Message[] = [];
+
+  for (const page of pages) {
+    for (const message of page.data) {
+      if (seen.has(message.id)) continue;
+      seen.add(message.id);
+      result.push(message);
+    }
+  }
+
+  return result;
 }
 
 export async function fetchMessages(
@@ -27,7 +49,9 @@ export async function fetchMessages(
   cursor?: string,
   ctx?: { signal?: AbortSignal },
 ): Promise<MessagesResponse> {
-  const params: Record<string, string> = {};
+  const params: Record<string, string> = {
+    limit: String(MESSAGES_PAGE_SIZE),
+  };
   if (cursor) params.cursor = cursor;
   const { data } = await api.get<MessagesResponse>(
     `/channels/${channelId}/messages`,
