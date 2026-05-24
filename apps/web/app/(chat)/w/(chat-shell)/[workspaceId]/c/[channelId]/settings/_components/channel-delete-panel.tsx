@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   useChannels,
   useDeleteChannel,
-} from '../../../../../../_hooks/use-channels';
+} from '../../../../../../../_hooks/use-channels';
 
 export function ChannelDeletePanel({
   workspaceId,

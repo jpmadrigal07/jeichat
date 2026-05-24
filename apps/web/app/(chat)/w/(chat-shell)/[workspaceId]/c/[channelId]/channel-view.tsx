@@ -120,6 +120,7 @@ export function ChannelView({ params, userId }: Props) {
     <>
       <ChannelHeader channel={channel} channelId={channelId} />
       <MessageList
+        key={channelId}
         messages={messages}
         currentUserId={userId}
         hasNextPage={hasNextPage}

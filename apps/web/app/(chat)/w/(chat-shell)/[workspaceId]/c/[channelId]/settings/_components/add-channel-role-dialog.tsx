@@ -13,8 +13,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { WorkspaceRole } from '../../../../../../_libs/workspace-roles';
-import { useAssignRoleToChannel } from '../../../../../../_hooks/use-workspace-roles';
+import type { WorkspaceRole } from '../../../../../../../_libs/workspace-roles';
+import { useAssignRoleToChannel } from '../../../../../../../_hooks/use-workspace-roles';
 
 export function AddChannelRoleDialog({
   workspaceId,

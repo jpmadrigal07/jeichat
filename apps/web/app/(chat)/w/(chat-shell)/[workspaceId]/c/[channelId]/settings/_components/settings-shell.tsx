@@ -6,7 +6,7 @@ import { ArrowLeft, Info, Shield, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useChannels } from '../../../../../../_hooks/use-channels';
+import { useChannels } from '../../../../../../../_hooks/use-channels';
 
 type NavItem = {
   href: string;

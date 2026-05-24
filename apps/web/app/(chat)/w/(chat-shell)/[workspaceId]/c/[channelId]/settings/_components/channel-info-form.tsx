@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   useChannels,
   useUpdateChannel,
-} from '../../../../../../_hooks/use-channels';
+} from '../../../../../../../_hooks/use-channels';
 
 export function ChannelInfoForm({
   workspaceId,

@@ -3,19 +3,19 @@
 import { Shield, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { PermissionToggle } from '../../../../../../_components/permission-toggle';
+import { PermissionToggle } from '../../../../../../../_components/permission-toggle';
 import {
   ALL_PERMISSIONS,
   type Permission,
-} from '../../../../../../_helpers/permissions';
-import { useWorkspaces } from '../../../../../../_hooks/use-workspaces';
-import { useChannels } from '../../../../../../_hooks/use-channels';
+} from '../../../../../../../_helpers/permissions';
+import { useWorkspaces } from '../../../../../../../_hooks/use-workspaces';
+import { useChannels } from '../../../../../../../_hooks/use-channels';
 import {
   useWorkspaceRoles,
   useChannelRolePermissions,
   useRemoveRoleFromChannel,
   useSetRoleChannelPermissions,
-} from '../../../../../../_hooks/use-workspace-roles';
+} from '../../../../../../../_hooks/use-workspace-roles';
 import { AddChannelRoleDialog } from './add-channel-role-dialog';
 
 export function ChannelPermissionsPanel({

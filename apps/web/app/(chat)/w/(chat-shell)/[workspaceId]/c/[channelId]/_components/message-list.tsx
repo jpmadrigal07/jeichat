@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Loader2 } from 'lucide-react';
 import { MessageItem } from './message-item';
@@ -76,9 +76,15 @@ export function MessageList({
   const parentRef = useRef<HTMLDivElement>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const items = buildListItems(messages);
-  const wasAtBottomRef = useRef(true);
-  const prevItemCountRef = useRef(items.length);
+  const stickToBottomRef = useRef(true);
+  const isInitialPinRef = useRef(true);
+  const isAutoScrollingRef = useRef(false);
+  const userHasScrolledRef = useRef(false);
+  const prevItemCountRef = useRef(0);
   const prevEditingMessageIdRef = useRef<string | null>(null);
+  const pinFrameRef = useRef<number | null>(null);
+  const itemCountRef = useRef(items.length);
+  itemCountRef.current = items.length;
 
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -97,7 +103,22 @@ export function MessageList({
     },
     overscan: 10,
     useAnimationFrameWithResizeObserver: true,
+    onChange: (instance) => {
+      if (!isInitialPinRef.current || itemCountRef.current === 0) return;
+      instance.scrollToIndex(itemCountRef.current - 1, { align: 'end' });
+    },
   });
+
+  const totalSize = virtualizer.getTotalSize();
+
+  const scrollToBottom = useCallback(() => {
+    if (items.length === 0) return;
+    isAutoScrollingRef.current = true;
+    virtualizer.scrollToIndex(items.length - 1, { align: 'end' });
+    requestAnimationFrame(() => {
+      isAutoScrollingRef.current = false;
+    });
+  }, [items.length, virtualizer]);
 
   const remeasureMessageRow = useCallback(
     (messageId: string) => {
@@ -135,31 +156,132 @@ export function MessageList({
     return el.scrollHeight - el.scrollTop - el.clientHeight < 50;
   }, []);
 
+  useLayoutEffect(() => {
+    if (pinFrameRef.current !== null) {
+      cancelAnimationFrame(pinFrameRef.current);
+      pinFrameRef.current = null;
+    }
+
+    if (items.length === 0) {
+      isInitialPinRef.current = true;
+      stickToBottomRef.current = true;
+      userHasScrolledRef.current = false;
+      prevItemCountRef.current = 0;
+      return;
+    }
+
+    if (!isInitialPinRef.current) return;
+
+    let stableFrames = 0;
+    let lastTotalSize = -1;
+    let frames = 0;
+
+    const pinToBottom = () => {
+      if (!isInitialPinRef.current) return;
+
+      scrollToBottom();
+
+      const size = virtualizer.getTotalSize();
+      const atBottom = isAtBottom();
+
+      if (size === lastTotalSize && atBottom) {
+        stableFrames += 1;
+        if (stableFrames >= 3) {
+          isInitialPinRef.current = false;
+          pinFrameRef.current = null;
+          return;
+        }
+      } else {
+        stableFrames = 0;
+        lastTotalSize = size;
+      }
+
+      frames += 1;
+      if (frames >= 90) {
+        isInitialPinRef.current = false;
+        pinFrameRef.current = null;
+        return;
+      }
+
+      pinFrameRef.current = requestAnimationFrame(pinToBottom);
+    };
+
+    pinFrameRef.current = requestAnimationFrame(pinToBottom);
+
+    return () => {
+      if (pinFrameRef.current !== null) {
+        cancelAnimationFrame(pinFrameRef.current);
+        pinFrameRef.current = null;
+      }
+    };
+  }, [items.length, totalSize, scrollToBottom, isAtBottom, virtualizer]);
+
   useEffect(() => {
-    if (items.length > prevItemCountRef.current && wasAtBottomRef.current) {
-      virtualizer.scrollToIndex(items.length - 1, { align: 'end' });
+    if (
+      items.length > prevItemCountRef.current &&
+      stickToBottomRef.current &&
+      !isInitialPinRef.current
+    ) {
+      scrollToBottom();
     }
     prevItemCountRef.current = items.length;
-  }, [items.length, virtualizer]);
+  }, [items.length, scrollToBottom]);
 
   useEffect(() => {
     const el = parentRef.current;
     if (!el) return;
+
+    const releasePin = () => {
+      isInitialPinRef.current = false;
+      stickToBottomRef.current = false;
+      userHasScrolledRef.current = true;
+      if (pinFrameRef.current !== null) {
+        cancelAnimationFrame(pinFrameRef.current);
+        pinFrameRef.current = null;
+      }
+    };
+
+    const handleWheel = (event: WheelEvent) => {
+      if (event.deltaY < 0) {
+        releasePin();
+      } else {
+        userHasScrolledRef.current = true;
+      }
+    };
+
     const handleScroll = () => {
-      wasAtBottomRef.current = isAtBottom();
-      if (el.scrollTop < 100 && hasNextPage && !isFetchingNextPage) {
+      if (isAutoScrollingRef.current) return;
+
+      const atBottom = isAtBottom();
+      stickToBottomRef.current = atBottom;
+
+      if (!atBottom) {
+        isInitialPinRef.current = false;
+        userHasScrolledRef.current = true;
+      } else if (!isInitialPinRef.current) {
+        userHasScrolledRef.current = false;
+      }
+
+      if (
+        userHasScrolledRef.current &&
+        el.scrollTop < 100 &&
+        hasNextPage &&
+        !isFetchingNextPage
+      ) {
         fetchNextPage();
       }
     };
-    el.addEventListener('scroll', handleScroll, { passive: true });
-    return () => el.removeEventListener('scroll', handleScroll);
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage, isAtBottom]);
 
-  useEffect(() => {
-    if (items.length > 0 && prevItemCountRef.current === 0) {
-      virtualizer.scrollToIndex(items.length - 1, { align: 'end' });
-    }
-  }, [items.length, virtualizer]);
+    el.addEventListener('wheel', handleWheel, { passive: true });
+    el.addEventListener('touchstart', releasePin, { passive: true });
+    el.addEventListener('scroll', handleScroll, { passive: true });
+
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+      el.removeEventListener('touchstart', releasePin);
+      el.removeEventListener('scroll', handleScroll);
+    };
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, isAtBottom]);
 
   return (
     <div ref={parentRef} className="flex-1 overflow-y-auto min-h-0">
