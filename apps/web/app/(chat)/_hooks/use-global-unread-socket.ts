@@ -5,7 +5,7 @@ import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { getSocket } from '@/lib/socket';
 import { channelsQueryKey, fetchChannels } from '../_libs/channels';
 import { incrementUnreadCount } from './use-unread-counts';
-import type { Message } from '../w/[workspaceId]/c/[channelId]/_libs/messages';
+import type { Message } from '../w/(chat-shell)/[workspaceId]/c/[channelId]/_libs/messages';
 import type { Workspace } from '../_libs/workspaces';
 
 type UseGlobalUnreadSocketOptions = {

@@ -1,7 +1,7 @@
 'use client';
 
 import { Hash } from 'lucide-react';
-import type { Channel } from '../../../../../_libs/channels';
+import type { Channel } from '../../../../../../_libs/channels';
 import { ExportDialog } from './export-dialog';
 
 type ChannelHeaderProps = {

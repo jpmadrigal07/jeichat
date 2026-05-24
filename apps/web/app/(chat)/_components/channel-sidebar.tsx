@@ -20,7 +20,6 @@ import { useUnreadCounts } from '../_hooks/use-unread-counts';
 import { useWorkspaces } from '../_hooks/use-workspaces';
 import { formatUnreadCount } from '../_helpers/format-unread-count';
 import { CreateChannelDialog } from './create-channel-dialog';
-import { WorkspaceSettingsDialog } from './workspace-settings-dialog';
 import { ChannelSettingsDialog } from './channel-settings-dialog';
 import { UserBar } from './user-bar';
 import { ResizableSidebar } from './resizable-sidebar';
@@ -39,7 +38,6 @@ export function ChannelSidebar({ user }: { user: User }) {
   const { data: workspaces } = useWorkspaces();
   const { data: channels, isLoading } = useChannels(workspaceId ?? '');
   const { data: unreadCounts } = useUnreadCounts(workspaceId ?? '');
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
 
   const activeWorkspace = workspaces?.find((ws) => ws.id === workspaceId);
@@ -69,9 +67,11 @@ export function ChannelSidebar({ user }: { user: User }) {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
-              <Settings />
-              Workspace Settings
+            <DropdownMenuItem asChild>
+              <Link href={`/w/${workspaceId}/settings`}>
+                <Settings />
+                Workspace Settings
+              </Link>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -166,14 +166,6 @@ export function ChannelSidebar({ user }: { user: User }) {
       </ScrollArea>
 
       <UserBar user={user} />
-
-      {activeWorkspace && (
-        <WorkspaceSettingsDialog
-          workspace={activeWorkspace}
-          open={settingsOpen}
-          onOpenChange={setSettingsOpen}
-        />
-      )}
 
       {editingChannel && (
         <ChannelSettingsDialog

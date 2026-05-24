@@ -1,8 +1,8 @@
 'use client';
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useChannels } from '../../../../_hooks/use-channels';
-import { useMarkChannelRead } from '../../../../_hooks/use-unread-counts';
+import { useChannels } from '../../../../../_hooks/use-channels';
+import { useMarkChannelRead } from '../../../../../_hooks/use-unread-counts';
 import {
   useMessages,
   useSendMessage,

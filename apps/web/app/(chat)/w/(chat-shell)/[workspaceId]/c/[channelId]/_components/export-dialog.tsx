@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { fetchExportMarkdown } from '../_libs/export';
-import type { Channel } from '../../../../../_libs/channels';
+import type { Channel } from '../../../../../../_libs/channels';
 
 type ExportDialogProps = {
   channelId: string;

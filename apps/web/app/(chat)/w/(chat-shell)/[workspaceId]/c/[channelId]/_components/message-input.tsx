@@ -4,7 +4,7 @@ import { useRef, useCallback } from 'react';
 import { SendHorizonal } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { chatMessageFooterClass } from '../../../../../_helpers/chat-footer-classes';
+import { chatMessageFooterClass } from '../../../../../../_helpers/chat-footer-classes';
 
 type MessageInputProps = {
   channelName: string | undefined;

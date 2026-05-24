@@ -2,7 +2,7 @@
 
 import { useEffect, useTransition } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useChannels } from '../../_hooks/use-channels';
+import { useChannels } from '../../../_hooks/use-channels';
 
 export default function WorkspacePage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
