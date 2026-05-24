@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { Hash, Plus, ChevronDown, Settings, MoreHorizontal } from 'lucide-react';
@@ -20,10 +19,8 @@ import { useUnreadCounts } from '../_hooks/use-unread-counts';
 import { useWorkspaces } from '../_hooks/use-workspaces';
 import { formatUnreadCount } from '../_helpers/format-unread-count';
 import { CreateChannelDialog } from './create-channel-dialog';
-import { ChannelSettingsDialog } from './channel-settings-dialog';
 import { UserBar } from './user-bar';
 import { ResizableSidebar } from './resizable-sidebar';
-import type { Channel } from '../_libs/channels';
 
 type User = {
   id: string;
@@ -38,7 +35,6 @@ export function ChannelSidebar({ user }: { user: User }) {
   const { data: workspaces } = useWorkspaces();
   const { data: channels, isLoading } = useChannels(workspaceId ?? '');
   const { data: unreadCounts } = useUnreadCounts(workspaceId ?? '');
-  const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
 
   const activeWorkspace = workspaces?.find((ws) => ws.id === workspaceId);
 
@@ -149,11 +145,11 @@ export function ChannelSidebar({ user }: { user: User }) {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-56">
-                        <DropdownMenuItem
-                          onSelect={() => setEditingChannel(channel)}
-                        >
-                          <Settings />
-                          Channel Settings
+                        <DropdownMenuItem asChild>
+                          <Link href={`/w/${workspaceId}/c/${channel.id}/settings`}>
+                            <Settings />
+                            Channel Settings
+                          </Link>
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -166,17 +162,6 @@ export function ChannelSidebar({ user }: { user: User }) {
       </ScrollArea>
 
       <UserBar user={user} />
-
-      {editingChannel && (
-        <ChannelSettingsDialog
-          workspaceId={workspaceId}
-          channel={editingChannel}
-          open={!!editingChannel}
-          onOpenChange={(isOpen) => {
-            if (!isOpen) setEditingChannel(null);
-          }}
-        />
-      )}
     </ResizableSidebar>
   );
 }

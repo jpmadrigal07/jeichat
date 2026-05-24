@@ -2,66 +2,58 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowLeft, Info, Shield, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, Info, Shield, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useWorkspaces } from '../../../../_hooks/use-workspaces';
+import { useChannels } from '../../../../../../_hooks/use-channels';
 
 type NavItem = {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  ownerOnly?: boolean;
+  destructive?: boolean;
 };
 
-export function SettingsShell({
+export function ChannelSettingsShell({
   workspaceId,
+  channelId,
   children,
 }: {
   workspaceId: string;
+  channelId: string;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { data: workspaces, isLoading } = useWorkspaces();
-  const workspace = workspaces?.find((ws) => ws.id === workspaceId);
-  const isOwner = workspace?.role === 'owner';
+  const { data: channels, isLoading } = useChannels(workspaceId);
+  const channel = channels?.find((ch) => ch.id === channelId);
 
   const navItems: NavItem[] = [
     {
-      href: `/w/${workspaceId}/settings/info`,
+      href: `/w/${workspaceId}/c/${channelId}/settings/info`,
       label: 'General',
       icon: Info,
     },
     {
-      href: `/w/${workspaceId}/settings/members`,
-      label: 'Members',
-      icon: Users,
-    },
-    {
-      href: `/w/${workspaceId}/settings/roles`,
-      label: 'Roles',
+      href: `/w/${workspaceId}/c/${channelId}/settings/permissions`,
+      label: 'Permissions',
       icon: Shield,
     },
     {
-      href: `/w/${workspaceId}/settings/delete`,
-      label: 'Delete workspace',
+      href: `/w/${workspaceId}/c/${channelId}/settings/delete`,
+      label: 'Delete channel',
       icon: Trash2,
-      ownerOnly: true,
+      destructive: true,
     },
   ];
-
-  const visibleNavItems = navItems.filter(
-    (item) => !item.ownerOnly || isOwner,
-  );
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <header className="flex h-14 items-center gap-3 border-b px-4">
         <Button variant="ghost" size="icon-sm" asChild>
-          <Link href={`/w/${workspaceId}`}>
+          <Link href={`/w/${workspaceId}/c/${channelId}`}>
             <ArrowLeft />
-            <span className="sr-only">Back to workspace</span>
+            <span className="sr-only">Back to channel</span>
           </Link>
         </Button>
         <div className="min-w-0">
@@ -70,10 +62,10 @@ export function SettingsShell({
           ) : (
             <>
               <p className="truncate text-sm font-semibold">
-                {workspace?.name ?? 'Workspace'} settings
+                #{channel?.name ?? 'Channel'} settings
               </p>
               <p className="truncate text-xs text-muted-foreground">
-                Manage workspace details, members, and preferences.
+                Update channel details, permissions, or delete it permanently.
               </p>
             </>
           )}
@@ -83,7 +75,7 @@ export function SettingsShell({
       <div className="flex flex-1">
         <aside className="w-56 shrink-0 border-r p-3">
           <nav className="flex flex-col gap-1">
-            {visibleNavItems.map((item) => {
+            {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
 
@@ -96,7 +88,7 @@ export function SettingsShell({
                     isActive
                       ? 'bg-accent font-medium text-accent-foreground'
                       : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
-                    item.ownerOnly && 'text-destructive hover:text-destructive',
+                    item.destructive && 'text-destructive hover:text-destructive',
                   )}
                 >
                   <Icon className="h-4 w-4 shrink-0" />

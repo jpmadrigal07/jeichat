@@ -8,31 +8,31 @@ import { DrizzleService } from '../database/drizzle.service';
 import { channels, messages } from '../database/schema';
 import { user } from '../database/schema/auth';
 import { ChatGateway } from '../gateway/chat.gateway';
-import { WorkspacesService } from '../workspaces/workspaces.service';
+import { PERMISSIONS } from '../workspaces/permissions';
+import { WorkspacePermissionsService } from '../workspaces/workspace-permissions.service';
 
 @Injectable()
 export class MessagesService {
   constructor(
     private readonly drizzle: DrizzleService,
-    private readonly workspacesService: WorkspacesService,
+    private readonly workspacePermissionsService: WorkspacePermissionsService,
     private readonly chatGateway: ChatGateway,
   ) {}
 
-  private async verifyChannelAccess(channelId: string, userId: string) {
-    const [channel] = await this.drizzle.db
-      .select()
-      .from(channels)
-      .where(eq(channels.id, channelId));
-
-    if (!channel) throw new NotFoundException('Channel not found');
-
-    await this.workspacesService.verifyMembership(channel.workspaceId, userId);
-
-    return channel;
+  private async verifyChannelAccess(
+    channelId: string,
+    userId: string,
+    permission: typeof PERMISSIONS.VIEW_CHANNEL | typeof PERMISSIONS.SEND_MESSAGES,
+  ) {
+    return this.workspacePermissionsService.assertChannelPermissionByChannelId(
+      channelId,
+      userId,
+      permission,
+    );
   }
 
   async create(channelId: string, senderId: string, content: string) {
-    await this.verifyChannelAccess(channelId, senderId);
+    await this.verifyChannelAccess(channelId, senderId, PERMISSIONS.SEND_MESSAGES);
 
     const now = new Date();
     const [message] = await this.drizzle.db
@@ -63,7 +63,7 @@ export class MessagesService {
     cursor?: string,
     limit = 50,
   ) {
-    await this.verifyChannelAccess(channelId, userId);
+    await this.verifyChannelAccess(channelId, userId, PERMISSIONS.VIEW_CHANNEL);
 
     const fetchLimit = Math.min(Math.max(limit, 1), 100);
 
@@ -120,7 +120,7 @@ export class MessagesService {
     userId: string,
     content: string,
   ) {
-    await this.verifyChannelAccess(channelId, userId);
+    await this.verifyChannelAccess(channelId, userId, PERMISSIONS.VIEW_CHANNEL);
 
     const [existing] = await this.drizzle.db
       .select()
@@ -150,7 +150,7 @@ export class MessagesService {
   }
 
   async remove(channelId: string, id: string, userId: string) {
-    await this.verifyChannelAccess(channelId, userId);
+    await this.verifyChannelAccess(channelId, userId, PERMISSIONS.VIEW_CHANNEL);
 
     const [existing] = await this.drizzle.db
       .select()

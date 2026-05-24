@@ -6,3 +6,6 @@ export * from './channels';
 export * from './messages';
 export * from './workspace-members';
 export * from './channel-reads';
+export * from './workspace-roles';
+export * from './workspace-role-members';
+export * from './role-channel-permissions';

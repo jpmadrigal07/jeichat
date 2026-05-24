@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { and, eq, sql } from 'drizzle-orm';
 import { DrizzleService } from '../database/drizzle.service';
@@ -12,10 +14,15 @@ import {
   workspaceMembers,
   user,
 } from '../database/schema';
+import { WorkspaceRolesService } from './workspace-roles.service';
 
 @Injectable()
 export class WorkspacesService {
-  constructor(private readonly drizzle: DrizzleService) {}
+  constructor(
+    private readonly drizzle: DrizzleService,
+    @Inject(forwardRef(() => WorkspaceRolesService))
+    private readonly workspaceRolesService: WorkspaceRolesService,
+  ) {}
 
   async create(name: string, icon: string | null, userId: string) {
     const id = crypto.randomUUID();
@@ -43,6 +50,8 @@ export class WorkspacesService {
       role: 'owner',
       joinedAt: now,
     });
+
+    await this.workspaceRolesService.ensureDefaultAdministratorRole(id, userId);
 
     return workspace;
   }

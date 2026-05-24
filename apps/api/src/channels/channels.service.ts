@@ -6,6 +6,8 @@ import {
 import { and, count, eq, gt, inArray, isNull, ne, or } from 'drizzle-orm';
 import { DrizzleService } from '../database/drizzle.service';
 import { channelReads, channels, messages } from '../database/schema';
+import { PERMISSIONS } from '../workspaces/permissions';
+import { WorkspacePermissionsService } from '../workspaces/workspace-permissions.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 
 @Injectable()
@@ -13,6 +15,7 @@ export class ChannelsService {
   constructor(
     private readonly drizzle: DrizzleService,
     private readonly workspacesService: WorkspacesService,
+    private readonly workspacePermissionsService: WorkspacePermissionsService,
   ) {}
 
   async create(
@@ -42,10 +45,19 @@ export class ChannelsService {
   async findAll(workspaceId: string, userId: string) {
     await this.workspacesService.verifyMembership(workspaceId, userId);
 
-    return this.drizzle.db
+    const allChannels = await this.drizzle.db
       .select()
       .from(channels)
       .where(eq(channels.workspaceId, workspaceId));
+
+    const viewableIds =
+      await this.workspacePermissionsService.filterViewableChannelIds(
+        workspaceId,
+        userId,
+        allChannels.map((channel) => channel.id),
+      );
+
+    return allChannels.filter((channel) => viewableIds.has(channel.id));
   }
 
   async findOne(workspaceId: string, id: string, userId: string) {
@@ -58,6 +70,15 @@ export class ChannelsService {
 
     if (!channel) throw new NotFoundException('Channel not found');
 
+    const canView = await this.workspacePermissionsService.hasChannelPermission(
+      workspaceId,
+      id,
+      userId,
+      PERMISSIONS.VIEW_CHANNEL,
+    );
+
+    if (!canView) throw new NotFoundException('Channel not found');
+
     return channel;
   }
 
@@ -67,14 +88,13 @@ export class ChannelsService {
     userId: string,
     data: { name?: string; description?: string | null },
   ) {
-    await this.workspacesService.verifyMembership(workspaceId, userId);
-
-    const [existing] = await this.drizzle.db
-      .select()
-      .from(channels)
-      .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)));
-
-    if (!existing) throw new NotFoundException('Channel not found');
+    await this.findOne(workspaceId, id, userId);
+    await this.workspacePermissionsService.assertChannelPermission(
+      workspaceId,
+      id,
+      userId,
+      PERMISSIONS.MANAGE_CHANNEL,
+    );
 
     const [channel] = await this.drizzle.db
       .update(channels)
@@ -88,10 +108,7 @@ export class ChannelsService {
   async getUnreadCounts(workspaceId: string, userId: string) {
     await this.workspacesService.verifyMembership(workspaceId, userId);
 
-    const workspaceChannels = await this.drizzle.db
-      .select({ id: channels.id })
-      .from(channels)
-      .where(eq(channels.workspaceId, workspaceId));
+    const workspaceChannels = await this.findAll(workspaceId, userId);
 
     const channelIds = workspaceChannels.map((channel) => channel.id);
     if (channelIds.length === 0) return {};
@@ -147,14 +164,13 @@ export class ChannelsService {
   }
 
   async remove(workspaceId: string, id: string, userId: string) {
-    await this.workspacesService.verifyMembership(workspaceId, userId);
-
-    const [existing] = await this.drizzle.db
-      .select()
-      .from(channels)
-      .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)));
-
-    if (!existing) throw new NotFoundException('Channel not found');
+    await this.findOne(workspaceId, id, userId);
+    await this.workspacePermissionsService.assertChannelPermission(
+      workspaceId,
+      id,
+      userId,
+      PERMISSIONS.MANAGE_CHANNEL,
+    );
 
     const allChannels = await this.drizzle.db
       .select({ id: channels.id })

@@ -9,6 +9,8 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { auth } from '../auth/auth';
+import { PERMISSIONS } from '../workspaces/permissions';
+import { WorkspacePermissionsService } from '../workspaces/workspace-permissions.service';
 
 interface AuthenticatedSocket extends Socket {
   data: { userId: string; userName: string };
@@ -25,6 +27,10 @@ interface AuthenticatedSocket extends Socket {
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
+
+  constructor(
+    private readonly workspacePermissionsService: WorkspacePermissionsService,
+  ) {}
 
   async handleConnection(client: AuthenticatedSocket) {
     const cookieHeader = client.handshake.headers.cookie;
@@ -49,10 +55,21 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleDisconnect() {}
 
   @SubscribeMessage('join_channel')
-  handleJoinChannel(
+  async handleJoinChannel(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() payload: { channelId: string },
   ) {
+    const allowed = await this.workspacePermissionsService
+      .assertChannelPermissionByChannelId(
+        payload.channelId,
+        client.data.userId,
+        PERMISSIONS.VIEW_CHANNEL,
+      )
+      .then(() => true)
+      .catch(() => false);
+
+    if (!allowed) return;
+
     client.join(`channel:${payload.channelId}`);
   }
 
@@ -65,10 +82,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('typing')
-  handleTyping(
+  async handleTyping(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() payload: { channelId: string },
   ) {
+    const allowed = await this.workspacePermissionsService
+      .assertChannelPermissionByChannelId(
+        payload.channelId,
+        client.data.userId,
+        PERMISSIONS.VIEW_CHANNEL,
+      )
+      .then(() => true)
+      .catch(() => false);
+
+    if (!allowed) return;
     client.to(`channel:${payload.channelId}`).emit('user_typing', {
       channelId: payload.channelId,
       userId: client.data.userId,
