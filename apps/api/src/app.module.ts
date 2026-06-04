@@ -12,6 +12,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
 import { ChannelsModule } from './channels/channels.module';
 import { MessagesModule } from './messages/messages.module';
 import { StorageModule } from './storage/storage.module';
+import { AttachmentsModule } from './attachments/attachments.module';
 
 // Load .env from repo root (works from apps/api/dist or apps/api/src) or cwd
 const envFilePath =
@@ -35,6 +36,7 @@ const envFilePath =
     ChannelsModule,
     MessagesModule,
     ExportModule,
+    AttachmentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

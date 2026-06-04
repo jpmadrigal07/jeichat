@@ -138,7 +138,7 @@ export function ChannelView({ params, userId }: Props) {
         channelName={channel?.name}
         onSend={handleSend}
         onTyping={emitTyping}
-        disabled={sendMutation.isPending}
+        sendDisabled={sendMutation.isPending}
       />
     </>
   );
