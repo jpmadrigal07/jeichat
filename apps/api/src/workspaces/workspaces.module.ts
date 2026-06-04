@@ -7,7 +7,15 @@ import { WorkspacePermissionsService } from './workspace-permissions.service';
 
 @Module({
   controllers: [WorkspacesController, WorkspaceRolesController],
-  providers: [WorkspacesService, WorkspaceRolesService, WorkspacePermissionsService],
-  exports: [WorkspacesService, WorkspaceRolesService, WorkspacePermissionsService],
+  providers: [
+    WorkspacesService,
+    WorkspaceRolesService,
+    WorkspacePermissionsService,
+  ],
+  exports: [
+    WorkspacesService,
+    WorkspaceRolesService,
+    WorkspacePermissionsService,
+  ],
 })
 export class WorkspacesModule {}

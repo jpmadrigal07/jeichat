@@ -46,10 +46,7 @@ export class ChannelsController {
     @Param('workspaceId') workspaceId: string,
     @Session() session: UserSession<typeof auth>,
   ) {
-    return this.channelsService.getUnreadCounts(
-      workspaceId,
-      session.user.id,
-    );
+    return this.channelsService.getUnreadCounts(workspaceId, session.user.id);
   }
 
   @Post(':id/read')
@@ -58,11 +55,7 @@ export class ChannelsController {
     @Param('id') id: string,
     @Session() session: UserSession<typeof auth>,
   ) {
-    return this.channelsService.markAsRead(
-      workspaceId,
-      id,
-      session.user.id,
-    );
+    return this.channelsService.markAsRead(workspaceId, id, session.user.id);
   }
 
   @Post(':id/role-permissions')

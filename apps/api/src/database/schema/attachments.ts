@@ -1,10 +1,4 @@
-import {
-  bigint,
-  index,
-  pgTable,
-  text,
-  timestamp,
-} from 'drizzle-orm/pg-core';
+import { bigint, index, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import { channels } from './channels';
 import { messages } from './messages';
 import { user } from './auth';

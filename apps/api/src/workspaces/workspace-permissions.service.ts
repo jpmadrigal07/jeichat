@@ -37,7 +37,9 @@ export class WorkspacePermissionsService {
     );
 
     if (!allowed) {
-      throw new ForbiddenException('You do not have permission for this channel');
+      throw new ForbiddenException(
+        'You do not have permission for this channel',
+      );
     }
   }
 

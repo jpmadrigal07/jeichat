@@ -14,10 +14,7 @@ export type StorageConfig = {
 
 export const STORAGE_CONFIG = Symbol('STORAGE_CONFIG');
 
-function parsePositiveInt(
-  value: string | undefined,
-  fallback: number,
-): number {
+function parsePositiveInt(value: string | undefined, fallback: number): number {
   if (value === undefined || value.trim() === '') {
     return fallback;
   }

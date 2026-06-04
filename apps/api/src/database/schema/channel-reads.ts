@@ -11,8 +11,7 @@ export const channelReads = pgTable(
     channelId: text('channel_id')
       .notNull()
       .references(() => channels.id, { onDelete: 'cascade' }),
-    lastReadAt: timestamp('last_read_at', { withTimezone: true })
-      .notNull(),
+    lastReadAt: timestamp('last_read_at', { withTimezone: true }).notNull(),
   },
   (table) => [primaryKey({ columns: [table.userId, table.channelId] })],
 );

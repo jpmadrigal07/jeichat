@@ -231,9 +231,7 @@ export class WorkspaceRolesService {
     );
 
     return roles
-      .filter(
-        (role) => role.isAdministrator || permsByRoleId.has(role.id),
-      )
+      .filter((role) => role.isAdministrator || permsByRoleId.has(role.id))
       .map((role) => {
         const row = permsByRoleId.get(role.id);
         return {
@@ -398,7 +396,9 @@ export class WorkspaceRolesService {
     const role = await this.getRoleInWorkspace(workspaceId, roleId);
 
     if (role.isDefault && payload.name && payload.name !== role.name) {
-      throw new ForbiddenException('Cannot rename the default Administrator role');
+      throw new ForbiddenException(
+        'Cannot rename the default Administrator role',
+      );
     }
 
     const updates: Partial<typeof workspaceRoles.$inferInsert> = {};
@@ -438,7 +438,9 @@ export class WorkspaceRolesService {
     const role = await this.getRoleInWorkspace(workspaceId, roleId);
 
     if (role.isDefault) {
-      throw new ForbiddenException('Cannot delete the default Administrator role');
+      throw new ForbiddenException(
+        'Cannot delete the default Administrator role',
+      );
     }
 
     await this.drizzle.db

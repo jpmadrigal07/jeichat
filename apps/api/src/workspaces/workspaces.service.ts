@@ -32,7 +32,14 @@ export class WorkspacesService {
 
     const [workspace] = await this.drizzle.db
       .insert(workspaces)
-      .values({ id, name, icon, ownerId: userId, createdAt: now, updatedAt: now })
+      .values({
+        id,
+        name,
+        icon,
+        ownerId: userId,
+        createdAt: now,
+        updatedAt: now,
+      })
       .returning();
 
     await this.drizzle.db.insert(channels).values({

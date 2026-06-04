@@ -48,9 +48,9 @@ export class ExportService {
       .where(and(...conditions))
       .orderBy(asc(messages.createdAt));
 
-    const content = this.buildMarkdown(workspace!, channel, rows, from, to);
+    const content = this.buildMarkdown(workspace, channel, rows, from, to);
     const date = new Date().toISOString().slice(0, 10);
-    const filename = `${workspace!.name}-${channel.name}-${date}.md`;
+    const filename = `${workspace.name}-${channel.name}-${date}.md`;
 
     return { content, filename };
   }
@@ -73,8 +73,12 @@ export class ExportService {
     }
 
     const today = new Date().toISOString().slice(0, 10);
-    const dateRangeFrom = from ? from.slice(0, 10) : (rows[0]?.createdAt.toISOString().slice(0, 10) ?? today);
-    const dateRangeTo = to ? to.slice(0, 10) : (rows[rows.length - 1]?.createdAt.toISOString().slice(0, 10) ?? today);
+    const dateRangeFrom = from
+      ? from.slice(0, 10)
+      : (rows[0]?.createdAt.toISOString().slice(0, 10) ?? today);
+    const dateRangeTo = to
+      ? to.slice(0, 10)
+      : (rows[rows.length - 1]?.createdAt.toISOString().slice(0, 10) ?? today);
 
     lines.push(`**Exported:** ${today}  `);
     lines.push(`**Messages:** ${rows.length}  `);
