@@ -11,7 +11,7 @@ In the Cloudflare dashboard:
    - Access Key ID
    - Secret Access Key
    - Account ID (visible on the R2 overview page)
-3. R2 → Settings → CORS policy. Allow `PUT` and `GET` from the web origin so browsers can upload directly via presigned URLs:
+3. **CORS on the same bucket as `R2_BUCKET`** (not account-wide). In Cloudflare: R2 → your bucket (e.g. `dev-chat`) → **Settings** → **CORS policy** → Edit. Paste:
 
 ```json
 [
@@ -23,6 +23,14 @@ In the Cloudflare dashboard:
     "MaxAgeSeconds": 3600
   }
 ]
+```
+
+Save, then hard-refresh the web app. Without this, presign succeeds but the browser PUT fails with **OPTIONS 403** / **CORS error** in DevTools (no `Access-Control-Allow-Origin` on the R2 response).
+
+If preflight still fails in dev, widen headers temporarily:
+
+```json
+"AllowedHeaders": ["*"]
 ```
 
 4. Decide on the public download strategy. Pick one:
@@ -96,6 +104,28 @@ Register `StorageModule` as **global** in `app.module.ts` so any feature module 
 ## 1.5 Boot-time validation
 
 In `storage.config.ts`, fail fast if any of `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` are missing. Log a clear message — the rest of the feature is dead weight without these.
+
+## 1.6 Troubleshooting — DevTools CORS / OPTIONS 403
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `presign` → 201, then OPTIONS → **403**, PUT → **CORS error** | CORS not set on the bucket named in `R2_BUCKET` | Add the policy in §1.1 step 3 on **that** bucket |
+| `No 'Access-Control-Allow-Origin' header` | Same — R2 rejected the preflight | Confirm origin is exactly `http://localhost:3000` (no trailing slash) |
+| `Access-Control-Request-Headers: content-type` blocked | `content-type` not in `AllowedHeaders` | Add `content-type` or use `"*"` for local dev |
+
+`curl` uploads from the terminal do **not** use CORS; only the browser does. A working presign API does not mean browser uploads work until bucket CORS is configured.
+
+## Troubleshooting — broken images / `ERR_NAME_NOT_RESOLVED`
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Chat image broken; DevTools **`net::ERR_NAME_NOT_RESOLVED`** on `https://pub-….r2.dev/...` | `R2_PUBLIC_URL` points at an R2 **Public Development URL** that is disabled or stale (hostname is **NXDOMAIN**) | **Recommended:** leave `R2_PUBLIC_URL` empty in `.env` and restart the API — downloads use short-lived **presigned GET** URLs (private bucket, no `pub-*.r2.dev` needed). **Or:** R2 → bucket → **Public Development URL** → Enable, copy the new URL into `R2_PUBLIC_URL`, restart API |
+| “Provisional headers are shown”, empty response headers, same `pub-….r2.dev` host | Same DNS failure — request never reaches R2 | Same as above; this is **not** fixed by CORS |
+| Upload works, **display** fails, URL host is `*.r2.cloudflarestorage.com` with query params | Unrelated to public URL; check presign expiry or `GET /attachments/:id/download-url` errors | Refetch in UI (TanStack Query); confirm attachment `status` is `uploaded` |
+
+CORS on the bucket affects **browser PUT** (upload) and `fetch()` to R2. It does **not** cause `ERR_NAME_NOT_RESOLVED`. Inline `<img src="…">` does not need CORS on GET when the URL is reachable.
+
+When `R2_PUBLIC_URL` is set, `StorageService.presignDownload()` returns `{R2_PUBLIC_URL}/{storageKey}` instead of signing a GET URL — so a disabled public dev URL breaks every attachment preview.
 
 ## Verification
 

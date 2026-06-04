@@ -15,6 +15,7 @@ import { ChannelHeader } from './_components/channel-header';
 import { MessageList } from './_components/message-list';
 import { MessageInput } from './_components/message-input';
 import { TypingIndicator } from './_components/typing-indicator';
+import { ChannelAttachmentLightbox } from './_components/channel-attachment-lightbox';
 import { ChannelDropZone } from './_components/channel-drop-overlay';
 import { useAttachmentUploads } from './_hooks/use-attachment-uploads';
 import { usePasteAttachments } from './_hooks/use-paste-attachments';
@@ -129,6 +130,7 @@ export function ChannelView({ params, userId }: Props) {
   return (
     <>
       <ChannelHeader channel={channel} channelId={channelId} />
+      <ChannelAttachmentLightbox />
       <ChannelDropZone
         onAdd={uploads.addFiles}
         className="relative flex min-h-0 flex-1 flex-col"
