@@ -17,6 +17,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import type { Message } from '../_libs/messages';
+import { MessageAttachments } from './message-attachments';
 
 type MessageItemProps = {
   message: Message;
@@ -116,9 +117,14 @@ export function MessageItem({
             </div>
           </div>
         ) : (
-          <p className="text-sm whitespace-pre-wrap break-words">
-            {message.content}
-          </p>
+          <>
+            {message.content ? (
+              <p className="text-sm whitespace-pre-wrap break-words">
+                {message.content}
+              </p>
+            ) : null}
+            <MessageAttachments attachments={message.attachments} />
+          </>
         )}
       </div>
 

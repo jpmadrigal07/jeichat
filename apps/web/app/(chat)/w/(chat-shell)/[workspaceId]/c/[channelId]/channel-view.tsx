@@ -15,6 +15,9 @@ import { ChannelHeader } from './_components/channel-header';
 import { MessageList } from './_components/message-list';
 import { MessageInput } from './_components/message-input';
 import { TypingIndicator } from './_components/typing-indicator';
+import { ChannelDropZone } from './_components/channel-drop-overlay';
+import { useAttachmentUploads } from './_hooks/use-attachment-uploads';
+import { usePasteAttachments } from './_hooks/use-paste-attachments';
 import { Skeleton } from '@/components/ui/skeleton';
 
 type Props = {
@@ -38,6 +41,8 @@ export function ChannelView({ params, userId }: Props) {
   const sendMutation = useSendMessage(channelId);
   const editMutation = useEditMessage(channelId);
   const deleteMutation = useDeleteMessage(channelId);
+  const uploads = useAttachmentUploads(channelId);
+  usePasteAttachments(uploads.addFiles);
   const { mutate: markChannelRead } = useMarkChannelRead(workspaceId);
 
   useEffect(() => {
@@ -87,8 +92,11 @@ export function ChannelView({ params, userId }: Props) {
     [typingUsers],
   );
 
-  function handleSend(content: string) {
-    sendMutation.mutate(content);
+  function handleSend(content: string, attachmentIds: string[]) {
+    sendMutation.mutate(
+      { content, attachmentIds },
+      { onSuccess: () => uploads.reset() },
+    );
   }
 
   function handleEdit(messageId: string, content: string) {
@@ -121,7 +129,10 @@ export function ChannelView({ params, userId }: Props) {
   return (
     <>
       <ChannelHeader channel={channel} channelId={channelId} />
-      <div className="relative flex min-h-0 flex-1 flex-col">
+      <ChannelDropZone
+        onAdd={uploads.addFiles}
+        className="relative flex min-h-0 flex-1 flex-col"
+      >
         <MessageList
           key={channelId}
           messages={messages}
@@ -133,13 +144,14 @@ export function ChannelView({ params, userId }: Props) {
           onDelete={handleDelete}
         />
         <TypingIndicator users={typingNames} />
-      </div>
-      <MessageInput
-        channelName={channel?.name}
-        onSend={handleSend}
-        onTyping={emitTyping}
-        sendDisabled={sendMutation.isPending}
-      />
+        <MessageInput
+          channelName={channel?.name}
+          onSend={handleSend}
+          onTyping={emitTyping}
+          sendDisabled={sendMutation.isPending}
+          uploads={uploads}
+        />
+      </ChannelDropZone>
     </>
   );
 }
