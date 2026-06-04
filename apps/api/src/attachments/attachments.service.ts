@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
@@ -14,7 +15,11 @@ import { WorkspacePermissionsService } from '../workspaces/workspace-permissions
 import {
   buildStorageKey,
   extensionForContentType,
+  sanitizeContentDispositionFilename,
+  sanitizeFilename,
+  shouldForceDownloadDisposition,
 } from './attachments.helpers';
+import { AttachmentsRateLimitService } from './attachments-rate-limit.service';
 import type { PresignUploadDto } from './dto/presign-upload.dto';
 import type {
   DownloadUrlResponseDto,
@@ -23,10 +28,13 @@ import type {
 
 @Injectable()
 export class AttachmentsService {
+  private readonly logger = new Logger(AttachmentsService.name);
+
   constructor(
     private readonly drizzle: DrizzleService,
     private readonly storage: StorageService,
     private readonly workspacePermissions: WorkspacePermissionsService,
+    private readonly rateLimit: AttachmentsRateLimitService,
     @Inject(STORAGE_CONFIG) private readonly storageConfig: StorageConfig,
   ) {}
 
@@ -34,6 +42,8 @@ export class AttachmentsService {
     userId: string,
     dto: PresignUploadDto,
   ): Promise<PresignUploadResponseDto> {
+    await this.rateLimit.assertWithinLimit(userId);
+
     const channel =
       await this.workspacePermissions.assertChannelPermissionByChannelId(
         dto.channelId,
@@ -51,19 +61,20 @@ export class AttachmentsService {
       throw new BadRequestException(`File too large (max ${maxBytes} bytes)`);
     }
 
-    const { id, key } = buildStorageKey(
-      channel.workspaceId,
-      dto.channelId,
-      ext,
+    const safeFilename = sanitizeFilename(dto.filename);
+    const { id, key } = buildStorageKey(channel.workspaceId, channel.id, ext);
+
+    this.logger.log(
+      `Presign request userId=${userId} channelId=${channel.id} contentType=${dto.contentType} sizeBytes=${dto.sizeBytes}`,
     );
 
     await this.drizzle.db.insert(attachments).values({
       id,
       workspaceId: channel.workspaceId,
-      channelId: dto.channelId,
+      channelId: channel.id,
       uploaderId: userId,
       storageKey: key,
-      filename: dto.filename.slice(0, 255),
+      filename: safeFilename,
       contentType: dto.contentType,
       sizeBytes: dto.sizeBytes,
       status: 'pending',
@@ -94,24 +105,46 @@ export class AttachmentsService {
 
     const head = await this.storage.head(row.storageKey);
     if (!head) {
+      this.logger.warn(
+        `Finalize failed: object missing attachmentId=${attachmentId} storageKey=${row.storageKey}`,
+      );
       throw new BadRequestException('Upload not found in storage');
     }
 
+    const observedType = head.contentType.toLowerCase();
+    const declaredType = row.contentType.toLowerCase();
+    const contentTypePatch =
+      observedType !== declaredType ? { contentType: head.contentType } : {};
+
     if (head.size !== row.sizeBytes) {
+      this.logger.warn(
+        `Finalize size mismatch attachmentId=${attachmentId} declared=${row.sizeBytes} actual=${head.size}`,
+      );
       await this.drizzle.db
         .update(attachments)
-        .set({ sizeBytes: head.size, status: 'uploaded' })
+        .set({ sizeBytes: head.size, status: 'uploaded', ...contentTypePatch })
         .where(eq(attachments.id, attachmentId));
 
-      return { ...row, sizeBytes: head.size, status: 'uploaded' as const };
+      return {
+        ...row,
+        sizeBytes: head.size,
+        status: 'uploaded' as const,
+        ...contentTypePatch,
+      };
+    }
+
+    if (Object.keys(contentTypePatch).length > 0) {
+      this.logger.warn(
+        `Finalize content-type mismatch attachmentId=${attachmentId} declared=${row.contentType} actual=${head.contentType}`,
+      );
     }
 
     await this.drizzle.db
       .update(attachments)
-      .set({ status: 'uploaded' })
+      .set({ status: 'uploaded', ...contentTypePatch })
       .where(eq(attachments.id, attachmentId));
 
-    return { ...row, status: 'uploaded' as const };
+    return { ...row, status: 'uploaded' as const, ...contentTypePatch };
   }
 
   async getDownloadUrl(
@@ -133,7 +166,15 @@ export class AttachmentsService {
       PERMISSIONS.VIEW_CHANNEL,
     );
 
-    const url = await this.storage.presignDownload(row.storageKey);
+    const forceDownload = shouldForceDownloadDisposition(row.contentType);
+    const contentDisposition = forceDownload
+      ? `attachment; filename="${sanitizeContentDispositionFilename(row.filename)}"`
+      : undefined;
+
+    const url = await this.storage.presignDownload(row.storageKey, {
+      contentType: row.contentType,
+      contentDisposition,
+    });
 
     return {
       url,

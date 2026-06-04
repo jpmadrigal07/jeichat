@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { sanitizeFilename } from '../attachments.helpers';
 
 export class PresignUploadDto {
   channelId!: string;
@@ -43,7 +44,7 @@ export function validatePresignUploadDto(body: unknown): PresignUploadDto {
 
   return {
     channelId: channelId.trim(),
-    filename: filename.trim(),
+    filename: sanitizeFilename(filename.trim()),
     contentType: contentType.trim(),
     sizeBytes,
   };

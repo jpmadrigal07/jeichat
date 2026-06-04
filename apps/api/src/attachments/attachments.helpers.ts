@@ -31,6 +31,27 @@ export function extensionForContentType(contentType: string): string | null {
   return ATTACHMENT_MIME_ALLOWLIST[contentType.toLowerCase()] ?? null;
 }
 
+/** Strip control characters; truncate for DB display. */
+export function sanitizeFilename(filename: string): string {
+  const cleaned = filename.replace(/[\x00-\x1f\x7f]/g, '').trim();
+  return (cleaned.length > 0 ? cleaned : 'file').slice(0, 255);
+}
+
+/** Safe filename for `Content-Disposition` on presigned GET URLs. */
+export function sanitizeContentDispositionFilename(filename: string): string {
+  return sanitizeFilename(filename).replace(/["\\]/g, '_');
+}
+
+const INLINE_RENDERABLE_PREFIXES = ['image/', 'video/', 'audio/'] as const;
+
+/** Documents and archives force download; media the UI embeds may render inline. */
+export function shouldForceDownloadDisposition(contentType: string): boolean {
+  const normalized = contentType.toLowerCase();
+  return !INLINE_RENDERABLE_PREFIXES.some((prefix) =>
+    normalized.startsWith(prefix),
+  );
+}
+
 export function buildStorageKey(
   workspaceId: string,
   channelId: string,

@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AuthIntegrationModule } from './auth/auth.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -28,6 +29,7 @@ const envFilePath =
       isGlobal: true,
       envFilePath,
     }),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     StorageModule,
     AuthIntegrationModule,

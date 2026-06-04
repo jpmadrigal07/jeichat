@@ -48,7 +48,13 @@ export class StorageService {
     });
   }
 
-  async presignDownload(key: string): Promise<string> {
+  async presignDownload(
+    key: string,
+    options?: {
+      contentType?: string;
+      contentDisposition?: string;
+    },
+  ): Promise<string> {
     if (this.config.publicUrl) {
       const base = this.config.publicUrl.replace(/\/$/, '');
       return `${base}/${key}`;
@@ -57,6 +63,12 @@ export class StorageService {
     const command = new GetObjectCommand({
       Bucket: this.config.bucket,
       Key: key,
+      ...(options?.contentType
+        ? { ResponseContentType: options.contentType }
+        : {}),
+      ...(options?.contentDisposition
+        ? { ResponseContentDisposition: options.contentDisposition }
+        : {}),
     });
 
     return getSignedUrl(this.client, command, {
