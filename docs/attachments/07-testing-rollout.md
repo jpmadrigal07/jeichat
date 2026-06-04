@@ -58,6 +58,12 @@ E2E tests using the existing Jest setup. Cover at least:
 
 Stub `StorageService` in the e2e module so tests don't hit real R2.
 
+Implemented in `apps/api/test/attachments.e2e-spec.ts`. Run:
+
+```bash
+cd apps/api && bun run test:e2e:attachments
+```
+
 ### Web
 
 Light coverage — TanStack Query hooks and the upload state machine. Use Vitest if it's already wired; otherwise rely on the manual matrix above for v1.
