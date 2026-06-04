@@ -1,15 +1,24 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, desc, eq, lt, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt, or } from 'drizzle-orm';
 import { DrizzleService } from '../database/drizzle.service';
-import { channels, messages } from '../database/schema';
+import { attachments, messages } from '../database/schema';
 import { user } from '../database/schema/auth';
 import { ChatGateway } from '../gateway/chat.gateway';
+import { StorageService } from '../storage/storage.service';
 import { PERMISSIONS } from '../workspaces/permissions';
 import { WorkspacePermissionsService } from '../workspaces/workspace-permissions.service';
+
+export type MessageAttachmentPublic = {
+  id: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+};
 
 @Injectable()
 export class MessagesService {
@@ -17,12 +26,15 @@ export class MessagesService {
     private readonly drizzle: DrizzleService,
     private readonly workspacePermissionsService: WorkspacePermissionsService,
     private readonly chatGateway: ChatGateway,
+    private readonly storage: StorageService,
   ) {}
 
   private async verifyChannelAccess(
     channelId: string,
     userId: string,
-    permission: typeof PERMISSIONS.VIEW_CHANNEL | typeof PERMISSIONS.SEND_MESSAGES,
+    permission:
+      | typeof PERMISSIONS.VIEW_CHANNEL
+      | typeof PERMISSIONS.SEND_MESSAGES,
   ) {
     return this.workspacePermissionsService.assertChannelPermissionByChannelId(
       channelId,
@@ -31,30 +43,132 @@ export class MessagesService {
     );
   }
 
-  async create(channelId: string, senderId: string, content: string) {
-    await this.verifyChannelAccess(channelId, senderId, PERMISSIONS.SEND_MESSAGES);
+  private async loadAttachmentsByMessageIds(
+    messageIds: string[],
+  ): Promise<Map<string, MessageAttachmentPublic[]>> {
+    const grouped = new Map<string, MessageAttachmentPublic[]>();
+    if (!messageIds.length) return grouped;
 
+    const attachmentRows = await this.drizzle.db
+      .select({
+        messageId: attachments.messageId,
+        id: attachments.id,
+        filename: attachments.filename,
+        contentType: attachments.contentType,
+        sizeBytes: attachments.sizeBytes,
+      })
+      .from(attachments)
+      .where(inArray(attachments.messageId, messageIds));
+
+    for (const row of attachmentRows) {
+      if (!row.messageId) continue;
+      const list = grouped.get(row.messageId) ?? [];
+      list.push({
+        id: row.id,
+        filename: row.filename,
+        contentType: row.contentType,
+        sizeBytes: row.sizeBytes,
+      });
+      grouped.set(row.messageId, list);
+    }
+
+    return grouped;
+  }
+
+  private async findOneWithAttachments(messageId: string) {
+    const [row] = await this.drizzle.db
+      .select({
+        id: messages.id,
+        channelId: messages.channelId,
+        senderId: messages.senderId,
+        content: messages.content,
+        createdAt: messages.createdAt,
+        updatedAt: messages.updatedAt,
+        sender: {
+          name: user.name,
+          image: user.image,
+        },
+      })
+      .from(messages)
+      .leftJoin(user, eq(messages.senderId, user.id))
+      .where(eq(messages.id, messageId));
+
+    if (!row) throw new NotFoundException('Message not found');
+
+    const grouped = await this.loadAttachmentsByMessageIds([messageId]);
+    return { ...row, attachments: grouped.get(messageId) ?? [] };
+  }
+
+  async create(
+    channelId: string,
+    senderId: string,
+    content: string,
+    attachmentIds: string[] = [],
+  ) {
+    await this.verifyChannelAccess(
+      channelId,
+      senderId,
+      PERMISSIONS.SEND_MESSAGES,
+    );
+
+    if (!content.trim() && attachmentIds.length === 0) {
+      throw new BadRequestException('Empty message');
+    }
+    if (attachmentIds.length > 10) {
+      throw new BadRequestException('Maximum 10 attachments per message');
+    }
+
+    const messageId = crypto.randomUUID();
     const now = new Date();
-    const [message] = await this.drizzle.db
-      .insert(messages)
-      .values({
-        id: crypto.randomUUID(),
+
+    const rows = attachmentIds.length
+      ? await this.drizzle.db
+          .select()
+          .from(attachments)
+          .where(
+            and(
+              inArray(attachments.id, attachmentIds),
+              eq(attachments.uploaderId, senderId),
+              eq(attachments.channelId, channelId),
+            ),
+          )
+      : [];
+
+    if (rows.length !== attachmentIds.length) {
+      throw new BadRequestException('Invalid attachment reference');
+    }
+
+    for (const row of rows) {
+      if (row.messageId) {
+        throw new BadRequestException('Invalid attachment reference');
+      }
+      if (row.status === 'uploaded') continue;
+      const head = await this.storage.head(row.storageKey);
+      if (!head) {
+        throw new BadRequestException(`Attachment ${row.id} not uploaded`);
+      }
+    }
+
+    await this.drizzle.db.transaction(async (tx) => {
+      await tx.insert(messages).values({
+        id: messageId,
         channelId,
         senderId,
         content,
         createdAt: now,
         updatedAt: now,
-      })
-      .returning();
+      });
+      if (rows.length) {
+        await tx
+          .update(attachments)
+          .set({ messageId, status: 'uploaded' })
+          .where(inArray(attachments.id, rows.map((r) => r.id)));
+      }
+    });
 
-    const [sender] = await this.drizzle.db
-      .select({ name: user.name, image: user.image })
-      .from(user)
-      .where(eq(user.id, senderId));
-
-    const result = { ...message, sender };
-    this.chatGateway.emitNewMessage(channelId, result);
-    return result;
+    const message = await this.findOneWithAttachments(messageId);
+    this.chatGateway.emitNewMessage(channelId, message);
+    return message;
   }
 
   async findAll(
@@ -107,19 +221,20 @@ export class MessagesService {
     const data = hasMore ? rows.slice(0, fetchLimit) : rows;
     const last = data[data.length - 1];
     const nextCursor =
-      hasMore && last
-        ? `${last.createdAt.toISOString()}_${last.id}`
-        : null;
+      hasMore && last ? `${last.createdAt.toISOString()}_${last.id}` : null;
 
-    return { data, nextCursor };
+    const grouped = await this.loadAttachmentsByMessageIds(
+      data.map((m) => m.id),
+    );
+    const enriched = data.map((m) => ({
+      ...m,
+      attachments: grouped.get(m.id) ?? [],
+    }));
+
+    return { data: enriched, nextCursor };
   }
 
-  async update(
-    channelId: string,
-    id: string,
-    userId: string,
-    content: string,
-  ) {
+  async update(channelId: string, id: string, userId: string, content: string) {
     await this.verifyChannelAccess(channelId, userId, PERMISSIONS.VIEW_CHANNEL);
 
     const [existing] = await this.drizzle.db
@@ -133,18 +248,12 @@ export class MessagesService {
       throw new ForbiddenException('You can only edit your own messages');
     }
 
-    const [message] = await this.drizzle.db
+    await this.drizzle.db
       .update(messages)
       .set({ content, updatedAt: new Date() })
-      .where(eq(messages.id, id))
-      .returning();
+      .where(eq(messages.id, id));
 
-    const [sender] = await this.drizzle.db
-      .select({ name: user.name, image: user.image })
-      .from(user)
-      .where(eq(user.id, message.senderId));
-
-    const result = { ...message, sender };
+    const result = await this.findOneWithAttachments(id);
     this.chatGateway.emitMessageUpdated(channelId, result);
     return result;
   }
@@ -163,7 +272,19 @@ export class MessagesService {
       throw new ForbiddenException('You can only delete your own messages');
     }
 
+    const toDelete = await this.drizzle.db
+      .select({ storageKey: attachments.storageKey })
+      .from(attachments)
+      .where(eq(attachments.messageId, id));
+
     await this.drizzle.db.delete(messages).where(eq(messages.id, id));
+
+    void Promise.all(
+      toDelete.map((a) =>
+        this.storage.delete(a.storageKey).catch(() => {}),
+      ),
+    );
+
     this.chatGateway.emitMessageDeleted(channelId, id);
   }
 }

@@ -1,5 +1,12 @@
 import { api } from '@/lib/api';
 
+export type MessageAttachment = {
+  id: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+};
+
 export type Message = {
   id: string;
   channelId: string;
@@ -11,7 +18,22 @@ export type Message = {
     name: string;
     image: string | null;
   } | null;
+  attachments: MessageAttachment[];
 };
+
+export async function fetchAttachmentDownloadUrl(
+  attachmentId: string,
+  ctx?: { signal?: AbortSignal },
+): Promise<{ url: string; filename: string; contentType: string }> {
+  const { data } = await api.get<{
+    url: string;
+    filename: string;
+    contentType: string;
+  }>(`/attachments/${attachmentId}/download-url`, {
+    signal: ctx?.signal,
+  });
+  return data;
+}
 
 export type MessagesResponse = {
   data: Message[];
@@ -63,10 +85,11 @@ export async function fetchMessages(
 export async function sendMessage(
   channelId: string,
   content: string,
+  attachmentIds: string[] = [],
 ): Promise<Message> {
   const { data } = await api.post<Message>(
     `/channels/${channelId}/messages`,
-    { content },
+    { content, attachmentIds },
   );
   return data;
 }

@@ -40,7 +40,12 @@ export function useSendMessage(channelId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (content: string) => sendMessage(channelId, content),
+    mutationFn: (
+      input: string | { content: string; attachmentIds?: string[] },
+    ) =>
+      typeof input === 'string'
+        ? sendMessage(channelId, input)
+        : sendMessage(channelId, input.content, input.attachmentIds ?? []),
     onSuccess: (newMessage) => {
       queryClient.setQueryData<{
         pages: MessagesResponse[];
