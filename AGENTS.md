@@ -297,6 +297,15 @@ PG_POOL_MAX=10                             # pg Pool max connections
 UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
 
+# Cloudflare R2 (S3-compatible) — chat attachments
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET=jeichat-attachments-dev
+R2_PUBLIC_URL=                          # Optional: only if using a public custom domain
+R2_PRESIGN_EXPIRES_SECONDS=600          # Presigned URL TTL (10 min default)
+R2_MAX_UPLOAD_BYTES=26214400            # 25 MiB per file
+
 # API (Nest)
 PORT=3001
 WEB_ORIGIN=http://localhost:3000           # CORS allowed origin

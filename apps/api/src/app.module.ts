@@ -11,6 +11,7 @@ import { GatewayModule } from './gateway/gateway.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
 import { ChannelsModule } from './channels/channels.module';
 import { MessagesModule } from './messages/messages.module';
+import { StorageModule } from './storage/storage.module';
 
 // Load .env from repo root (works from apps/api/dist or apps/api/src) or cwd
 const envFilePath =
@@ -27,6 +28,7 @@ const envFilePath =
       envFilePath,
     }),
     DatabaseModule,
+    StorageModule,
     AuthIntegrationModule,
     GatewayModule,
     WorkspacesModule,
