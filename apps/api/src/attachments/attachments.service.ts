@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -8,7 +7,6 @@ import {
 import { eq } from 'drizzle-orm';
 import { DrizzleService } from '../database/drizzle.service';
 import { attachments } from '../database/schema';
-import { STORAGE_CONFIG, type StorageConfig } from '../storage/storage.config';
 import { StorageService } from '../storage/storage.service';
 import { PERMISSIONS } from '../workspaces/permissions';
 import { WorkspacePermissionsService } from '../workspaces/workspace-permissions.service';
@@ -35,7 +33,6 @@ export class AttachmentsService {
     private readonly storage: StorageService,
     private readonly workspacePermissions: WorkspacePermissionsService,
     private readonly rateLimit: AttachmentsRateLimitService,
-    @Inject(STORAGE_CONFIG) private readonly storageConfig: StorageConfig,
   ) {}
 
   async presignUpload(
@@ -56,7 +53,7 @@ export class AttachmentsService {
       throw new BadRequestException('Unsupported file type');
     }
 
-    const maxBytes = this.storageConfig.maxUploadBytes;
+    const maxBytes = this.storage.maxUploadBytes;
     if (dto.sizeBytes <= 0 || dto.sizeBytes > maxBytes) {
       throw new BadRequestException(`File too large (max ${maxBytes} bytes)`);
     }

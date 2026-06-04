@@ -63,8 +63,20 @@ function isImageFile(file: File): boolean {
   return file.type.startsWith('image/');
 }
 
+function uploadErrorMessage(err: unknown): string {
+  if (err instanceof Error) {
+    if (err.message === 'Network Error') {
+      return 'Upload blocked — check R2 bucket CORS allows PUT from this site';
+    }
+    return err.message;
+  }
+  return 'Upload failed';
+}
+
 export function useAttachmentUploads(channelId: string) {
   const [items, setItems] = useState<PendingAttachment[]>([]);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
   const abortControllersRef = useRef(new Map<string, AbortController>());
 
   const updateItem = useCallback(
@@ -94,11 +106,12 @@ export function useAttachmentUploads(channelId: string) {
       });
 
       try {
+        const contentType = mimeTypeForFile(file);
         const presign = await fetchPresign(
           {
             channelId,
             filename: file.name,
-            contentType: mimeTypeForFile(file),
+            contentType,
             sizeBytes: file.size,
           },
           { signal: controller.signal },
@@ -109,6 +122,7 @@ export function useAttachmentUploads(channelId: string) {
         await putToR2(
           presign.uploadUrl,
           file,
+          contentType,
           (progress) => updateItem(localId, { progress }),
           controller.signal,
         );
@@ -116,9 +130,10 @@ export function useAttachmentUploads(channelId: string) {
         updateItem(localId, { status: 'uploaded', progress: 1 });
       } catch (err) {
         if (controller.signal.aborted) return;
-        const message =
-          err instanceof Error ? err.message : 'Upload failed';
-        updateItem(localId, { status: 'error', error: message });
+        updateItem(localId, {
+          status: 'error',
+          error: uploadErrorMessage(err),
+        });
       } finally {
         abortControllersRef.current.delete(localId);
       }
@@ -130,29 +145,28 @@ export function useAttachmentUploads(channelId: string) {
     (files: File[]) => {
       if (!files.length) return;
 
-      setItems((current) => {
-        const { accepted, rejected } = validateFiles(files, current.length);
-        toastRejections(rejected);
-        if (!accepted.length) return current;
+      const { accepted, rejected } = validateFiles(
+        files,
+        itemsRef.current.length,
+      );
+      toastRejections(rejected);
+      if (!accepted.length) return;
 
-        const newItems: PendingAttachment[] = accepted.map((file) => ({
-          localId: crypto.randomUUID(),
-          file,
-          previewUrl: isImageFile(file)
-            ? URL.createObjectURL(file)
-            : null,
-          status: 'queued' as const,
-          progress: 0,
-          serverId: null,
-          error: null,
-        }));
+      const newItems: PendingAttachment[] = accepted.map((file) => ({
+        localId: crypto.randomUUID(),
+        file,
+        previewUrl: isImageFile(file) ? URL.createObjectURL(file) : null,
+        status: 'queued' as const,
+        progress: 0,
+        serverId: null,
+        error: null,
+      }));
 
-        for (const item of newItems) {
-          void runUpload(item.localId, item.file);
-        }
+      setItems((current) => [...current, ...newItems]);
 
-        return [...current, ...newItems];
-      });
+      for (const item of newItems) {
+        void runUpload(item.localId, item.file);
+      }
     },
     [runUpload],
   );

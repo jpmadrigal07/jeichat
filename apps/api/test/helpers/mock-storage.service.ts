@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export class MockStorageService {
+  maxUploadBytes = 26_214_400;
+
   readonly uploadedKeys = new Set<string>();
   headResult: { size: number; contentType: string } | null = {
     size: 1024,

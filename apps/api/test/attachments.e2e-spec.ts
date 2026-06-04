@@ -10,7 +10,7 @@ import { DrizzleService } from '../src/database/drizzle.service';
 import { ChatGateway } from '../src/gateway/chat.gateway';
 import { MessagesController } from '../src/messages/messages.controller';
 import { MessagesService } from '../src/messages/messages.service';
-import { STORAGE_CONFIG, type StorageConfig } from '../src/storage/storage.config';
+import type { StorageConfig } from '../src/storage/storage.config';
 import { StorageService } from '../src/storage/storage.service';
 import { PERMISSIONS } from '../src/workspaces/permissions';
 import { WorkspacePermissionsService } from '../src/workspaces/workspace-permissions.service';
@@ -57,6 +57,7 @@ describe('Attachments API (e2e)', () => {
   beforeEach(async () => {
     store = new AttachmentsTestStore();
     mockStorage = new MockStorageService();
+    mockStorage.maxUploadBytes = testStorageConfig.maxUploadBytes;
     denySendMessages = false;
     denyViewChannel = false;
     setE2eSessionUserId(SENDER_ID);
@@ -68,7 +69,6 @@ describe('Attachments API (e2e)', () => {
         MessagesService,
         { provide: DrizzleService, useValue: { db: store.createMockDb() } },
         { provide: StorageService, useValue: mockStorage },
-        { provide: STORAGE_CONFIG, useValue: testStorageConfig },
         {
           provide: WorkspacePermissionsService,
           useValue: {

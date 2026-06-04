@@ -28,12 +28,13 @@ export async function fetchPresign(
 export async function putToR2(
   uploadUrl: string,
   file: File,
+  contentType: string,
   onProgress?: (progress: number) => void,
   signal?: AbortSignal,
 ): Promise<void> {
   await axios.put(uploadUrl, file, {
     headers: {
-      'Content-Type': file.type || 'application/octet-stream',
+      'Content-Type': contentType,
     },
     withCredentials: false,
     onUploadProgress: (event) => {

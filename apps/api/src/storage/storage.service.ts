@@ -26,6 +26,10 @@ export class StorageService {
     });
   }
 
+  get maxUploadBytes(): number {
+    return this.config.maxUploadBytes;
+  }
+
   async presignUpload(
     key: string,
     contentType: string,
@@ -45,6 +49,8 @@ export class StorageService {
 
     return getSignedUrl(this.client, command, {
       expiresIn: this.config.presignExpiresSeconds,
+      // Browser PUT must send the same Content-Type; sign it so R2 accepts the header.
+      signableHeaders: new Set(['content-type']),
     });
   }
 
