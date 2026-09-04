@@ -270,6 +270,12 @@ export class WorkspaceRolesService {
 
     if (!channel) throw new NotFoundException('Channel not found');
 
+    if (channel.parentId) {
+      throw new BadRequestException(
+        'Cannot assign roles to a ticket',
+      );
+    }
+
     const [existing] = await this.drizzle.db
       .select()
       .from(roleChannelPermissions)

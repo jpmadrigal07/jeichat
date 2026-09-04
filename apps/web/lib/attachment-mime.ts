@@ -30,6 +30,13 @@ export const ATTACHMENT_ACCEPT_ATTR = [
 
 export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 export const MAX_ATTACHMENTS_PER_MESSAGE = 10;
+export const MAX_THREAD_ATTACHMENTS = 5;
+
+export const IMAGE_ACCEPT_ATTR = [
+  ...Object.entries(ATTACHMENT_MIME_ALLOWLIST)
+    .filter(([mime]) => mime.startsWith('image/'))
+    .flatMap(([mime, ext]) => [mime, `.${ext}`]),
+].join(',');
 
 export type FileRejection =
   | { kind: 'unsupported-type'; file: File }

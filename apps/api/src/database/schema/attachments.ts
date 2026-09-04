@@ -25,6 +25,7 @@ export const attachments = pgTable(
     contentType: text('content_type').notNull(),
     sizeBytes: bigint('size_bytes', { mode: 'number' }).notNull(),
     status: text('status').notNull().default('pending'),
+    purpose: text('purpose').notNull().default('message'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
       .notNull(),

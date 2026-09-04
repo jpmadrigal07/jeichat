@@ -14,14 +14,6 @@ export class AttachmentsController {
     return this.attachments.presignUpload(session.user.id, dto);
   }
 
-  @Post(':id/finalize')
-  finalize(
-    @Session() session: UserSession<typeof auth>,
-    @Param('id') id: string,
-  ) {
-    return this.attachments.finalize(session.user.id, id);
-  }
-
   @Get(':id/download-url')
   download(
     @Session() session: UserSession<typeof auth>,

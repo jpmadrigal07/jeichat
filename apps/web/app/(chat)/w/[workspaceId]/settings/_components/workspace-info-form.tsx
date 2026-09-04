@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   useUpdateWorkspace,
   useWorkspaces,
-} from '../../../../_hooks/use-workspaces';
+} from '@chat/_hooks/use-workspaces';
 
 export function WorkspaceInfoForm({ workspaceId }: { workspaceId: string }) {
   const { data: workspaces, isLoading } = useWorkspaces();

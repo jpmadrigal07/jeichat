@@ -29,7 +29,7 @@ export default async function WorkspaceIndexPage() {
       <div className="text-center">
         <h2 className="text-lg font-semibold mb-2">Welcome to JeiChat</h2>
         <p className="text-sm text-muted-foreground">
-          Create a workspace to get started.
+          You don&apos;t have a workspace yet.
         </p>
       </div>
     </div>

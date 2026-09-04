@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   useDeleteWorkspace,
   useWorkspaces,
-} from '../../../../_hooks/use-workspaces';
+} from '@chat/_hooks/use-workspaces';
 
 export function WorkspaceDeletePanel({
   workspaceId,

@@ -5,15 +5,14 @@ import { UserMinus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PresenceAvatar } from '@chat/_components/presence-avatar';
 import {
   useWorkspaces,
   useWorkspaceMembers,
   useAddWorkspaceMember,
   useRemoveWorkspaceMember,
-} from '../../../../_hooks/use-workspaces';
-import { getInitials } from '../_helpers/get-initials';
+} from '@chat/_hooks/use-workspaces';
 
 export function WorkspaceMembersPanel({
   workspaceId,
@@ -100,11 +99,13 @@ export function WorkspaceMembersPanel({
                 key={member.id}
                 className="flex items-center gap-3 rounded-md px-2 py-1.5"
               >
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="text-xs">
-                    {getInitials(member.name)}
-                  </AvatarFallback>
-                </Avatar>
+                <PresenceAvatar
+                  userId={member.userId}
+                  name={member.name}
+                  image={member.image}
+                  workspaceId={workspaceId}
+                  showOffline
+                />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{member.name}</p>
                   <p className="truncate text-xs text-muted-foreground">

@@ -10,7 +10,8 @@
     ],
     "strictNullChecks": true,
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@chat/*": ["./app/(chat)/*"]
     }
   },
   "include": [

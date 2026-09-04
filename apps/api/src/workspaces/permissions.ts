@@ -43,14 +43,30 @@ export type ChannelPermissionOverride = {
   denyPermissions: Permission[];
 };
 
+export const CHANNEL_MEMBER_PERMISSIONS: Permission[] = [
+  PERMISSIONS.VIEW_CHANNEL,
+  PERMISSIONS.SEND_MESSAGES,
+];
+
+export const PRIVATE_CHANNEL_WORKSPACE_PERMISSIONS: Permission[] = [
+  PERMISSIONS.MANAGE_CHANNEL,
+  PERMISSIONS.MANAGE_ROLES,
+];
+
+export function isChannelMemberPermission(permission: Permission): boolean {
+  return CHANNEL_MEMBER_PERMISSIONS.includes(permission);
+}
+
 export function resolveChannelPermission(
   roles: RolePermissionContext[],
   channelOverrides: Map<string, ChannelPermissionOverride>,
   permission: Permission,
+  options?: { privateChannel?: boolean },
 ): boolean {
   if (roles.some((role) => role.isAdministrator)) return true;
   if (roles.length === 0) return false;
 
+  const privateChannel = options?.privateChannel ?? false;
   let allowed = false;
   let denied = false;
 
@@ -59,8 +75,20 @@ export function resolveChannelPermission(
     if (override?.denyPermissions.includes(permission)) {
       denied = true;
     }
+
+    const workspaceGrant = privateChannel
+      ? PRIVATE_CHANNEL_WORKSPACE_PERMISSIONS.includes(permission) &&
+        role.permissions.includes(permission)
+      : role.permissions.includes(permission);
+
+    const managesPrivateChannel =
+      privateChannel &&
+      permission === PERMISSIONS.VIEW_CHANNEL &&
+      role.permissions.includes(PERMISSIONS.MANAGE_CHANNEL);
+
     if (
-      role.permissions.includes(permission) ||
+      workspaceGrant ||
+      managesPrivateChannel ||
       override?.allowPermissions.includes(permission)
     ) {
       allowed = true;

@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowLeft, Info, Shield, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, Info, Shield, Tag, Trash2, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useWorkspaces } from '../../../../_hooks/use-workspaces';
+import { useWorkspaces } from '@chat/_hooks/use-workspaces';
+import { useWorkspacePresenceSocket } from '@chat/_hooks/use-presence';
 
 type NavItem = {
   href: string;
@@ -24,6 +25,7 @@ export function SettingsShell({
 }) {
   const pathname = usePathname();
   const { data: workspaces, isLoading } = useWorkspaces();
+  useWorkspacePresenceSocket();
   const workspace = workspaces?.find((ws) => ws.id === workspaceId);
   const isOwner = workspace?.role === 'owner';
 
@@ -42,6 +44,11 @@ export function SettingsShell({
       href: `/w/${workspaceId}/settings/roles`,
       label: 'Roles',
       icon: Shield,
+    },
+    {
+      href: `/w/${workspaceId}/settings/labels`,
+      label: 'Labels',
+      icon: Tag,
     },
     {
       href: `/w/${workspaceId}/settings/delete`,

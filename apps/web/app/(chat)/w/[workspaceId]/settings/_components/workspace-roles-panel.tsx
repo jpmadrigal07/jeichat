@@ -22,12 +22,12 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
-import { PermissionToggle } from '../../../../_components/permission-toggle';
+import { PermissionToggle } from '@chat/_components/permission-toggle';
 import {
   ALL_PERMISSIONS,
   type Permission,
-} from '../../../../_helpers/permissions';
-import { useWorkspaces, useWorkspaceMembers } from '../../../../_hooks/use-workspaces';
+} from '@chat/_helpers/permissions';
+import { useWorkspaces, useWorkspaceMembers } from '@chat/_hooks/use-workspaces';
 import {
   useWorkspaceRoles,
   useWorkspaceRole,
@@ -36,7 +36,7 @@ import {
   useDeleteWorkspaceRole,
   useAddRoleMember,
   useRemoveRoleMember,
-} from '../../../../_hooks/use-workspace-roles';
+} from '@chat/_hooks/use-workspace-roles';
 import { getInitials } from '../_helpers/get-initials';
 
 const ROLE_COLORS = [

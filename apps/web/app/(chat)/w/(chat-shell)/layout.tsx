@@ -1,19 +1,9 @@
-import { getServerSession } from '@/lib/auth-server';
-import { WorkspaceSidebar } from '../../_components/workspace-sidebar';
-import { ChannelSidebar } from '../../_components/channel-sidebar';
+import { ChatShellFrame } from '../../_components/chat-shell-frame';
 
-export default async function ChatShellLayout({
+export default function ChatShellLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const session = await getServerSession();
-
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <WorkspaceSidebar user={session!.data!.user} />
-      <ChannelSidebar user={session!.data!.user} />
-      <main className="flex flex-1 flex-col min-w-0">{children}</main>
-    </div>
-  );
+  return <ChatShellFrame>{children}</ChatShellFrame>;
 }

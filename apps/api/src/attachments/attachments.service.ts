@@ -86,64 +86,6 @@ export class AttachmentsService {
     return { attachmentId: id, uploadUrl, key };
   }
 
-  async finalize(userId: string, attachmentId: string) {
-    const [row] = await this.drizzle.db
-      .select()
-      .from(attachments)
-      .where(eq(attachments.id, attachmentId));
-
-    if (!row || row.uploaderId !== userId) {
-      throw new NotFoundException();
-    }
-
-    if (row.status === 'uploaded') {
-      return row;
-    }
-
-    const head = await this.storage.head(row.storageKey);
-    if (!head) {
-      this.logger.warn(
-        `Finalize failed: object missing attachmentId=${attachmentId} storageKey=${row.storageKey}`,
-      );
-      throw new BadRequestException('Upload not found in storage');
-    }
-
-    const observedType = head.contentType.toLowerCase();
-    const declaredType = row.contentType.toLowerCase();
-    const contentTypePatch =
-      observedType !== declaredType ? { contentType: head.contentType } : {};
-
-    if (head.size !== row.sizeBytes) {
-      this.logger.warn(
-        `Finalize size mismatch attachmentId=${attachmentId} declared=${row.sizeBytes} actual=${head.size}`,
-      );
-      await this.drizzle.db
-        .update(attachments)
-        .set({ sizeBytes: head.size, status: 'uploaded', ...contentTypePatch })
-        .where(eq(attachments.id, attachmentId));
-
-      return {
-        ...row,
-        sizeBytes: head.size,
-        status: 'uploaded' as const,
-        ...contentTypePatch,
-      };
-    }
-
-    if (Object.keys(contentTypePatch).length > 0) {
-      this.logger.warn(
-        `Finalize content-type mismatch attachmentId=${attachmentId} declared=${row.contentType} actual=${head.contentType}`,
-      );
-    }
-
-    await this.drizzle.db
-      .update(attachments)
-      .set({ status: 'uploaded', ...contentTypePatch })
-      .where(eq(attachments.id, attachmentId));
-
-    return { ...row, status: 'uploaded' as const, ...contentTypePatch };
-  }
-
   async getDownloadUrl(
     userId: string,
     attachmentId: string,

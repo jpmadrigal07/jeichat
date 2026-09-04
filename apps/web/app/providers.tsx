@@ -7,6 +7,7 @@ import {
   QueryClientProvider,
 } from '@tanstack/react-query';
 import { lazy, Suspense, useState } from 'react';
+import { ThemeProvider } from 'next-themes';
 import { Toaster, toast } from 'react-hot-toast';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { isApiError } from '@/lib/api-error';
@@ -65,18 +66,25 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        {children}
-      </TooltipProvider>
-      <Toaster position="bottom-right" />
-      {process.env.NODE_ENV === 'development' ? (
-        <Suspense fallback={null}>
-          <ReactQueryDevtools
-            buttonPosition="bottom-right"
-            initialIsOpen={false}
-          />
-        </Suspense>
-      ) : null}
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+        disableTransitionOnChange
+      >
+        <TooltipProvider>
+          {children}
+        </TooltipProvider>
+        <Toaster position="bottom-right" />
+        {process.env.NODE_ENV === 'development' ? (
+          <Suspense fallback={null}>
+            <ReactQueryDevtools
+              buttonPosition="bottom-right"
+              initialIsOpen={false}
+            />
+          </Suspense>
+        ) : null}
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

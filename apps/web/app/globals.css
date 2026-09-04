@@ -24,6 +24,17 @@
     --color-input: var(--input);
     --color-border: var(--border);
     --color-destructive: var(--destructive);
+    --color-ticket-in-progress: var(--ticket-in-progress);
+    --color-ticket-in-review: var(--ticket-in-review);
+    --color-ticket-done: var(--ticket-done);
+    --color-ticket-urgent: var(--ticket-urgent);
+    --color-online: var(--online);
+    --color-label-red: var(--label-red);
+    --color-label-purple: var(--label-purple);
+    --color-label-blue: var(--label-blue);
+    --color-label-green: var(--label-green);
+    --color-label-orange: var(--label-orange);
+    --color-label-yellow: var(--label-yellow);
     --color-accent-foreground: var(--accent-foreground);
     --color-accent: var(--accent);
     --color-muted-foreground: var(--muted-foreground);
@@ -48,6 +59,7 @@
 }
 
 :root {
+    color-scheme: light;
     --background: oklch(1 0 0);
     --foreground: oklch(0.145 0 0);
     --card: oklch(1 0 0);
@@ -63,6 +75,17 @@
     --accent: oklch(0.97 0 0);
     --accent-foreground: oklch(0.205 0 0);
     --destructive: oklch(0.577 0.245 27.325);
+    --ticket-in-progress: oklch(0.79 0.14 85);
+    --ticket-in-review: oklch(0.64 0.15 155);
+    --ticket-done: oklch(0.55 0.16 275);
+    --ticket-urgent: oklch(0.68 0.19 40);
+    --online: oklch(0.72 0.19 155);
+    --label-red: oklch(0.63 0.22 25);
+    --label-purple: oklch(0.55 0.2 300);
+    --label-blue: oklch(0.62 0.16 250);
+    --label-green: oklch(0.64 0.15 155);
+    --label-orange: oklch(0.7 0.17 55);
+    --label-yellow: oklch(0.79 0.14 85);
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
     --ring: oklch(0.708 0 0);
@@ -83,6 +106,7 @@
 }
 
 .dark {
+    color-scheme: dark;
     --background: oklch(0.145 0 0);
     --foreground: oklch(0.985 0 0);
     --card: oklch(0.205 0 0);
@@ -98,6 +122,17 @@
     --accent: oklch(0.269 0 0);
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
+    --ticket-in-progress: oklch(0.82 0.13 85);
+    --ticket-in-review: oklch(0.72 0.14 155);
+    --ticket-done: oklch(0.68 0.12 275);
+    --ticket-urgent: oklch(0.74 0.16 40);
+    --online: oklch(0.76 0.18 155);
+    --label-red: oklch(0.7 0.2 25);
+    --label-purple: oklch(0.72 0.16 300);
+    --label-blue: oklch(0.72 0.14 250);
+    --label-green: oklch(0.72 0.14 155);
+    --label-orange: oklch(0.76 0.15 55);
+    --label-yellow: oklch(0.82 0.13 85);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.556 0 0);
@@ -126,4 +161,166 @@
   html {
     @apply font-sans;
     }
+}
+
+.md-chat {
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.md-chat > :first-child {
+  margin-top: 0;
+}
+
+.md-chat > :last-child {
+  margin-bottom: 0;
+}
+
+.md-chat p {
+  margin: 0;
+}
+
+.md-chat p + p {
+  margin-top: 0.25rem;
+}
+
+.md-chat h1,
+.md-chat h2,
+.md-chat h3,
+.md-chat h4,
+.md-chat h5,
+.md-chat h6 {
+  font-weight: 600;
+  font-size: inherit;
+  margin: 0.25rem 0;
+}
+
+.md-chat a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.md-chat a:hover {
+  text-decoration-thickness: 2px;
+}
+
+.md-chat code:not(pre code) {
+  background: var(--muted);
+  padding: 0.1em 0.35em;
+  border-radius: 0.25rem;
+  font-size: 0.9em;
+}
+
+.md-chat .md-chat-pre-wrap {
+  max-width: 100%;
+}
+
+.md-chat pre {
+  background: var(--muted);
+  border-radius: 0.375rem;
+  padding: 0.625rem 0.75rem;
+  overflow-x: auto;
+  font-size: 0.85em;
+  margin: 0.375rem 0;
+}
+
+.md-chat pre code.hljs {
+  background: transparent;
+  padding: 0;
+}
+
+.md-chat blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 0.625rem;
+  color: var(--muted-foreground);
+  margin: 0.25rem 0;
+}
+
+.md-chat ul,
+.md-chat ol {
+  padding-left: 1.25rem;
+  margin: 0.25rem 0;
+}
+
+.md-chat li + li {
+  margin-top: 0.125rem;
+}
+
+.md-chat table {
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.md-chat th,
+.md-chat td {
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.5rem;
+}
+
+.md-chat hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 0.5rem 0;
+}
+
+.md-chat .hljs {
+  color: #24292e;
+  background: transparent;
+}
+
+.md-chat .hljs-keyword,
+.md-chat .hljs-doctag,
+.md-chat .hljs-type {
+  color: #d73a49;
+}
+
+.md-chat .hljs-string,
+.md-chat .hljs-attr {
+  color: #032f62;
+}
+
+.md-chat .hljs-comment {
+  color: #6a737d;
+}
+
+.md-chat .hljs-number,
+.md-chat .hljs-literal {
+  color: #005cc5;
+}
+
+.md-chat .hljs-title,
+.md-chat .hljs-title.class_,
+.md-chat .hljs-title.function_ {
+  color: #6f42c1;
+}
+
+.dark .md-chat .hljs {
+  color: #c9d1d9;
+}
+
+.dark .md-chat .hljs-keyword,
+.dark .md-chat .hljs-doctag,
+.dark .md-chat .hljs-type {
+  color: #ff7b72;
+}
+
+.dark .md-chat .hljs-string,
+.dark .md-chat .hljs-attr {
+  color: #a5d6ff;
+}
+
+.dark .md-chat .hljs-comment {
+  color: #8b949e;
+}
+
+.dark .md-chat .hljs-number,
+.dark .md-chat .hljs-literal {
+  color: #79c0ff;
+}
+
+.dark .md-chat .hljs-title,
+.dark .md-chat .hljs-title.class_,
+.dark .md-chat .hljs-title.function_ {
+  color: #d2a8ff;
 }

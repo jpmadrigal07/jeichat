@@ -5,7 +5,7 @@ import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { getSocket } from '@/lib/socket';
 import { channelsQueryKey, fetchChannels } from '../_libs/channels';
 import { incrementUnreadCount } from './use-unread-counts';
-import type { Message } from '../w/(chat-shell)/[workspaceId]/c/[channelId]/_libs/messages';
+import type { Message } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_libs/messages';
 import type { Workspace } from '../_libs/workspaces';
 
 type UseGlobalUnreadSocketOptions = {
@@ -66,19 +66,27 @@ export function useGlobalUnreadSocket({
       socket.connect();
     }
 
-    const currentChannelIds = new Set(channelIds);
+    const syncJoins = () => {
+      const currentChannelIds = new Set(channelIds);
 
-    for (const channelId of channelIds) {
-      if (joinedChannelsRef.current.has(channelId)) continue;
-      socket.emit('join_channel', { channelId });
-      joinedChannelsRef.current.add(channelId);
-    }
+      for (const channelId of channelIds) {
+        socket.emit('join_channel', { channelId });
+        joinedChannelsRef.current.add(channelId);
+      }
 
-    for (const joinedChannelId of joinedChannelsRef.current) {
-      if (currentChannelIds.has(joinedChannelId)) continue;
-      socket.emit('leave_channel', { channelId: joinedChannelId });
-      joinedChannelsRef.current.delete(joinedChannelId);
-    }
+      for (const joinedChannelId of [...joinedChannelsRef.current]) {
+        if (currentChannelIds.has(joinedChannelId)) continue;
+        socket.emit('leave_channel', { channelId: joinedChannelId });
+        joinedChannelsRef.current.delete(joinedChannelId);
+      }
+    };
+
+    socket.on('connect', syncJoins);
+    if (socket.connected) syncJoins();
+
+    return () => {
+      socket.off('connect', syncJoins);
+    };
   }, [channelIds]);
 
   useEffect(() => {

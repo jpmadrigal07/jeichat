@@ -1,6 +1,11 @@
 'use client';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query';
 import {
   fetchWorkspaces,
   createWorkspace,
@@ -9,9 +14,15 @@ import {
   fetchWorkspaceMembers,
   addWorkspaceMember,
   removeWorkspaceMember,
+  fetchWorkspaceLabels,
+  createWorkspaceLabel,
+  updateWorkspaceLabel,
+  deleteWorkspaceLabel,
   workspacesQueryKey,
   workspaceMembersQueryKey,
+  workspaceLabelsQueryKey,
 } from '../_libs/workspaces';
+import { channelsQueryKey } from '../_libs/channels';
 
 export function useWorkspaces() {
   return useQuery({
@@ -81,5 +92,64 @@ export function useRemoveWorkspaceMember(workspaceId: string) {
         queryKey: workspaceMembersQueryKey(workspaceId),
       });
     },
+  });
+}
+
+export function useWorkspaceLabels(workspaceId: string) {
+  return useQuery({
+    queryKey: workspaceLabelsQueryKey(workspaceId),
+    queryFn: ({ signal }) => fetchWorkspaceLabels(workspaceId, { signal }),
+    enabled: !!workspaceId,
+  });
+}
+
+export function useCreateWorkspaceLabel(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { name: string; color?: string }) =>
+      createWorkspaceLabel(workspaceId, payload),
+    onSuccess: () => {
+      invalidateWorkspaceLabels(queryClient, workspaceId);
+    },
+  });
+}
+
+export function useUpdateWorkspaceLabel(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      labelId,
+      ...payload
+    }: {
+      labelId: string;
+      name?: string;
+      color?: string;
+    }) => updateWorkspaceLabel(workspaceId, labelId, payload),
+    onSuccess: () => {
+      invalidateWorkspaceLabels(queryClient, workspaceId);
+    },
+  });
+}
+
+export function useDeleteWorkspaceLabel(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (labelId: string) =>
+      deleteWorkspaceLabel(workspaceId, labelId),
+    onSuccess: () => {
+      invalidateWorkspaceLabels(queryClient, workspaceId);
+    },
+  });
+}
+
+function invalidateWorkspaceLabels(
+  queryClient: QueryClient,
+  workspaceId: string,
+) {
+  queryClient.invalidateQueries({
+    queryKey: workspaceLabelsQueryKey(workspaceId),
+  });
+  queryClient.invalidateQueries({
+    queryKey: channelsQueryKey(workspaceId),
   });
 }

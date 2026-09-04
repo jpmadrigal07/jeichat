@@ -14,6 +14,9 @@ import { ChannelsModule } from './channels/channels.module';
 import { MessagesModule } from './messages/messages.module';
 import { StorageModule } from './storage/storage.module';
 import { AttachmentsModule } from './attachments/attachments.module';
+import { InboxModule } from './inbox/inbox.module';
+import { UsersModule } from './users/users.module';
+import { SearchModule } from './search/search.module';
 
 // Load .env from repo root (works from apps/api/dist or apps/api/src) or cwd
 const envFilePath =
@@ -39,6 +42,9 @@ const envFilePath =
     MessagesModule,
     ExportModule,
     AttachmentsModule,
+    InboxModule,
+    UsersModule,
+    SearchModule,
   ],
   controllers: [AppController],
   providers: [AppService],

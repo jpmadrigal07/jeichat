@@ -2,6 +2,7 @@
 
 import { useWorkspaces } from '../_hooks/use-workspaces';
 import { useGlobalUnreadSocket } from '../_hooks/use-global-unread-socket';
+import { useWorkspacePresenceSocket } from '../_hooks/use-presence';
 import { WorkspaceSwitcher } from './workspace-switcher';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -23,6 +24,7 @@ export function WorkspaceSidebar({ user }: { user: User }) {
     activeChannelId: params.channelId,
     userId: user.id,
   });
+  useWorkspacePresenceSocket();
 
   return (
     <div className="flex w-[72px] flex-col items-center gap-2 bg-sidebar py-3 border-r">

@@ -18,15 +18,30 @@ export const serverAuthClient = createAuthClient({
   },
 });
 
+type ServerSession = Awaited<ReturnType<typeof serverAuthClient.getSession>>;
+
+const NO_SESSION: ServerSession = { data: null, error: null };
+
 /**
  * Session for the current request: forwards the browser `Cookie` header to the API.
  * Wrapped in `cache` so multiple Server Components / actions in one render share one fetch.
+ *
+ * Network failures (API still compiling, refused connection) return an empty
+ * session instead of throwing — otherwise every page 500s during `bun dev` startup.
  */
-export const getServerSession = cache(async () => {
+export const getServerSession = cache(async (): Promise<ServerSession> => {
   const h = await headers();
-  return serverAuthClient.getSession({
-    fetchOptions: {
-      headers: h,
-    },
-  });
+  const cookie = h.get('cookie');
+
+  try {
+    return await serverAuthClient.getSession({
+      fetchOptions: {
+        headers: cookie ? { cookie } : undefined,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`getServerSession failed: ${message}`);
+    return NO_SESSION;
+  }
 });

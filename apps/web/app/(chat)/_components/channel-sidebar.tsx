@@ -1,24 +1,73 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { Hash, Plus, ChevronDown, Settings, MoreHorizontal } from 'lucide-react';
+import { useParams, usePathname } from 'next/navigation';
+import {
+  Hash,
+  Plus,
+  ChevronDown,
+  ChevronRight,
+  Settings,
+  MoreHorizontal,
+  Inbox,
+  ListFilter,
+  UserRound,
+  Lock,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useChannels } from '../_hooks/use-channels';
 import { useUnreadCounts } from '../_hooks/use-unread-counts';
+import { useInboxSocket, useInboxUnreadCount } from '../_hooks/use-inbox';
 import { useWorkspaces } from '../_hooks/use-workspaces';
 import { formatUnreadCount } from '../_helpers/format-unread-count';
+import {
+  groupChannelsByParent,
+  groupTicketsByStatus,
+  isTicketStatusOpenByDefault,
+} from '../_helpers/group-channels';
+import {
+  TICKET_STATUSES,
+  TICKET_STATUS_META,
+  ticketDisplayId,
+  ticketPrefixOf,
+  type TicketStatus,
+} from '../_helpers/ticket-fields';
+import { isAssignedOpenTicket } from '../_helpers/ticket-filters';
+import {
+  DEFAULT_SIDEBAR_TICKET_FILTER,
+  channelSidebarTicketFilter,
+  filterSidebarTickets,
+  hasActiveSidebarTicketFilter,
+  isSidebarStatusChecked,
+  toggleSidebarStatus,
+  type SidebarTicketFilter,
+} from '../_helpers/sidebar-ticket-filter';
+import { useSidebarTicketFilters } from '../_hooks/use-sidebar-ticket-filter';
+import type { Channel } from '../_libs/channels';
 import { CreateChannelDialog } from './create-channel-dialog';
+import {
+  CreateThreadDialogHost,
+  createThreadHref,
+} from './create-thread-dialog';
 import { UserBar } from './user-bar';
 import { ResizableSidebar } from './resizable-sidebar';
 
@@ -31,12 +80,21 @@ type User = {
 
 export function ChannelSidebar({ user }: { user: User }) {
   const params = useParams<{ workspaceId?: string; channelId?: string }>();
+  const pathname = usePathname();
   const workspaceId = params.workspaceId;
   const { data: workspaces } = useWorkspaces();
   const { data: channels, isLoading } = useChannels(workspaceId ?? '');
   const { data: unreadCounts } = useUnreadCounts(workspaceId ?? '');
+  const { data: inboxUnread } = useInboxUnreadCount(workspaceId ?? '');
+  useInboxSocket(workspaceId ?? '');
+  const { filters: sidebarFilters, setChannelFilter } =
+    useSidebarTicketFilters(workspaceId ?? '');
 
   const activeWorkspace = workspaces?.find((ws) => ws.id === workspaceId);
+  const { topLevel, threadsByParent } = groupChannelsByParent(channels ?? []);
+  const myIssues = (channels ?? [])
+    .filter((channel) => isAssignedOpenTicket(channel, user.id))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
   if (!workspaceId) {
     return (
@@ -74,18 +132,15 @@ export function ChannelSidebar({ user }: { user: User }) {
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="px-2 py-2">
-          <div className="flex items-center justify-between px-2 mb-1">
-            <span className="text-xs font-medium uppercase text-muted-foreground">
-              Channels
-            </span>
-            <CreateChannelDialog workspaceId={workspaceId}>
-              <Button variant="ghost" size="icon-sm">
-                <Plus />
-                <span className="sr-only">Create channel</span>
-              </Button>
-            </CreateChannelDialog>
-          </div>
+        <div className="flex flex-col gap-3 px-2 py-2">
+          <ChannelNavLink
+            href={`/w/${workspaceId}/inbox`}
+            name="Inbox"
+            icon={Inbox}
+            isActive={pathname === `/w/${workspaceId}/inbox`}
+            unreadCount={inboxUnread?.unreadCount ?? 0}
+            className="w-full"
+          />
 
           {isLoading ? (
             <div className="flex flex-col gap-1">
@@ -94,74 +149,376 @@ export function ChannelSidebar({ user }: { user: User }) {
               ))}
             </div>
           ) : (
-            <div className="flex flex-col gap-0.5">
-              {channels?.map((channel) => {
-                const isActive = channel.id === params.channelId;
-                const unreadCount = unreadCounts?.[channel.id] ?? 0;
-                const hasUnread = unreadCount > 0;
-                const unreadLabel = formatUnreadCount(unreadCount);
-                return (
-                  <div key={channel.id} className="flex items-center gap-0.5">
-                    <Button
-                      variant={isActive ? 'secondary' : 'ghost'}
-                      size="lg"
-                      className={cn(
-                        'min-w-0 flex-1 justify-start gap-1.5 px-2',
-                        hasUnread
-                          ? 'font-semibold text-foreground'
-                          : isActive
-                            ? 'font-medium'
-                            : 'font-normal',
-                        hasUnread &&
-                          !isActive &&
-                          'bg-muted/50 hover:bg-muted/70',
-                      )}
-                      asChild
-                    >
-                      <Link href={`/w/${workspaceId}/c/${channel.id}`}>
-                        <Hash
-                          className={cn(
-                            hasUnread
-                              ? 'text-foreground'
-                              : 'text-muted-foreground',
-                          )}
-                        />
-                        <span className="truncate">{channel.name}</span>
-                        {unreadLabel ? (
-                          <Badge
-                            variant="destructive"
-                            className="ml-auto h-4 min-w-4 shrink-0 px-1 text-[0.625rem] font-semibold !bg-destructive/10 !text-destructive [a]:hover:!bg-destructive/10 [a]:hover:!text-destructive"
-                          >
-                            {unreadLabel}
-                          </Badge>
-                        ) : null}
-                      </Link>
+            <div className="flex flex-col gap-3">
+              <MyIssuesNav
+                workspaceId={workspaceId}
+                tickets={myIssues}
+                channels={channels ?? []}
+                activeChannelId={params.channelId}
+                unreadCounts={unreadCounts}
+              />
+
+              <div className="flex flex-col gap-0.5">
+                <div className="flex items-center justify-between px-2 mb-1">
+                  <span className="text-xs font-medium uppercase text-muted-foreground">
+                    Channels
+                  </span>
+                  <CreateChannelDialog
+                    workspaceId={workspaceId}
+                    currentUserId={user.id}
+                  >
+                    <Button variant="ghost" size="icon-sm">
+                      <Plus />
+                      <span className="sr-only">Create channel</span>
                     </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon-sm">
-                          <MoreHorizontal />
-                          <span className="sr-only">Channel options</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56">
-                        <DropdownMenuItem asChild>
-                          <Link href={`/w/${workspaceId}/c/${channel.id}/settings`}>
-                            <Settings />
-                            Channel Settings
+                  </CreateChannelDialog>
+                </div>
+                {topLevel.map((channel) => {
+                  const channelFilter = channelSidebarTicketFilter(
+                    sidebarFilters,
+                    channel.id,
+                  );
+                  const threads = filterSidebarTickets(
+                    threadsByParent.get(channel.id) ?? [],
+                    channelFilter,
+                    user.id,
+                    params.channelId,
+                  );
+                  const isActive = channel.id === params.channelId;
+                  return (
+                    <div key={channel.id} className="flex flex-col gap-0.5">
+                      <div
+                        className={cn(
+                          'flex items-center rounded-md',
+                          isActive
+                            ? 'bg-secondary text-secondary-foreground'
+                            : 'hover:bg-muted hover:text-foreground dark:hover:bg-muted/50',
+                        )}
+                      >
+                        <ChannelNavLink
+                          href={`/w/${workspaceId}/c/${channel.id}`}
+                          name={channel.name}
+                          icon={channel.isPrivate ? Lock : Hash}
+                          isActive={isActive}
+                          showActiveBackground={false}
+                          unreadCount={unreadCounts?.[channel.id] ?? 0}
+                          className="min-w-0 flex-1 hover:bg-transparent dark:hover:bg-transparent"
+                        />
+                        <ChannelTicketFilterMenu
+                          filter={channelFilter}
+                          onChange={(next) =>
+                            setChannelFilter(channel.id, next)
+                          }
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="hover:bg-transparent dark:hover:bg-transparent"
+                          asChild
+                        >
+                          <Link href={createThreadHref(channel.id)}>
+                            <Plus />
+                            <span className="sr-only">Create ticket</span>
                           </Link>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                );
-              })}
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="hover:bg-transparent dark:hover:bg-transparent"
+                            >
+                              <MoreHorizontal />
+                              <span className="sr-only">Channel options</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuItem asChild>
+                              <Link
+                                href={`/w/${workspaceId}/c/${channel.id}/settings`}
+                              >
+                                <Settings />
+                                Channel Settings
+                              </Link>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      {threads.length > 0 ? (
+                        <div className="ml-4 flex flex-col gap-0.5 border-l pl-1">
+                          {groupTicketsByStatus(threads).map((group) => (
+                            <TicketStatusGroup
+                              key={group.status}
+                              workspaceId={workspaceId}
+                              status={group.status}
+                              tickets={group.tickets}
+                              activeChannelId={params.channelId}
+                              unreadCounts={unreadCounts}
+                            />
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
       </ScrollArea>
 
       <UserBar user={user} />
+      <CreateThreadDialogHost workspaceId={workspaceId} />
     </ResizableSidebar>
+  );
+}
+
+function ChannelTicketFilterMenu({
+  filter,
+  onChange,
+}: {
+  filter: SidebarTicketFilter;
+  onChange: (filter: SidebarTicketFilter) => void;
+}) {
+  const active = hasActiveSidebarTicketFilter(filter);
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant={active ? 'secondary' : 'ghost'}
+          size="icon-sm"
+          className="hover:bg-transparent dark:hover:bg-transparent"
+          aria-pressed={active}
+        >
+          <ListFilter />
+          <span className="sr-only">Filter tickets</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuGroup>
+          <DropdownMenuCheckboxItem
+            checked={filter.assignedToMe}
+            onCheckedChange={(checked) =>
+              onChange({ ...filter, assignedToMe: checked === true })
+            }
+            onSelect={(event) => event.preventDefault()}
+          >
+            <UserRound />
+            Assigned to me
+          </DropdownMenuCheckboxItem>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Status</DropdownMenuLabel>
+          {TICKET_STATUSES.map((status) => {
+            const meta = TICKET_STATUS_META[status];
+            const Icon = meta.icon;
+            return (
+              <DropdownMenuCheckboxItem
+                key={status}
+                checked={isSidebarStatusChecked(filter, status)}
+                onCheckedChange={() =>
+                  onChange(toggleSidebarStatus(filter, status))
+                }
+                onSelect={(event) => event.preventDefault()}
+              >
+                <Icon className={meta.iconClassName} />
+                {meta.label}
+              </DropdownMenuCheckboxItem>
+            );
+          })}
+        </DropdownMenuGroup>
+        {active ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem
+                onSelect={() => onChange(DEFAULT_SIDEBAR_TICKET_FILTER)}
+              >
+                Reset filters
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function myIssueLabel(ticket: Channel, channels: Channel[]) {
+  const parent = channels.find((channel) => channel.id === ticket.parentId);
+  if (!parent || !ticket.ticketNumber) return ticket.name;
+  return `${ticketDisplayId(ticketPrefixOf(parent), ticket.ticketNumber)} ${ticket.name}`;
+}
+
+function MyIssuesNav({
+  workspaceId,
+  tickets,
+  channels,
+  activeChannelId,
+  unreadCounts,
+}: {
+  workspaceId: string;
+  tickets: Channel[];
+  channels: Channel[];
+  activeChannelId: string | undefined;
+  unreadCounts: Record<string, number> | undefined;
+}) {
+  const hasActiveTicket = tickets.some((ticket) => ticket.id === activeChannelId);
+
+  return (
+    <Collapsible
+      defaultOpen={tickets.length > 0 || hasActiveTicket}
+      className="group/my-issues flex flex-col gap-0.5"
+    >
+      <CollapsibleTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full min-w-0 justify-start px-2 font-normal text-muted-foreground"
+        >
+          <ChevronRight
+            data-icon="inline-start"
+            className="transition-transform group-data-[state=open]/my-issues:rotate-90"
+          />
+          <span className="text-xs font-medium">My tickets</span>
+          <Badge variant="secondary" className="ml-auto">
+            {tickets.length}
+          </Badge>
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="ml-4 flex flex-col gap-0.5 border-l pl-1">
+        {tickets.length === 0 ? (
+          <p className="px-2 py-1 text-xs text-muted-foreground">
+            No open tickets assigned to you
+          </p>
+        ) : (
+          tickets.map((ticket) => (
+            <ChannelNavLink
+              key={ticket.id}
+              href={`/w/${workspaceId}/c/${ticket.id}`}
+              name={myIssueLabel(ticket, channels)}
+              isActive={ticket.id === activeChannelId}
+              unreadCount={unreadCounts?.[ticket.id] ?? 0}
+              className="w-full"
+            />
+          ))
+        )}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function TicketStatusGroup({
+  workspaceId,
+  status,
+  tickets,
+  activeChannelId,
+  unreadCounts,
+}: {
+  workspaceId: string;
+  status: TicketStatus;
+  tickets: Channel[];
+  activeChannelId: string | undefined;
+  unreadCounts: Record<string, number> | undefined;
+}) {
+  const meta = TICKET_STATUS_META[status];
+  const StatusIcon = meta.icon;
+  const hasActiveTicket = tickets.some((ticket) => ticket.id === activeChannelId);
+
+  return (
+    <Collapsible
+      defaultOpen={isTicketStatusOpenByDefault(status, hasActiveTicket)}
+      className="group/status flex flex-col gap-0.5"
+    >
+      <CollapsibleTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full min-w-0 justify-start px-2 font-normal text-muted-foreground"
+        >
+          <ChevronRight
+            data-icon="inline-start"
+            className="transition-transform group-data-[state=open]/status:rotate-90"
+          />
+          <StatusIcon className={meta.iconClassName} />
+          <span className="truncate">{meta.label}</span>
+          <Badge variant="secondary" className="ml-auto">
+            {tickets.length}
+          </Badge>
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="ml-4 flex flex-col gap-0.5 border-l pl-1">
+        {tickets.map((ticket) => (
+          <ChannelNavLink
+            key={ticket.id}
+            href={`/w/${workspaceId}/c/${ticket.id}`}
+            name={ticket.name}
+            isActive={ticket.id === activeChannelId}
+            unreadCount={unreadCounts?.[ticket.id] ?? 0}
+            className="w-full"
+          />
+        ))}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function ChannelNavLink({
+  href,
+  name,
+  icon: Icon,
+  isActive,
+  unreadCount,
+  className,
+  showActiveBackground = true,
+}: {
+  href: string;
+  name: string;
+  icon?: typeof Hash | typeof Lock;
+  isActive: boolean;
+  unreadCount: number;
+  className?: string;
+  showActiveBackground?: boolean;
+}) {
+  const hasUnread = unreadCount > 0;
+  const unreadLabel = formatUnreadCount(unreadCount);
+
+  return (
+    <Button
+      variant={isActive && showActiveBackground ? 'secondary' : 'ghost'}
+      size="lg"
+      className={cn(
+        'min-w-0 justify-start gap-1.5 px-2',
+        hasUnread
+          ? 'font-semibold text-foreground'
+          : isActive
+            ? 'font-medium'
+            : 'font-normal',
+        hasUnread && !isActive && 'bg-muted/50 hover:bg-muted/70',
+        className,
+      )}
+      asChild
+    >
+      <Link href={href}>
+        {Icon ? (
+          <Icon
+            className={
+              hasUnread ? 'text-foreground' : 'text-muted-foreground'
+            }
+          />
+        ) : null}
+        <span className="truncate">{name}</span>
+        {unreadLabel ? (
+          <Badge
+            variant="destructive"
+            className="ml-auto h-4 min-w-4 shrink-0 px-1 text-[0.625rem] font-semibold !bg-destructive/10 !text-destructive [a]:hover:!bg-destructive/10 [a]:hover:!text-destructive"
+          >
+            {unreadLabel}
+          </Badge>
+        ) : null}
+      </Link>
+    </Button>
   );
 }

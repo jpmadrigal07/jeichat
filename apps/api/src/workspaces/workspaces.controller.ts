@@ -32,6 +32,47 @@ export class WorkspacesController {
     return this.workspacesService.findAllForUser(session.user.id);
   }
 
+  @Get(':id/labels')
+  findLabels(
+    @Param('id') id: string,
+    @Session() session: UserSession<typeof auth>,
+  ) {
+    return this.workspacesService.findLabels(id, session.user.id);
+  }
+
+  @Post(':id/labels')
+  createLabel(
+    @Param('id') id: string,
+    @Body() body: { name: string; color?: string },
+    @Session() session: UserSession<typeof auth>,
+  ) {
+    return this.workspacesService.createLabel(id, session.user.id, body);
+  }
+
+  @Patch(':id/labels/:labelId')
+  updateLabel(
+    @Param('id') id: string,
+    @Param('labelId') labelId: string,
+    @Body() body: { name?: string; color?: string },
+    @Session() session: UserSession<typeof auth>,
+  ) {
+    return this.workspacesService.updateLabel(
+      id,
+      session.user.id,
+      labelId,
+      body,
+    );
+  }
+
+  @Delete(':id/labels/:labelId')
+  deleteLabel(
+    @Param('id') id: string,
+    @Param('labelId') labelId: string,
+    @Session() session: UserSession<typeof auth>,
+  ) {
+    return this.workspacesService.deleteLabel(id, session.user.id, labelId);
+  }
+
   @Get(':id')
   findOne(
     @Param('id') id: string,

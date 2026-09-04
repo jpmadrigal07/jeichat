@@ -22,7 +22,14 @@ export class ChannelsController {
   @Post()
   create(
     @Param('workspaceId') workspaceId: string,
-    @Body() body: { name: string; description?: string },
+    @Body()
+    body: {
+      name: string;
+      description?: string;
+      ticketKey?: string;
+      isPrivate?: boolean;
+      memberIds?: string[];
+    },
     @Session() session: UserSession<typeof auth>,
   ) {
     return this.channelsService.create(
@@ -30,6 +37,9 @@ export class ChannelsController {
       session.user.id,
       body.name,
       body.description ?? null,
+      body.ticketKey,
+      Boolean(body.isPrivate),
+      Array.isArray(body.memberIds) ? body.memberIds : [],
     );
   }
 
@@ -47,6 +57,55 @@ export class ChannelsController {
     @Session() session: UserSession<typeof auth>,
   ) {
     return this.channelsService.getUnreadCounts(workspaceId, session.user.id);
+  }
+
+  @Get(':id/events')
+  listEvents(
+    @Param('workspaceId') workspaceId: string,
+    @Param('id') id: string,
+    @Session() session: UserSession<typeof auth>,
+  ) {
+    return this.channelsService.listEvents(
+      workspaceId,
+      id,
+      session.user.id,
+    );
+  }
+
+  @Get(':id/threads')
+  listThreads(
+    @Param('workspaceId') workspaceId: string,
+    @Param('id') id: string,
+    @Session() session: UserSession<typeof auth>,
+  ) {
+    return this.channelsService.listThreads(
+      workspaceId,
+      id,
+      session.user.id,
+    );
+  }
+
+  @Post(':id/threads')
+  createThread(
+    @Param('workspaceId') workspaceId: string,
+    @Param('id') id: string,
+    @Body() body: {
+      name: string;
+      description?: string;
+      attachmentIds?: string[];
+      status?: string;
+    },
+    @Session() session: UserSession<typeof auth>,
+  ) {
+    return this.channelsService.createThread(
+      workspaceId,
+      id,
+      session.user.id,
+      body.name ?? '',
+      body.description ?? null,
+      body.attachmentIds ?? [],
+      body.status,
+    );
   }
 
   @Post(':id/read')
@@ -101,6 +160,49 @@ export class ChannelsController {
     );
   }
 
+  @Get(':id/members')
+  listMembers(
+    @Param('workspaceId') workspaceId: string,
+    @Param('id') id: string,
+    @Session() session: UserSession<typeof auth>,
+  ) {
+    return this.channelsService.listMembers(
+      workspaceId,
+      id,
+      session.user.id,
+    );
+  }
+
+  @Post(':id/members')
+  addMember(
+    @Param('workspaceId') workspaceId: string,
+    @Param('id') id: string,
+    @Body() body: { userId: string },
+    @Session() session: UserSession<typeof auth>,
+  ) {
+    return this.channelsService.addMember(
+      workspaceId,
+      id,
+      session.user.id,
+      body.userId,
+    );
+  }
+
+  @Delete(':id/members/:userId')
+  removeMember(
+    @Param('workspaceId') workspaceId: string,
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+    @Session() session: UserSession<typeof auth>,
+  ) {
+    return this.channelsService.removeMember(
+      workspaceId,
+      id,
+      session.user.id,
+      userId,
+    );
+  }
+
   @Get(':id')
   findOne(
     @Param('workspaceId') workspaceId: string,
@@ -114,7 +216,20 @@ export class ChannelsController {
   update(
     @Param('workspaceId') workspaceId: string,
     @Param('id') id: string,
-    @Body() body: { name?: string; description?: string | null },
+    @Body()
+    body: {
+      name?: string;
+      description?: string | null;
+      ticketKey?: string;
+      addAttachmentIds?: string[];
+      removeAttachmentIds?: string[];
+      status?: string;
+      priority?: string;
+      assigneeId?: string | null;
+      dueAt?: string | null;
+      labelIds?: string[];
+      isPrivate?: boolean;
+    },
     @Session() session: UserSession<typeof auth>,
   ) {
     return this.channelsService.update(workspaceId, id, session.user.id, body);

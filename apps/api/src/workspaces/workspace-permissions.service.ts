@@ -7,12 +7,14 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { DrizzleService } from '../database/drizzle.service';
 import {
   channels,
+  channelMembers,
   roleChannelPermissions,
   workspaceMembers,
   workspaceRoleMembers,
   workspaceRoles,
 } from '../database/schema';
 import {
+  isChannelMemberPermission,
   parsePermissions,
   resolveChannelPermission,
   type ChannelPermissionOverride,
@@ -57,7 +59,7 @@ export class WorkspacePermissionsService {
 
     await this.assertChannelPermission(
       channel.workspaceId,
-      channelId,
+      channel.parentId ?? channel.id,
       userId,
       permission,
     );
@@ -73,13 +75,27 @@ export class WorkspacePermissionsService {
   ): Promise<boolean> {
     if (await this.isWorkspaceOwner(workspaceId, userId)) return true;
 
-    const roles = await this.getUserRoles(workspaceId, userId);
+    const permissionChannelId =
+      await this.resolvePermissionChannelId(channelId);
+    if (!permissionChannelId) return false;
+
+    const [access, roles] = await Promise.all([
+      this.loadChannelAccessContext(userId, [permissionChannelId]),
+      this.getUserRoles(workspaceId, userId),
+    ]);
+
+    if (access.memberOf.has(permissionChannelId)) {
+      if (isChannelMemberPermission(permission)) return true;
+    }
+
     const overrides = await this.getChannelOverrides(
-      channelId,
+      permissionChannelId,
       roles.map((role) => role.id),
     );
 
-    return resolveChannelPermission(roles, overrides, permission);
+    return resolveChannelPermission(roles, overrides, permission, {
+      privateChannel: access.isPrivate.get(permissionChannelId) ?? false,
+    });
   }
 
   async filterViewableChannelIds(
@@ -98,21 +114,103 @@ export class WorkspacePermissionsService {
       return new Set(channelIds);
     }
 
-    const roleIds = roles.map((role) => role.id);
-    const overridesByChannel = await this.getChannelOverridesForChannels(
+    const permissionChannelIds = await this.resolvePermissionChannelIds(
       channelIds,
-      roleIds,
     );
+    const uniquePermissionIds = [
+      ...new Set(permissionChannelIds.values()),
+    ];
+    const roleIds = roles.map((role) => role.id);
+
+    const [access, overridesByChannel] = await Promise.all([
+      this.loadChannelAccessContext(userId, uniquePermissionIds),
+      this.getChannelOverridesForChannels(uniquePermissionIds, roleIds),
+    ]);
 
     const viewable = new Set<string>();
     for (const channelId of channelIds) {
-      const overrides = overridesByChannel.get(channelId) ?? new Map();
-      if (resolveChannelPermission(roles, overrides, 'VIEW_CHANNEL')) {
+      const permissionChannelId =
+        permissionChannelIds.get(channelId) ?? channelId;
+      if (access.memberOf.has(permissionChannelId)) {
+        viewable.add(channelId);
+        continue;
+      }
+      const overrides =
+        overridesByChannel.get(permissionChannelId) ?? new Map();
+      if (
+        resolveChannelPermission(roles, overrides, 'VIEW_CHANNEL', {
+          privateChannel: access.isPrivate.get(permissionChannelId) ?? false,
+        })
+      ) {
         viewable.add(channelId);
       }
     }
 
     return viewable;
+  }
+
+  private async resolvePermissionChannelId(
+    channelId: string,
+  ): Promise<string | null> {
+    const [channel] = await this.drizzle.db
+      .select({ parentId: channels.parentId })
+      .from(channels)
+      .where(eq(channels.id, channelId));
+
+    if (!channel) return null;
+    return channel.parentId ?? channelId;
+  }
+
+  private async loadChannelAccessContext(userId: string, channelIds: string[]) {
+    const isPrivate = new Map<string, boolean>();
+    const memberOf = new Set<string>();
+    if (channelIds.length === 0) return { isPrivate, memberOf };
+
+    const [privacyRows, memberRows] = await Promise.all([
+      this.drizzle.db
+        .select({
+          id: channels.id,
+          isPrivate: channels.isPrivate,
+        })
+        .from(channels)
+        .where(inArray(channels.id, channelIds)),
+      this.drizzle.db
+        .select({ channelId: channelMembers.channelId })
+        .from(channelMembers)
+        .where(
+          and(
+            eq(channelMembers.userId, userId),
+            inArray(channelMembers.channelId, channelIds),
+          ),
+        ),
+    ]);
+
+    for (const row of privacyRows) {
+      isPrivate.set(row.id, row.isPrivate);
+    }
+    for (const row of memberRows) {
+      memberOf.add(row.channelId);
+    }
+
+    return { isPrivate, memberOf };
+  }
+
+  private async resolvePermissionChannelIds(
+    channelIds: string[],
+  ): Promise<Map<string, string>> {
+    const result = new Map<string, string>();
+    if (channelIds.length === 0) return result;
+
+    const rows = await this.drizzle.db
+      .select({ id: channels.id, parentId: channels.parentId })
+      .from(channels)
+      .where(inArray(channels.id, channelIds));
+
+    for (const row of rows) {
+      result.set(row.id, row.parentId ?? row.id);
+    }
+
+    return result;
   }
 
   private async isWorkspaceOwner(workspaceId: string, userId: string) {

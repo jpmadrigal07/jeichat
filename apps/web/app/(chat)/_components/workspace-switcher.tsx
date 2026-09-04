@@ -10,7 +10,6 @@ import {
 } from '@/components/ui/tooltip';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { CreateWorkspaceDialog } from './create-workspace-dialog';
 import { useInactiveWorkspaceUnreadTotals } from '../_hooks/use-inactive-workspace-unread-totals';
 import { formatUnreadCount } from '../_helpers/format-unread-count';
 import type { Workspace } from '../_libs/workspaces';
@@ -91,12 +90,21 @@ export function WorkspaceSwitcher({
         );
       })}
 
-      <CreateWorkspaceDialog>
-        <button className="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-dashed border-muted-foreground/25 text-muted-foreground transition-all hover:rounded-xl hover:border-primary hover:text-primary">
-          <Plus className="h-5 w-5" />
-          <span className="sr-only">Create workspace</span>
-        </button>
-      </CreateWorkspaceDialog>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex">
+            <button
+              type="button"
+              disabled
+              className="flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-2xl border-2 border-dashed border-muted-foreground/25 text-muted-foreground opacity-50"
+            >
+              <Plus className="h-5 w-5" />
+              <span className="sr-only">Create workspace</span>
+            </button>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="right">Create workspace</TooltipContent>
+      </Tooltip>
     </div>
   );
 }

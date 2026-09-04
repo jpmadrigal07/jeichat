@@ -6,15 +6,23 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, sql, asc } from 'drizzle-orm';
 import { DrizzleService } from '../database/drizzle.service';
 import {
   workspaces,
   channels,
   workspaceMembers,
   user,
+  labels,
+  channelLabels,
 } from '../database/schema';
 import { WorkspaceRolesService } from './workspace-roles.service';
+import {
+  DEFAULT_WORKSPACE_LABELS,
+  LABEL_COLORS,
+  parseLabelColor,
+  parseLabelName,
+} from '../channels/ticket-fields';
 
 @Injectable()
 export class WorkspacesService {
@@ -46,6 +54,7 @@ export class WorkspacesService {
       id: channelId,
       workspaceId: id,
       name: 'general',
+      ticketKey: 'GEN',
       createdAt: now,
       updatedAt: now,
     });
@@ -59,6 +68,7 @@ export class WorkspacesService {
     });
 
     await this.workspaceRolesService.ensureDefaultAdministratorRole(id, userId);
+    await this.seedDefaultLabels(id);
 
     return workspace;
   }
@@ -130,6 +140,15 @@ export class WorkspacesService {
       .from(workspaceMembers)
       .innerJoin(user, eq(workspaceMembers.userId, user.id))
       .where(eq(workspaceMembers.workspaceId, workspaceId));
+  }
+
+  async listMemberUserIds(workspaceId: string) {
+    const rows = await this.drizzle.db
+      .select({ userId: workspaceMembers.userId })
+      .from(workspaceMembers)
+      .where(eq(workspaceMembers.workspaceId, workspaceId));
+
+    return rows.map((row) => row.userId);
   }
 
   async addMember(
@@ -232,6 +251,114 @@ export class WorkspacesService {
     return member;
   }
 
+  async findLabels(workspaceId: string, userId: string) {
+    await this.verifyMembership(workspaceId, userId);
+    await this.ensureDefaultLabels(workspaceId);
+
+    return this.drizzle.db
+      .select({
+        id: labels.id,
+        name: labels.name,
+        color: labels.color,
+        usageCount: sql<number>`count(${channelLabels.channelId})::int`,
+      })
+      .from(labels)
+      .leftJoin(channelLabels, eq(channelLabels.labelId, labels.id))
+      .where(eq(labels.workspaceId, workspaceId))
+      .groupBy(labels.id, labels.name, labels.color)
+      .orderBy(asc(labels.name));
+  }
+
+  async createLabel(
+    workspaceId: string,
+    userId: string,
+    data: { name: string; color?: string },
+  ) {
+    await this.verifyMembership(workspaceId, userId);
+
+    const name = parseLabelName(data.name);
+    const existing = await this.listLabelNames(workspaceId);
+
+    const duplicate = existing.find(
+      (label) => label.name.toLowerCase() === name.toLowerCase(),
+    );
+    if (duplicate) {
+      throw new BadRequestException('A label with this name already exists');
+    }
+
+    const color =
+      data.color !== undefined
+        ? parseLabelColor(data.color)
+        : LABEL_COLORS[existing.length % LABEL_COLORS.length];
+
+    const [label] = await this.drizzle.db
+      .insert(labels)
+      .values({
+        id: crypto.randomUUID(),
+        workspaceId,
+        name,
+        color,
+        createdAt: new Date(),
+      })
+      .returning({
+        id: labels.id,
+        name: labels.name,
+        color: labels.color,
+      });
+
+    return { ...label, usageCount: 0 };
+  }
+
+  async updateLabel(
+    workspaceId: string,
+    userId: string,
+    labelId: string,
+    data: { name?: string; color?: string },
+  ) {
+    await this.verifyMembership(workspaceId, userId);
+    const current = await this.getWorkspaceLabel(workspaceId, labelId);
+
+    const name =
+      data.name !== undefined ? parseLabelName(data.name) : current.name;
+    const color =
+      data.color !== undefined ? parseLabelColor(data.color) : current.color;
+
+    if (name.toLowerCase() !== current.name.toLowerCase()) {
+      const existing = await this.listLabelNames(workspaceId);
+      const duplicate = existing.find(
+        (label) =>
+          label.id !== labelId &&
+          label.name.toLowerCase() === name.toLowerCase(),
+      );
+      if (duplicate) {
+        throw new BadRequestException('A label with this name already exists');
+      }
+    }
+
+    const [label] = await this.drizzle.db
+      .update(labels)
+      .set({ name, color })
+      .where(
+        and(eq(labels.id, labelId), eq(labels.workspaceId, workspaceId)),
+      )
+      .returning({
+        id: labels.id,
+        name: labels.name,
+        color: labels.color,
+      });
+
+    return label;
+  }
+
+  async deleteLabel(workspaceId: string, userId: string, labelId: string) {
+    await this.verifyMembership(workspaceId, userId);
+    await this.getWorkspaceLabel(workspaceId, labelId);
+
+    await this.drizzle.db
+      .delete(labels)
+      .where(and(eq(labels.id, labelId), eq(labels.workspaceId, workspaceId)));
+  }
+
   private async verifyOwnership(workspaceId: string, userId: string) {
     const member = await this.verifyMembership(workspaceId, userId);
 
@@ -240,5 +367,53 @@ export class WorkspacesService {
     }
 
     return member;
+  }
+
+  private async listLabelNames(workspaceId: string) {
+    return this.drizzle.db
+      .select({ id: labels.id, name: labels.name })
+      .from(labels)
+      .where(eq(labels.workspaceId, workspaceId));
+  }
+
+  private async getWorkspaceLabel(workspaceId: string, labelId: string) {
+    const [label] = await this.drizzle.db
+      .select({
+        id: labels.id,
+        name: labels.name,
+        color: labels.color,
+      })
+      .from(labels)
+      .where(
+        and(eq(labels.id, labelId), eq(labels.workspaceId, workspaceId)),
+      );
+
+    if (!label) throw new NotFoundException('Label not found');
+    return label;
+  }
+
+  private async seedDefaultLabels(workspaceId: string) {
+    await this.drizzle.db
+      .insert(labels)
+      .values(
+        DEFAULT_WORKSPACE_LABELS.map((label) => ({
+          id: crypto.randomUUID(),
+          workspaceId,
+          name: label.name,
+          color: label.color,
+          createdAt: new Date(),
+        })),
+      )
+      .onConflictDoNothing();
+  }
+
+  private async ensureDefaultLabels(workspaceId: string) {
+    const [existing] = await this.drizzle.db
+      .select({ id: labels.id })
+      .from(labels)
+      .where(eq(labels.workspaceId, workspaceId))
+      .limit(1);
+    if (existing) return;
+    await this.seedDefaultLabels(workspaceId);
   }
 }

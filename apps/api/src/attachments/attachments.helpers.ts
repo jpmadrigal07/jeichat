@@ -60,3 +60,14 @@ export function buildStorageKey(
   const id = crypto.randomUUID();
   return { id, key: `${workspaceId}/${channelId}/${id}.${ext}` };
 }
+
+export const ATTACHMENT_PURPOSE = {
+  MESSAGE: 'message',
+  THREAD: 'thread',
+} as const;
+
+export const MAX_THREAD_ATTACHMENTS = 5;
+
+export function isImageContentType(contentType: string): boolean {
+  return contentType.toLowerCase().startsWith('image/');
+}

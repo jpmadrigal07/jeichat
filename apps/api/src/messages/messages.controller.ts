@@ -68,4 +68,22 @@ export class MessagesController {
   ) {
     return this.messagesService.remove(channelId, id, session.user.id);
   }
+
+  @Post(':id/pin')
+  pin(
+    @Param('channelId') channelId: string,
+    @Param('id') id: string,
+    @Session() session: UserSession<typeof auth>,
+  ) {
+    return this.messagesService.pin(channelId, id, session.user.id);
+  }
+
+  @Delete(':id/pin')
+  unpin(
+    @Param('channelId') channelId: string,
+    @Param('id') id: string,
+    @Session() session: UserSession<typeof auth>,
+  ) {
+    return this.messagesService.unpin(channelId, id, session.user.id);
+  }
 }

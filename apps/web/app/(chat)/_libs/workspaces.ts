@@ -94,3 +94,55 @@ export async function removeWorkspaceMember(
 ): Promise<void> {
   await api.delete(`/workspaces/${workspaceId}/members/${userId}`);
 }
+
+export type WorkspaceLabel = {
+  id: string;
+  name: string;
+  color: string;
+  usageCount?: number;
+};
+
+export function workspaceLabelsQueryKey(workspaceId: string) {
+  return ['workspaces', workspaceId, 'labels'] as const;
+}
+
+export async function fetchWorkspaceLabels(
+  workspaceId: string,
+  ctx?: { signal?: AbortSignal },
+): Promise<WorkspaceLabel[]> {
+  const { data } = await api.get<WorkspaceLabel[]>(
+    `/workspaces/${workspaceId}/labels`,
+    { signal: ctx?.signal },
+  );
+  return data;
+}
+
+export async function createWorkspaceLabel(
+  workspaceId: string,
+  payload: { name: string; color?: string },
+): Promise<WorkspaceLabel> {
+  const { data } = await api.post<WorkspaceLabel>(
+    `/workspaces/${workspaceId}/labels`,
+    payload,
+  );
+  return data;
+}
+
+export async function updateWorkspaceLabel(
+  workspaceId: string,
+  labelId: string,
+  payload: { name?: string; color?: string },
+): Promise<WorkspaceLabel> {
+  const { data } = await api.patch<WorkspaceLabel>(
+    `/workspaces/${workspaceId}/labels/${labelId}`,
+    payload,
+  );
+  return data;
+}
+
+export async function deleteWorkspaceLabel(
+  workspaceId: string,
+  labelId: string,
+): Promise<void> {
+  await api.delete(`/workspaces/${workspaceId}/labels/${labelId}`);
+}
