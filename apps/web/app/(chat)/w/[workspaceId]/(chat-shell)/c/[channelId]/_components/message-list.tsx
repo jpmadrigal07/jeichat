@@ -21,6 +21,8 @@ type MessageListProps = {
   onDelete: (messageId: string) => void;
   onPin: (messageId: string) => void;
   onUnpin: (messageId: string) => void;
+  onToggleReaction: (messageId: string, emoji: string) => void;
+  pendingReactionMessageId?: string;
   pinnedMessageIds: ReadonlySet<string>;
   canManageMessages: boolean;
   highlightMessageId: string | null;
@@ -96,6 +98,8 @@ export function MessageList({
   onDelete,
   onPin,
   onUnpin,
+  onToggleReaction,
+  pendingReactionMessageId,
   pinnedMessageIds,
   canManageMessages,
   highlightMessageId,
@@ -440,6 +444,8 @@ export function MessageList({
                 onDelete={onDelete}
                 onPin={onPin}
                 onUnpin={onUnpin}
+                onToggleReaction={onToggleReaction}
+                reactionPending={pendingReactionMessageId === item.message.id}
                 members={members}
                 tickets={tickets}
                 workspaceId={workspaceId}

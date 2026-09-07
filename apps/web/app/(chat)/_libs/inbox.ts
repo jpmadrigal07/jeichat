@@ -1,6 +1,6 @@
 import { api } from '@/lib/api';
 
-export type InboxNotificationType = 'mention' | 'assigned';
+export type InboxNotificationType = 'mention' | 'assigned' | 'reaction';
 
 export type InboxNotification = {
   id: string;
@@ -8,6 +8,7 @@ export type InboxNotification = {
   type: InboxNotificationType;
   readAt: string | null;
   createdAt: string;
+  emoji: string | null;
   actor: {
     id: string;
     name: string;

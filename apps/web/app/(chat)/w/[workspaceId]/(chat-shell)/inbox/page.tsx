@@ -11,5 +11,5 @@ export default async function InboxPage({
   if (!session?.data?.user) redirect('/');
 
   const { workspaceId } = await params;
-  return <InboxView workspaceId={workspaceId} />;
+  return <InboxView workspaceId={workspaceId} userId={session.data.user.id} />;
 }

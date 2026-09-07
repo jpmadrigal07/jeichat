@@ -7,12 +7,17 @@ import {
 import { and, count, desc, eq, inArray, lt, or } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { DrizzleService } from '../database/drizzle.service';
-import { attachments, messages, pinnedMessages } from '../database/schema';
+import { attachments, messages, messageReactions, pinnedMessages } from '../database/schema';
 import { user } from '../database/schema/auth';
 import { ChatGateway } from '../gateway/chat.gateway';
 import { InboxService } from '../inbox/inbox.service';
 import { StorageService } from '../storage/storage.service';
 import { ATTACHMENT_PURPOSE } from '../attachments/attachments.helpers';
+import {
+  normalizeReactionEmoji,
+  type MessageReactionSummary,
+  type MessageReactionsPayload,
+} from './message-reactions';
 import { PERMISSIONS } from '../workspaces/permissions';
 import { WorkspacePermissionsService } from '../workspaces/workspace-permissions.service';
 
@@ -26,6 +31,7 @@ export type MessageAttachmentPublic = {
 export const MAX_PINNED_MESSAGES = 50;
 
 const pinnedByUser = alias(user, 'pinned_by_user');
+const reactionUser = alias(user, 'reaction_user');
 
 @Injectable()
 export class MessagesService {
@@ -83,7 +89,65 @@ export class MessagesService {
     return grouped;
   }
 
-  private async findOneWithAttachments(messageId: string) {
+  private async loadReactionsByMessageIds(
+    messageIds: string[],
+    viewerUserId: string,
+  ): Promise<Map<string, MessageReactionSummary[]>> {
+    const grouped = new Map<string, MessageReactionSummary[]>();
+    if (!messageIds.length) return grouped;
+
+    const rows = await this.drizzle.db
+      .select({
+        messageId: messageReactions.messageId,
+        emoji: messageReactions.emoji,
+        userId: messageReactions.userId,
+        userName: reactionUser.name,
+        createdAt: messageReactions.createdAt,
+      })
+      .from(messageReactions)
+      .leftJoin(reactionUser, eq(messageReactions.userId, reactionUser.id))
+      .where(inArray(messageReactions.messageId, messageIds))
+      .orderBy(messageReactions.createdAt);
+
+    const byMessage = new Map<
+      string,
+      Map<string, { id: string; name: string }[]>
+    >();
+
+    for (const row of rows) {
+      const emojiMap =
+        byMessage.get(row.messageId) ??
+        new Map<string, { id: string; name: string }[]>();
+      const users = emojiMap.get(row.emoji) ?? [];
+      users.push({
+        id: row.userId,
+        name: row.userName ?? 'Unknown',
+      });
+      emojiMap.set(row.emoji, users);
+      byMessage.set(row.messageId, emojiMap);
+    }
+
+    for (const messageId of messageIds) {
+      const emojiMap = byMessage.get(messageId);
+      if (!emojiMap) {
+        grouped.set(messageId, []);
+        continue;
+      }
+
+      const summaries = [...emojiMap.entries()].map(([emoji, users]) => ({
+        emoji,
+        count: users.length,
+        reactedByMe: users.some((entry) => entry.id === viewerUserId),
+        users,
+      }));
+
+      grouped.set(messageId, summaries);
+    }
+
+    return grouped;
+  }
+
+  private async findOneWithAttachments(messageId: string, viewerUserId?: string) {
     const [row] = await this.drizzle.db
       .select({
         id: messages.id,
@@ -104,7 +168,15 @@ export class MessagesService {
     if (!row) throw new NotFoundException('Message not found');
 
     const grouped = await this.loadAttachmentsByMessageIds([messageId]);
-    return { ...row, attachments: grouped.get(messageId) ?? [] };
+    const reactions = await this.loadReactionsByMessageIds(
+      [messageId],
+      viewerUserId ?? row.senderId,
+    );
+    return {
+      ...row,
+      attachments: grouped.get(messageId) ?? [],
+      reactions: reactions.get(messageId) ?? [],
+    };
   }
 
   async create(
@@ -175,7 +247,7 @@ export class MessagesService {
       }
     });
 
-    const message = await this.findOneWithAttachments(messageId);
+    const message = await this.findOneWithAttachments(messageId, senderId);
     this.chatGateway.emitNewMessage(channelId, message);
     if (content.trim()) {
       await this.inboxService.notifyMentions({
@@ -244,9 +316,14 @@ export class MessagesService {
     const grouped = await this.loadAttachmentsByMessageIds(
       data.map((m) => m.id),
     );
+    const reactionsGrouped = await this.loadReactionsByMessageIds(
+      data.map((m) => m.id),
+      userId,
+    );
     const enriched = data.map((m) => ({
       ...m,
       attachments: grouped.get(m.id) ?? [],
+      reactions: reactionsGrouped.get(m.id) ?? [],
     }));
 
     return { data: enriched, nextCursor };
@@ -275,7 +352,7 @@ export class MessagesService {
       .set({ content, updatedAt: new Date() })
       .where(eq(messages.id, id));
 
-    const result = await this.findOneWithAttachments(id);
+    const result = await this.findOneWithAttachments(id, userId);
     this.chatGateway.emitMessageUpdated(channelId, result);
     if (content.trim()) {
       await this.inboxService.notifyMentions({
@@ -319,6 +396,77 @@ export class MessagesService {
     this.chatGateway.emitMessageDeleted(channelId, id);
   }
 
+  async toggleReaction(
+    channelId: string,
+    messageId: string,
+    userId: string,
+    rawEmoji: string,
+  ): Promise<MessageReactionsPayload> {
+    const channel = await this.verifyChannelAccess(
+      channelId,
+      userId,
+      PERMISSIONS.VIEW_CHANNEL,
+    );
+
+    const emoji = normalizeReactionEmoji(rawEmoji);
+
+    const [existingMessage] = await this.drizzle.db
+      .select()
+      .from(messages)
+      .where(and(eq(messages.id, messageId), eq(messages.channelId, channelId)));
+
+    if (!existingMessage) throw new NotFoundException('Message not found');
+
+    const [existingReaction] = await this.drizzle.db
+      .select()
+      .from(messageReactions)
+      .where(
+        and(
+          eq(messageReactions.messageId, messageId),
+          eq(messageReactions.userId, userId),
+          eq(messageReactions.emoji, emoji),
+        ),
+      );
+
+    if (existingReaction) {
+      await this.drizzle.db
+        .delete(messageReactions)
+        .where(eq(messageReactions.id, existingReaction.id));
+    } else {
+      await this.drizzle.db.insert(messageReactions).values({
+        id: crypto.randomUUID(),
+        messageId,
+        userId,
+        emoji,
+        createdAt: new Date(),
+      });
+
+      if (existingMessage.senderId !== userId) {
+        await this.inboxService.notifyReaction({
+          workspaceId: channel.workspaceId,
+          channelId,
+          messageId,
+          actorId: userId,
+          recipientId: existingMessage.senderId,
+          emoji,
+        });
+      }
+    }
+
+    const reactionsGrouped = await this.loadReactionsByMessageIds(
+      [messageId],
+      userId,
+    );
+    const payload: MessageReactionsPayload = {
+      messageId,
+      channelId,
+      reactions: reactionsGrouped.get(messageId) ?? [],
+    };
+
+    this.chatGateway.emitMessageReactionsUpdated(channelId, payload);
+    return payload;
+  }
+
   async listPins(channelId: string, userId: string) {
     const channel = await this.verifyChannelAccess(
       channelId,
@@ -336,7 +484,7 @@ export class MessagesService {
 
     return {
       canManageMessages,
-      data: await this.listPinsForChannel(channelId),
+      data: await this.listPinsForChannel(channelId, userId),
     };
   }
 
@@ -365,7 +513,7 @@ export class MessagesService {
       );
 
     if (alreadyPinned) {
-      return this.findOnePin(channelId, messageId);
+      return this.findOnePin(channelId, messageId, userId);
     }
 
     const [countRow] = await this.drizzle.db
@@ -387,7 +535,7 @@ export class MessagesService {
       pinnedAt: new Date(),
     });
 
-    const pin = await this.findOnePin(channelId, messageId);
+    const pin = await this.findOnePin(channelId, messageId, userId);
     this.chatGateway.emitMessagePinned(channelId, pin);
     return pin;
   }
@@ -418,14 +566,14 @@ export class MessagesService {
     this.chatGateway.emitMessageUnpinned(channelId, messageId);
   }
 
-  private async findOnePin(channelId: string, messageId: string) {
-    const listed = await this.listPinsForChannel(channelId);
+  private async findOnePin(channelId: string, messageId: string, userId: string) {
+    const listed = await this.listPinsForChannel(channelId, userId);
     const pin = listed.find((row) => row.messageId === messageId);
     if (!pin) throw new NotFoundException('Pinned message not found');
     return pin;
   }
 
-  private async listPinsForChannel(channelId: string) {
+  private async listPinsForChannel(channelId: string, viewerUserId: string) {
     const rows = await this.drizzle.db
       .select({
         id: pinnedMessages.id,
@@ -454,6 +602,10 @@ export class MessagesService {
     const grouped = await this.loadAttachmentsByMessageIds(
       rows.map((row) => row.messageId),
     );
+    const reactionsGrouped = await this.loadReactionsByMessageIds(
+      rows.map((row) => row.messageId),
+      viewerUserId,
+    );
 
     return rows.map((row) => ({
       id: row.id,
@@ -475,6 +627,7 @@ export class MessagesService {
           ? { name: row.senderName, image: row.senderImage }
           : null,
         attachments: grouped.get(row.messageId) ?? [],
+        reactions: reactionsGrouped.get(row.messageId) ?? [],
       },
     }));
   }

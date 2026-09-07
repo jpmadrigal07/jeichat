@@ -13,6 +13,12 @@ export type TicketLabel = {
   color: string;
 };
 
+export type DmPeer = {
+  id: string;
+  name: string;
+  image: string | null;
+};
+
 export type Channel = {
   id: string;
   workspaceId: string;
@@ -25,6 +31,8 @@ export type Channel = {
   dueAt: string | null;
   ticketNumber: number | null;
   ticketKey: string | null;
+  channelType: 'channel' | 'dm';
+  dmPeer: DmPeer | null;
   isPrivate: boolean;
   createdAt: string;
   updatedAt: string;
@@ -78,6 +86,17 @@ export async function createChannel(
   const { data } = await api.post<Channel>(
     `/workspaces/${workspaceId}/channels`,
     payload,
+  );
+  return data;
+}
+
+export async function createOrGetDm(
+  workspaceId: string,
+  targetUserId: string,
+): Promise<Channel> {
+  const { data } = await api.post<Channel>(
+    `/workspaces/${workspaceId}/channels/dms`,
+    { userId: targetUserId },
   );
   return data;
 }

@@ -30,6 +30,8 @@ export const channels = pgTable(
     dueAt: timestamp('due_at', { withTimezone: true }),
     ticketNumber: integer('ticket_number'),
     ticketKey: text('ticket_key'),
+    channelType: text('channel_type').notNull().default('channel'),
+    dmPairKey: text('dm_pair_key'),
     isPrivate: boolean('is_private').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
@@ -43,7 +45,14 @@ export const channels = pgTable(
     index('channels_parent_id_idx').on(table.parentId),
     uniqueIndex('channels_workspace_id_name_unq')
       .on(table.workspaceId, table.name)
-      .where(sql`${table.parentId} is null`),
+      .where(
+        sql`${table.parentId} is null and ${table.channelType} = 'channel'`,
+      ),
+    uniqueIndex('channels_workspace_dm_pair_unq')
+      .on(table.workspaceId, table.dmPairKey)
+      .where(
+        sql`${table.channelType} = 'dm' and ${table.dmPairKey} is not null`,
+      ),
     uniqueIndex('channels_parent_id_name_unq')
       .on(table.parentId, table.name)
       .where(sql`${table.parentId} is not null`),

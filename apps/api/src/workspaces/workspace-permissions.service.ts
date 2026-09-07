@@ -73,11 +73,23 @@ export class WorkspacePermissionsService {
     userId: string,
     permission: Permission,
   ): Promise<boolean> {
-    if (await this.isWorkspaceOwner(workspaceId, userId)) return true;
-
     const permissionChannelId =
       await this.resolvePermissionChannelId(channelId);
     if (!permissionChannelId) return false;
+
+    const [channelMeta] = await this.drizzle.db
+      .select({ channelType: channels.channelType })
+      .from(channels)
+      .where(eq(channels.id, permissionChannelId));
+
+    if (channelMeta?.channelType === 'dm') {
+      const access = await this.loadChannelAccessContext(userId, [
+        permissionChannelId,
+      ]);
+      return access.memberOf.has(permissionChannelId);
+    }
+
+    if (await this.isWorkspaceOwner(workspaceId, userId)) return true;
 
     const [access, roles] = await Promise.all([
       this.loadChannelAccessContext(userId, [permissionChannelId]),
@@ -106,12 +118,20 @@ export class WorkspacePermissionsService {
     if (channelIds.length === 0) return new Set();
 
     if (await this.isWorkspaceOwner(workspaceId, userId)) {
-      return new Set(channelIds);
+      return this.restrictDmChannelsToMembers(
+        channelIds,
+        new Set(channelIds),
+        userId,
+      );
     }
 
     const roles = await this.getUserRoles(workspaceId, userId);
     if (roles.some((role) => role.isAdministrator)) {
-      return new Set(channelIds);
+      return this.restrictDmChannelsToMembers(
+        channelIds,
+        new Set(channelIds),
+        userId,
+      );
     }
 
     const permissionChannelIds = await this.resolvePermissionChannelIds(
@@ -146,7 +166,44 @@ export class WorkspacePermissionsService {
       }
     }
 
-    return viewable;
+    return this.restrictDmChannelsToMembers(channelIds, viewable, userId);
+  }
+
+  private async getDmChannelIdSet(channelIds: string[]) {
+    if (channelIds.length === 0) return new Set<string>();
+
+    const rows = await this.drizzle.db
+      .select({ id: channels.id })
+      .from(channels)
+      .where(
+        and(
+          inArray(channels.id, channelIds),
+          eq(channels.channelType, 'dm'),
+        ),
+      );
+
+    return new Set(rows.map((row) => row.id));
+  }
+
+  private async restrictDmChannelsToMembers(
+    channelIds: string[],
+    viewable: Set<string>,
+    userId: string,
+  ) {
+    const dmChannelIds = await this.getDmChannelIdSet(channelIds);
+    if (dmChannelIds.size === 0) return viewable;
+
+    const dmInViewable = [...dmChannelIds].filter((id) => viewable.has(id));
+    if (dmInViewable.length === 0) return viewable;
+
+    const access = await this.loadChannelAccessContext(userId, dmInViewable);
+    const result = new Set(viewable);
+    for (const dmId of dmChannelIds) {
+      if (!access.memberOf.has(dmId)) {
+        result.delete(dmId);
+      }
+    }
+    return result;
   }
 
   private async resolvePermissionChannelId(

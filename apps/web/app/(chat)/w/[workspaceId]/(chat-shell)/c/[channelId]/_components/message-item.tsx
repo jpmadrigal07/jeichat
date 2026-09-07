@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import type { Message } from '../_libs/messages';
 import { MessageAttachments } from './message-attachments';
 import { MessageMarkdown } from './message-markdown';
+import { MessageReactions } from './message-reactions';
 import type { MentionableMember } from '@chat/_helpers/mentions';
 import type { TaggableTicket } from '@chat/_helpers/ticket-mentions';
 
@@ -41,6 +42,8 @@ type MessageItemProps = {
   onDelete: (messageId: string) => void;
   onPin: (messageId: string) => void;
   onUnpin: (messageId: string) => void;
+  onToggleReaction: (messageId: string, emoji: string) => void;
+  reactionPending?: boolean;
   members: MentionableMember[];
   tickets: TaggableTicket[];
   workspaceId: string;
@@ -64,6 +67,8 @@ export function MessageItem({
   onDelete,
   onPin,
   onUnpin,
+  onToggleReaction,
+  reactionPending = false,
   members,
   tickets,
   workspaceId,
@@ -156,6 +161,11 @@ export function MessageItem({
               />
             ) : null}
             <MessageAttachments attachments={message.attachments} />
+            <MessageReactions
+              reactions={message.reactions ?? []}
+              onToggle={(emoji) => onToggleReaction(message.id, emoji)}
+              disabled={reactionPending}
+            />
           </>
         )}
       </div>

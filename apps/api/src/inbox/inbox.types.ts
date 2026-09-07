@@ -1,4 +1,4 @@
-export const INBOX_NOTIFICATION_TYPES = ['mention', 'assigned'] as const;
+export const INBOX_NOTIFICATION_TYPES = ['mention', 'assigned', 'reaction'] as const;
 
 export type InboxNotificationType = (typeof INBOX_NOTIFICATION_TYPES)[number];
 
@@ -33,6 +33,7 @@ export type InboxNotification = {
   type: InboxNotificationType;
   readAt: string | null;
   createdAt: string;
+  emoji: string | null;
   actor: InboxActor;
   channel: InboxChannel;
   parent: InboxParentChannel | null;

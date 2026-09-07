@@ -101,3 +101,28 @@ export function updatePinnedMessageInCache(
     },
   );
 }
+
+export function updatePinnedMessageReactionsInCache(
+  queryClient: QueryClient,
+  channelId: string,
+  messageId: string,
+  reactions: Message['reactions'],
+) {
+  queryClient.setQueryData<PinnedMessagesResponse>(
+    pinsQueryKey(channelId),
+    (old) => {
+      if (!old) return old;
+      return {
+        ...old,
+        data: old.data.map((item) =>
+          item.messageId === messageId
+            ? {
+                ...item,
+                message: { ...item.message, reactions },
+              }
+            : item,
+        ),
+      };
+    },
+  );
+}

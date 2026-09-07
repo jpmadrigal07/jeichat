@@ -12,11 +12,16 @@ export default function WorkspacePage() {
 
   useEffect(() => {
     if (channels && channels.length > 0) {
-      const general =
-        channels.find((c) => c.name === 'general') ?? channels[0];
-      if (general) {
+      const general = channels.find(
+        (c) => c.name === 'general' && c.channelType !== 'dm' && !c.parentId,
+      );
+      const firstChannel =
+        general ??
+        channels.find((c) => c.channelType !== 'dm' && !c.parentId) ??
+        channels[0];
+      if (firstChannel) {
         startTransition(() => {
-          router.replace(`/w/${workspaceId}/c/${general.id}`);
+          router.replace(`/w/${workspaceId}/c/${firstChannel.id}`);
         });
       }
     }

@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchChannels,
   createChannel,
+  createOrGetDm,
   createThread,
   updateChannel,
   deleteChannel,
@@ -71,6 +72,19 @@ export function useCreateChannel(workspaceId: string) {
       isPrivate?: boolean;
       memberIds?: string[];
     }) => createChannel(workspaceId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: channelsQueryKey(workspaceId),
+      });
+    },
+  });
+}
+
+export function useCreateOrGetDm(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (targetUserId: string) =>
+      createOrGetDm(workspaceId, targetUserId),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: channelsQueryKey(workspaceId),

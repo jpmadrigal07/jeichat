@@ -41,6 +41,8 @@ import { useChannels } from '../_hooks/use-channels';
 import { useWorkspaceSearch, useSearchHistory } from '../_hooks/use-search';
 import { useWorkspaces, useWorkspaceMembers } from '../_hooks/use-workspaces';
 import { channelPageHref } from '../_libs/channels';
+import { channelDisplayName } from '../_helpers/channel-display';
+import { ChannelTypeIcon } from './channel-type-icon';
 import type { SearchHit } from '../_libs/search';
 import { personInitials } from '../_helpers/ticket-fields';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -169,7 +171,7 @@ export function WorkspaceSearch({ workspaceId }: { workspaceId: string }) {
     parsed.incomplete === 'in'
       ? (channels ?? [])
           .filter((channel) =>
-            channel.name
+            channelDisplayName(channel)
               .toLowerCase()
               .includes(parsed.incompleteQuery.toLowerCase()),
           )
@@ -262,11 +264,19 @@ export function WorkspaceSearch({ workspaceId }: { workspaceId: string }) {
                   variant="ghost"
                   className="h-auto w-full justify-start py-2 font-normal"
                   onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => insertFilter('in', channel.name)}
+                  onClick={() =>
+                    insertFilter('in', channelDisplayName(channel))
+                  }
                 >
-                  <Hash />
+                  <ChannelTypeIcon
+                    isPrivate={channel.isPrivate && !channel.parentId}
+                  />
                   <span className="truncate">
-                    {channelLabel(channel.name, channel.parentId)}
+                    {channel.parentId
+                      ? channel.name
+                      : channel.channelType === 'dm'
+                        ? channelDisplayName(channel)
+                        : `#${channel.name}`}
                   </span>
                 </Button>
               ))}

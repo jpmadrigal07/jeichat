@@ -59,6 +59,19 @@ export class ChannelsController {
     return this.channelsService.getUnreadCounts(workspaceId, session.user.id);
   }
 
+  @Post('dms')
+  createDm(
+    @Param('workspaceId') workspaceId: string,
+    @Body() body: { userId: string },
+    @Session() session: UserSession<typeof auth>,
+  ) {
+    return this.channelsService.createOrGetDm(
+      workspaceId,
+      session.user.id,
+      body.userId,
+    );
+  }
+
   @Get(':id/events')
   listEvents(
     @Param('workspaceId') workspaceId: string,

@@ -1,12 +1,14 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useWorkspaceMembers } from '../_hooks/use-workspaces';
 import { useOnlineUserIds } from '../_hooks/use-presence';
 import { useMembersSidebarOpen } from '../_hooks/use-members-sidebar';
+import { useCreateOrGetDm } from '../_hooks/use-channels';
 import type { WorkspaceMember } from '../_libs/workspaces';
 import { PresenceAvatar } from './presence-avatar';
 
@@ -17,14 +19,22 @@ function sortByName(a: WorkspaceMember, b: WorkspaceMember) {
 function MemberRow({
   member,
   online,
+  onSelect,
+  disabled,
 }: {
   member: WorkspaceMember;
   online: boolean;
+  onSelect: () => void;
+  disabled: boolean;
 }) {
   return (
-    <div
+    <Button
+      type="button"
+      variant="ghost"
+      disabled={disabled}
+      onClick={onSelect}
       className={cn(
-        'flex items-center gap-2 rounded-md px-2 py-1 hover:bg-sidebar-accent',
+        'h-auto w-full justify-start gap-2 rounded-md px-2 py-1 font-normal',
         !online && 'opacity-70',
       )}
     >
@@ -36,7 +46,7 @@ function MemberRow({
         showOffline
       />
       <span className="truncate text-sm">{member.name}</span>
-    </div>
+    </Button>
   );
 }
 
@@ -44,10 +54,14 @@ function MemberSection({
   label,
   members,
   online,
+  onSelectMember,
+  disabled,
 }: {
   label: string;
   members: WorkspaceMember[];
   online: boolean;
+  onSelectMember: (member: WorkspaceMember) => void;
+  disabled: boolean;
 }) {
   if (members.length === 0) return null;
 
@@ -57,21 +71,38 @@ function MemberSection({
         {label} — {members.length}
       </p>
       {members.map((member) => (
-        <MemberRow key={member.id} member={member} online={online} />
+        <MemberRow
+          key={member.id}
+          member={member}
+          online={online}
+          disabled={disabled}
+          onSelect={() => onSelectMember(member)}
+        />
       ))}
     </div>
   );
 }
 
-export function MembersSidebar() {
+export function MembersSidebar({ currentUserId }: { currentUserId: string }) {
   const params = useParams<{ workspaceId?: string }>();
   const workspaceId = params.workspaceId;
+  const router = useRouter();
   const { data: members, isLoading } = useWorkspaceMembers(workspaceId ?? '');
   const { data: onlineIds } = useOnlineUserIds(workspaceId);
   const { open } = useMembersSidebarOpen();
+  const createDm = useCreateOrGetDm(workspaceId ?? '');
   const onlineSet = new Set(onlineIds ?? []);
 
   if (!workspaceId || !open) return null;
+
+  function startDm(member: WorkspaceMember) {
+    if (member.userId === currentUserId) return;
+    createDm.mutate(member.userId, {
+      onSuccess: (channel) => {
+        router.push(`/w/${workspaceId}/c/${channel.id}`);
+      },
+    });
+  }
 
   const onlineMembers = (members ?? [])
     .filter((member) => onlineSet.has(member.userId))
@@ -90,8 +121,20 @@ export function MembersSidebar() {
         </div>
       ) : (
         <ScrollArea className="h-full">
-          <MemberSection label="Online" members={onlineMembers} online />
-          <MemberSection label="Offline" members={offlineMembers} online={false} />
+          <MemberSection
+            label="Online"
+            members={onlineMembers}
+            online
+            disabled={createDm.isPending}
+            onSelectMember={startDm}
+          />
+          <MemberSection
+            label="Offline"
+            members={offlineMembers}
+            online={false}
+            disabled={createDm.isPending}
+            onSelectMember={startDm}
+          />
         </ScrollArea>
       )}
     </aside>

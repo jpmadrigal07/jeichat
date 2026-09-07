@@ -3,7 +3,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Columns3, Hash, Lock, MessageSquare, MessageSquarePlus } from 'lucide-react';
+import { Columns3, MessageSquare, MessageSquarePlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Breadcrumb,
@@ -29,6 +29,12 @@ import { ExportDialog } from './export-dialog';
 import { PinnedMessagesPopoverHost } from './pinned-messages-popover';
 import { MembersSidebarToggle } from '@chat/_components/members-sidebar-toggle';
 import { WorkspaceSearch } from '@chat/_components/workspace-search';
+import { ChannelTypeIcon } from '@chat/_components/channel-type-icon';
+import { PresenceAvatar } from '@chat/_components/presence-avatar';
+import {
+  channelDisplayName,
+  isDmChannel,
+} from '@chat/_helpers/channel-display';
 
 type ChannelViewMode = 'messages' | 'threads';
 
@@ -50,6 +56,7 @@ export function ChannelHeader({
   layout,
 }: ChannelHeaderProps) {
   const isThread = Boolean(channel?.parentId);
+  const isDm = isDmChannel(channel);
 
   return (
     <div className="flex h-12 items-center gap-2 border-b px-4 shrink-0">
@@ -73,17 +80,26 @@ export function ChannelHeader({
         </Breadcrumb>
       ) : (
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          {isThread ? (
+          {isDm && channel?.dmPeer ? (
+            <PresenceAvatar
+              userId={channel.dmPeer.id}
+              name={channel.dmPeer.name}
+              image={channel.dmPeer.image}
+              size="sm"
+              showOffline
+            />
+          ) : isThread ? (
             <MessageSquare className="h-5 w-5 shrink-0 text-muted-foreground" />
-          ) : channel?.isPrivate ? (
-            <Lock className="h-5 w-5 shrink-0 text-muted-foreground" />
           ) : (
-            <Hash className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <ChannelTypeIcon
+              isPrivate={channel?.isPrivate}
+              className="h-5 w-5 text-muted-foreground"
+            />
           )}
           <h1 className="min-w-0 truncate text-sm font-semibold">
-            {channel?.name ?? 'Loading...'}
+            {channel ? channelDisplayName(channel) : 'Loading...'}
           </h1>
-          {channel?.description && !isThread ? (
+          {channel?.description && !isThread && !isDm ? (
             <span className="truncate text-xs text-muted-foreground">
               {channel.description}
             </span>
@@ -91,7 +107,7 @@ export function ChannelHeader({
         </div>
       )}
       <div className="ml-auto flex shrink-0 items-center gap-1">
-        {!isThread && channel ? (
+        {!isThread && channel && !isDm ? (
           <Suspense
             fallback={
               <ChannelHeaderTicketActions

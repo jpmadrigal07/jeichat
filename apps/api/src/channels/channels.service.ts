@@ -50,6 +50,17 @@ import { WorkspacesService } from '../workspaces/workspaces.service';
 
 const parentChannels = alias(channels, 'parent_channels');
 
+const CHANNEL_TYPE = {
+  CHANNEL: 'channel',
+  DM: 'dm',
+} as const;
+
+type DmPeer = {
+  id: string;
+  name: string;
+  image: string | null;
+};
+
 @Injectable()
 export class ChannelsService {
   constructor(
@@ -111,6 +122,77 @@ export class ChannelsService {
     return channel;
   }
 
+  async createOrGetDm(
+    workspaceId: string,
+    userId: string,
+    targetUserId: string,
+  ) {
+    if (userId === targetUserId) {
+      throw new BadRequestException('Cannot message yourself');
+    }
+
+    await this.workspacesService.verifyMembership(workspaceId, userId);
+
+    const [targetMember] = await this.drizzle.db
+      .select({ userId: workspaceMembers.userId })
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, workspaceId),
+          eq(workspaceMembers.userId, targetUserId),
+        ),
+      );
+
+    if (!targetMember) {
+      throw new BadRequestException('User is not a member of this workspace');
+    }
+
+    const pairKey = this.buildDmPairKey(userId, targetUserId);
+
+    const [existing] = await this.drizzle.db
+      .select()
+      .from(channels)
+      .where(
+        and(
+          eq(channels.workspaceId, workspaceId),
+          eq(channels.channelType, CHANNEL_TYPE.DM),
+          eq(channels.dmPairKey, pairKey),
+        ),
+      );
+
+    if (existing) {
+      const [withPeers] = await this.withDmPeers([existing], userId);
+      const [enriched] = await this.withThreadAttachments([withPeers]);
+      return enriched;
+    }
+
+    const now = new Date();
+    const [channel] = await this.drizzle.db
+      .insert(channels)
+      .values({
+        id: crypto.randomUUID(),
+        workspaceId,
+        name: 'dm',
+        channelType: CHANNEL_TYPE.DM,
+        dmPairKey: pairKey,
+        isPrivate: true,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    await this.addChannelMembers(
+      workspaceId,
+      channel.id,
+      [userId, targetUserId],
+      userId,
+    );
+
+    const [withPeers] = await this.withDmPeers([channel], userId);
+    const [enriched] = await this.withThreadAttachments([withPeers]);
+    return enriched;
+  }
+
   async createThread(
     workspaceId: string,
     parentId: string,
@@ -123,6 +205,11 @@ export class ChannelsService {
     const parent = await this.findOne(workspaceId, parentId, userId);
     if (parent.parentId) {
       throw new BadRequestException('Cannot create a ticket inside a ticket');
+    }
+    if (parent.channelType === CHANNEL_TYPE.DM) {
+      throw new BadRequestException(
+        'Tickets are not available in direct messages',
+      );
     }
 
     await this.workspacePermissionsService.assertChannelPermission(
@@ -231,6 +318,9 @@ export class ChannelsService {
     if (parent.parentId) {
       throw new BadRequestException('Cannot list tickets of a ticket');
     }
+    if (parent.channelType === CHANNEL_TYPE.DM) {
+      return [];
+    }
 
     const threads = await this.drizzle.db
       .select()
@@ -317,7 +407,8 @@ export class ChannelsService {
 
   async findAll(workspaceId: string, userId: string) {
     const visible = await this.listViewableChannels(workspaceId, userId);
-    return this.withThreadAttachments(visible);
+    const withPeers = await this.withDmPeers(visible, userId);
+    return this.withThreadAttachments(withPeers);
   }
 
   async findOne(workspaceId: string, id: string, userId: string) {
@@ -339,7 +430,8 @@ export class ChannelsService {
 
     if (!canView) throw new NotFoundException('Channel not found');
 
-    const [enriched] = await this.withThreadAttachments([channel]);
+    const [withPeers] = await this.withDmPeers([channel], userId);
+    const [enriched] = await this.withThreadAttachments([withPeers]);
     return enriched;
   }
 
@@ -363,6 +455,9 @@ export class ChannelsService {
   ) {
     const existing = await this.findOne(workspaceId, id, userId);
     const isThread = Boolean(existing.parentId);
+    if (!isThread && existing.channelType === CHANNEL_TYPE.DM) {
+      throw new BadRequestException('Direct messages cannot be edited');
+    }
     const addAttachmentIds = [...new Set(data.addAttachmentIds ?? [])];
     const removeAttachmentIds = [...new Set(data.removeAttachmentIds ?? [])];
 
@@ -585,6 +680,8 @@ export class ChannelsService {
 
       const shouldPatchChannel =
         patch.name !== undefined ||
+        patch.ticketKey !== undefined ||
+        patch.isPrivate !== undefined ||
         data.description !== undefined ||
         hasTicketFields ||
         addRows.length > 0 ||
@@ -925,6 +1022,50 @@ export class ChannelsService {
     if (values.length === 0) return;
 
     await this.drizzle.db.insert(channelMembers).values(values);
+  }
+
+  private buildDmPairKey(userId: string, targetUserId: string) {
+    return [userId, targetUserId].sort().join(':');
+  }
+
+  private async withDmPeers<
+    T extends { id: string; channelType: string },
+  >(rows: T[], viewerId: string): Promise<Array<T & { dmPeer: DmPeer | null }>> {
+    const dmChannelIds = rows
+      .filter((row) => row.channelType === CHANNEL_TYPE.DM)
+      .map((row) => row.id);
+
+    if (dmChannelIds.length === 0) {
+      return rows.map((row) => ({ ...row, dmPeer: null }));
+    }
+
+    const peers = await this.drizzle.db
+      .select({
+        channelId: channelMembers.channelId,
+        id: user.id,
+        name: user.name,
+        image: user.image,
+      })
+      .from(channelMembers)
+      .innerJoin(user, eq(channelMembers.userId, user.id))
+      .where(
+        and(
+          inArray(channelMembers.channelId, dmChannelIds),
+          ne(channelMembers.userId, viewerId),
+        ),
+      );
+
+    const peerByChannel = new Map(
+      peers.map((peer) => [peer.channelId, peer]),
+    );
+
+    return rows.map((row) => ({
+      ...row,
+      dmPeer:
+        row.channelType === CHANNEL_TYPE.DM
+          ? (peerByChannel.get(row.id) ?? null)
+          : null,
+    }));
   }
 
   private async assertTicketAssignee(workspaceId: string, assigneeId: string) {

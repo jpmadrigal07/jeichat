@@ -25,6 +25,7 @@ export const notifications = pgTable(
     messageId: text('message_id').references(() => messages.id, {
       onDelete: 'cascade',
     }),
+    emoji: text('emoji'),
     readAt: timestamp('read_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .defaultNow()
@@ -39,5 +40,10 @@ export const notifications = pgTable(
     uniqueIndex('notifications_mention_unq')
       .on(table.messageId, table.userId)
       .where(sql`${table.type} = 'mention' and ${table.messageId} is not null`),
+    uniqueIndex('notifications_reaction_unq')
+      .on(table.messageId, table.userId, table.actorId, table.emoji)
+      .where(
+        sql`${table.type} = 'reaction' and ${table.messageId} is not null and ${table.emoji} is not null`,
+      ),
   ],
 );

@@ -7,17 +7,23 @@ import {
 
 export function groupChannelsByParent(channels: Channel[]) {
   const topLevel: Channel[] = [];
+  const dms: Channel[] = [];
   const threadsByParent = new Map<string, Channel[]>();
 
   for (const channel of channels) {
-    if (!channel.parentId) {
-      topLevel.push(channel);
+    if (channel.parentId) {
+      const threads = threadsByParent.get(channel.parentId) ?? [];
+      threads.push(channel);
+      threadsByParent.set(channel.parentId, threads);
       continue;
     }
 
-    const threads = threadsByParent.get(channel.parentId) ?? [];
-    threads.push(channel);
-    threadsByParent.set(channel.parentId, threads);
+    if (channel.channelType === 'dm') {
+      dms.push(channel);
+      continue;
+    }
+
+    topLevel.push(channel);
   }
 
   for (const threads of threadsByParent.values()) {
@@ -27,7 +33,9 @@ export function groupChannelsByParent(channels: Channel[]) {
     );
   }
 
-  return { topLevel, threadsByParent };
+  dms.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+  return { topLevel, dms, threadsByParent };
 }
 
 export function groupTicketsByStatus<T extends Channel>(tickets: T[]) {

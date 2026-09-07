@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { personInitials } from '@chat/_helpers/ticket-fields';
 import {
   inboxEventLabel,
+  inboxItemHref,
   inboxSnippet,
 } from '@chat/_helpers/inbox-copy';
 import {
@@ -23,12 +24,17 @@ import {
   useMarkAllInboxRead,
   useMarkInboxRead,
 } from '@chat/_hooks/use-inbox';
-import { channelPageHref } from '@chat/_libs/channels';
 import { ChatPane } from '@chat/_components/chat-pane';
 import { MembersSidebarToggle } from '@chat/_components/members-sidebar-toggle';
 import { WorkspaceSearch } from '@chat/_components/workspace-search';
 
-export function InboxView({ workspaceId }: { workspaceId: string }) {
+export function InboxView({
+  workspaceId,
+  userId,
+}: {
+  workspaceId: string;
+  userId: string;
+}) {
   const { data, isPending } = useInbox(workspaceId);
   const markRead = useMarkInboxRead(workspaceId);
   const markAllRead = useMarkAllInboxRead(workspaceId);
@@ -37,6 +43,7 @@ export function InboxView({ workspaceId }: { workspaceId: string }) {
 
   return (
     <ChatPane
+      currentUserId={userId}
       header={
         <div className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
           <h1 className="min-w-0 flex-1 truncate text-sm font-semibold">Inbox</h1>
@@ -71,7 +78,7 @@ export function InboxView({ workspaceId }: { workspaceId: string }) {
             </EmptyMedia>
             <EmptyTitle>You&apos;re all caught up</EmptyTitle>
             <EmptyDescription>
-              Mentions and assignments will show up here.
+              Mentions, reactions, and assignments will show up here.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
@@ -91,7 +98,7 @@ export function InboxView({ workspaceId }: { workspaceId: string }) {
                 )}
               >
                 <Link
-                  href={channelPageHref(workspaceId, item.channel.id)}
+                  href={inboxItemHref(workspaceId, item)}
                   onClick={() => {
                     if (unread) markRead.mutate(item.id);
                   }}

@@ -179,6 +179,46 @@ export class InboxService {
     if (inserted) await this.emitInserted([inserted]);
   }
 
+  async notifyReaction(input: {
+    workspaceId: string;
+    channelId: string;
+    messageId: string;
+    actorId: string;
+    recipientId: string;
+    emoji: string;
+  }) {
+    if (input.recipientId === input.actorId) return;
+
+    const [member] = await this.drizzle.db
+      .select({ userId: workspaceMembers.userId })
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, input.workspaceId),
+          eq(workspaceMembers.userId, input.recipientId),
+        ),
+      );
+    if (!member) return;
+
+    const [inserted] = await this.drizzle.db
+      .insert(notifications)
+      .values({
+        id: crypto.randomUUID(),
+        workspaceId: input.workspaceId,
+        userId: input.recipientId,
+        actorId: input.actorId,
+        type: 'reaction' satisfies InboxNotificationType,
+        channelId: input.channelId,
+        messageId: input.messageId,
+        emoji: input.emoji,
+        createdAt: new Date(),
+      })
+      .onConflictDoNothing()
+      .returning({ id: notifications.id, userId: notifications.userId });
+
+    if (inserted) await this.emitInserted([inserted]);
+  }
+
   private async countUnread(workspaceId: string, userId: string) {
     const [row] = await this.drizzle.db
       .select({ value: count() })
@@ -211,6 +251,7 @@ export class InboxService {
         id: notifications.id,
         workspaceId: notifications.workspaceId,
         type: notifications.type,
+        emoji: notifications.emoji,
         readAt: notifications.readAt,
         createdAt: notifications.createdAt,
         actor: {
@@ -253,6 +294,7 @@ export class InboxService {
           type: row.type as InboxNotificationType,
           readAt: row.readAt ? row.readAt.toISOString() : null,
           createdAt: row.createdAt.toISOString(),
+          emoji: row.emoji,
           actor: {
             id: row.actor.id,
             name: row.actor.name,

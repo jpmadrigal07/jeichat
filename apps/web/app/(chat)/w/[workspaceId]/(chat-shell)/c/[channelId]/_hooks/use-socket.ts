@@ -13,7 +13,8 @@ import {
   removePinFromCache,
   updatePinnedMessageInCache,
 } from './use-pins';
-import type { Message, PinnedMessage } from '../_libs/messages';
+import { updateMessageReactionsInCache } from './use-reactions';
+import type { Message, MessageReactionsPayload, PinnedMessage } from '../_libs/messages';
 import { addChannelEventToCache } from './use-channel-events';
 import {
   isParentChannelEventType,
@@ -25,13 +26,16 @@ type TypingUser = { userId: string; userName: string };
 export function useSocket(
   workspaceId: string,
   channelId: string,
+  currentUserId: string,
   onTyping?: (user: TypingUser) => void,
 ) {
   const queryClient = useQueryClient();
   const workspaceIdRef = useRef(workspaceId);
   const channelIdRef = useRef(channelId);
+  const currentUserIdRef = useRef(currentUserId);
   workspaceIdRef.current = workspaceId;
   channelIdRef.current = channelId;
+  currentUserIdRef.current = currentUserId;
 
   useEffect(() => {
     const socket = getSocket();
@@ -72,6 +76,17 @@ export function useSocket(
     }) => {
       if (payload.channelId === channelIdRef.current) {
         removePinFromCache(queryClient, channelIdRef.current, payload.id);
+      }
+    };
+
+    const handleMessageReactionsUpdated = (payload: MessageReactionsPayload) => {
+      if (payload.channelId === channelIdRef.current) {
+        updateMessageReactionsInCache(
+          queryClient,
+          channelIdRef.current,
+          payload,
+          currentUserIdRef.current,
+        );
       }
     };
 
@@ -118,6 +133,7 @@ export function useSocket(
     socket.on('message_deleted', handleMessageDeleted);
     socket.on('message_pinned', handleMessagePinned);
     socket.on('message_unpinned', handleMessageUnpinned);
+    socket.on('message_reactions_updated', handleMessageReactionsUpdated);
     socket.on('channel_event', handleChannelEvent);
     socket.on('user_typing', handleUserTyping);
     socket.on('connect', joinCurrent);
@@ -129,6 +145,7 @@ export function useSocket(
       socket.off('message_deleted', handleMessageDeleted);
       socket.off('message_pinned', handleMessagePinned);
       socket.off('message_unpinned', handleMessageUnpinned);
+      socket.off('message_reactions_updated', handleMessageReactionsUpdated);
       socket.off('channel_event', handleChannelEvent);
       socket.off('user_typing', handleUserTyping);
       socket.off('connect', joinCurrent);

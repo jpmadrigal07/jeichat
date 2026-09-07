@@ -204,6 +204,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       .emit('message_unpinned', { id: messageId, channelId });
   }
 
+  emitMessageReactionsUpdated(channelId: string, payload: unknown) {
+    this.server
+      .to(`channel:${channelId}`)
+      .emit('message_reactions_updated', payload);
+  }
+
   emitChannelEvent(channelId: string, event: unknown) {
     this.server.to(`channel:${channelId}`).emit('channel_event', event);
   }

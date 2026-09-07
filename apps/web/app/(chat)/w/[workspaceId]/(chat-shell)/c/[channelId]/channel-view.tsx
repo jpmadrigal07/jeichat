@@ -15,6 +15,7 @@ import {
   usePinMessage,
   useUnpinMessage,
 } from './_hooks/use-pins';
+import { useToggleMessageReaction } from './_hooks/use-reactions';
 import { flattenMessagePages } from './_libs/messages';
 import { useSocket } from './_hooks/use-socket';
 import { useChannelEvents } from './_hooks/use-channel-events';
@@ -33,6 +34,7 @@ import { useAttachmentUploads } from './_hooks/use-attachment-uploads';
 import { usePasteAttachments } from './_hooks/use-paste-attachments';
 import { ChatPane } from '@chat/_components/chat-pane';
 import { Skeleton } from '@/components/ui/skeleton';
+import { isDmChannel } from '@chat/_helpers/channel-display';
 
 type Props = {
   params: Promise<{ workspaceId: string; channelId: string }>;
@@ -57,7 +59,8 @@ export function ChannelView({
     ? channels?.find((c) => c.id === channel.parentId)
     : undefined;
   const isThread = Boolean(channel?.parentId);
-  const showThreadCards = view === 'threads' && !isThread;
+  const isDm = isDmChannel(channel);
+  const showThreadCards = view === 'threads' && !isThread && !isDm;
   const tickets = useMemo(
     () => taggableTicketsForChannel(channels ?? [], channel),
     [channel, channels],
@@ -81,6 +84,7 @@ export function ChannelView({
   const deleteMutation = useDeleteMessage(channelId);
   const pinMutation = usePinMessage(channelId);
   const unpinMutation = useUnpinMessage(channelId);
+  const reactionMutation = useToggleMessageReaction(channelId, userId);
   const { data: pinsData } = usePinnedMessages(channelId, !showThreadCards);
   const pinnedMessageIds = useMemo(
     () => new Set((pinsData?.data ?? []).map((pin) => pin.messageId)),
@@ -126,7 +130,7 @@ export function ChannelView({
     [userId],
   );
 
-  const { emitTyping } = useSocket(workspaceId, channelId, handleTyping);
+  const { emitTyping } = useSocket(workspaceId, channelId, userId, handleTyping);
 
   const messages = useMemo(
     () => flattenMessagePages(data?.pages),
@@ -171,6 +175,10 @@ export function ChannelView({
     unpinMutation.mutate(messageId);
   }
 
+  function handleToggleReaction(messageId: string, emoji: string) {
+    reactionMutation.mutate({ messageId, emoji });
+  }
+
   const header = (
     <ChannelHeader
       channel={channel}
@@ -184,7 +192,7 @@ export function ChannelView({
 
   if (showThreadCards) {
     return (
-      <ChatPane header={header}>
+      <ChatPane header={header} currentUserId={userId}>
         <ChannelThreadCards
           workspaceId={workspaceId}
           channelId={channelId}
@@ -197,7 +205,7 @@ export function ChannelView({
 
   if (isPending) {
     return (
-      <ChatPane header={header}>
+      <ChatPane header={header} currentUserId={userId}>
         {isThread && channel ? (
           <ThreadIssueHeader
             workspaceId={workspaceId}
@@ -221,7 +229,7 @@ export function ChannelView({
   }
 
   return (
-    <ChatPane header={header}>
+    <ChatPane header={header} currentUserId={userId}>
       {isThread && channel ? (
         <ThreadIssueHeader
           workspaceId={workspaceId}
@@ -245,6 +253,12 @@ export function ChannelView({
           onDelete={handleDelete}
           onPin={handlePin}
           onUnpin={handleUnpin}
+          onToggleReaction={handleToggleReaction}
+          pendingReactionMessageId={
+            reactionMutation.isPending
+              ? reactionMutation.variables?.messageId
+              : undefined
+          }
           pinnedMessageIds={pinnedMessageIds}
           canManageMessages={canManageMessages}
           highlightMessageId={highlightMessageId}

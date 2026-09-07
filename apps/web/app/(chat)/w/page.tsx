@@ -17,7 +17,7 @@ export default async function WorkspaceIndexPage() {
     if (res.ok) {
       const workspaces = await res.json();
       if (workspaces.length > 0) {
-        redirect(`/w/${workspaces[0].id}/c/general`);
+        redirect(`/w/${workspaces[0].id}`);
       }
     }
   } catch {

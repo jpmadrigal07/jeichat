@@ -1,5 +1,6 @@
 import { getServerSession } from '@/lib/auth-server';
 import { redirect } from 'next/navigation';
+import { DocumentTitle } from './_components/document-title';
 
 export default async function ChatLayout({
   children,
@@ -12,5 +13,10 @@ export default async function ChatLayout({
     redirect('/');
   }
 
-  return children;
+  return (
+    <>
+      <DocumentTitle />
+      {children}
+    </>
+  );
 }

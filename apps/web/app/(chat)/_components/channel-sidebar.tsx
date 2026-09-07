@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import {
-  Hash,
   Plus,
   ChevronDown,
   ChevronRight,
@@ -12,7 +11,7 @@ import {
   Inbox,
   ListFilter,
   UserRound,
-  Lock,
+  MessagesSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -35,6 +34,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useChannels } from '../_hooks/use-channels';
+import { ChannelTypeIcon } from './channel-type-icon';
 import { useUnreadCounts } from '../_hooks/use-unread-counts';
 import { useInboxSocket, useInboxUnreadCount } from '../_hooks/use-inbox';
 import { useWorkspaces } from '../_hooks/use-workspaces';
@@ -49,6 +49,7 @@ import {
   TICKET_STATUS_META,
   ticketDisplayId,
   ticketPrefixOf,
+  personInitials,
   type TicketStatus,
 } from '../_helpers/ticket-fields';
 import { isAssignedOpenTicket } from '../_helpers/ticket-filters';
@@ -64,10 +65,13 @@ import {
 import { useSidebarTicketFilters } from '../_hooks/use-sidebar-ticket-filter';
 import type { Channel } from '../_libs/channels';
 import { CreateChannelDialog } from './create-channel-dialog';
+import { CreateDmDialog } from './create-dm-dialog';
 import {
   CreateThreadDialogHost,
   createThreadHref,
 } from './create-thread-dialog';
+import { PresenceAvatar } from './presence-avatar';
+import { channelDisplayName } from '../_helpers/channel-display';
 import { UserBar } from './user-bar';
 import { ResizableSidebar } from './resizable-sidebar';
 
@@ -91,7 +95,7 @@ export function ChannelSidebar({ user }: { user: User }) {
     useSidebarTicketFilters(workspaceId ?? '');
 
   const activeWorkspace = workspaces?.find((ws) => ws.id === workspaceId);
-  const { topLevel, threadsByParent } = groupChannelsByParent(channels ?? []);
+  const { topLevel, dms, threadsByParent } = groupChannelsByParent(channels ?? []);
   const myIssues = (channels ?? [])
     .filter((channel) => isAssignedOpenTicket(channel, user.id))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -159,15 +163,15 @@ export function ChannelSidebar({ user }: { user: User }) {
               />
 
               <div className="flex flex-col gap-0.5">
-                <div className="flex items-center justify-between px-2 mb-1">
-                  <span className="text-xs font-medium uppercase text-muted-foreground">
+                <div className="flex items-center justify-between px-1 mb-0.5">
+                  <span className="px-1 text-xs font-medium text-muted-foreground">
                     Channels
                   </span>
                   <CreateChannelDialog
                     workspaceId={workspaceId}
                     currentUserId={user.id}
                   >
-                    <Button variant="ghost" size="icon-sm">
+                    <Button variant="ghost" size="icon-sm" className="size-7">
                       <Plus />
                       <span className="sr-only">Create channel</span>
                     </Button>
@@ -198,7 +202,7 @@ export function ChannelSidebar({ user }: { user: User }) {
                         <ChannelNavLink
                           href={`/w/${workspaceId}/c/${channel.id}`}
                           name={channel.name}
-                          icon={channel.isPrivate ? Lock : Hash}
+                          isPrivate={channel.isPrivate}
                           isActive={isActive}
                           showActiveBackground={false}
                           unreadCount={unreadCounts?.[channel.id] ?? 0}
@@ -262,6 +266,14 @@ export function ChannelSidebar({ user }: { user: User }) {
                   );
                 })}
               </div>
+
+              <DirectMessagesNav
+                workspaceId={workspaceId}
+                currentUserId={user.id}
+                dms={dms}
+                activeChannelId={params.channelId}
+                unreadCounts={unreadCounts}
+              />
             </div>
           )}
         </div>
@@ -465,10 +477,142 @@ function TicketStatusGroup({
   );
 }
 
+function DirectMessagesNav({
+  workspaceId,
+  currentUserId,
+  dms,
+  activeChannelId,
+  unreadCounts,
+}: {
+  workspaceId: string;
+  currentUserId: string;
+  dms: Channel[];
+  activeChannelId: string | undefined;
+  unreadCounts: Record<string, number> | undefined;
+}) {
+  const hasActiveDm = dms.some((channel) => channel.id === activeChannelId);
+
+  return (
+    <Collapsible
+      defaultOpen={dms.length > 0 || hasActiveDm}
+      className="group/dms flex flex-col gap-0.5"
+    >
+      <div className="flex min-w-0 items-center gap-0.5 px-1">
+        <CollapsibleTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="min-w-0 flex-1 justify-start px-1 font-normal text-muted-foreground hover:text-foreground"
+          >
+            <ChevronRight
+              data-icon="inline-start"
+              className="size-3.5 transition-transform group-data-[state=open]/dms:rotate-90"
+            />
+            <MessagesSquare className="size-4 shrink-0" />
+            <span className="truncate text-xs font-medium">Direct messages</span>
+          </Button>
+        </CollapsibleTrigger>
+        <CreateDmDialog workspaceId={workspaceId} currentUserId={currentUserId}>
+          <Button variant="ghost" size="icon-sm" className="size-7 shrink-0">
+            <Plus />
+            <span className="sr-only">Start direct message</span>
+          </Button>
+        </CreateDmDialog>
+      </div>
+      <CollapsibleContent className="flex flex-col gap-0.5 pl-5">
+        {dms.length === 0 ? (
+          <p className="px-1 py-0.5 text-[0.6875rem] text-muted-foreground">
+            Message a teammate
+          </p>
+        ) : (
+          dms.map((channel) => (
+            <DmNavLink
+              key={channel.id}
+              href={`/w/${workspaceId}/c/${channel.id}`}
+              name={channelDisplayName(channel)}
+              peer={
+                channel.dmPeer
+                  ? {
+                      userId: channel.dmPeer.id,
+                      name: channel.dmPeer.name,
+                      image: channel.dmPeer.image,
+                    }
+                  : undefined
+              }
+              isActive={channel.id === activeChannelId}
+              unreadCount={unreadCounts?.[channel.id] ?? 0}
+            />
+          ))
+        )}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function DmNavLink({
+  href,
+  name,
+  peer,
+  isActive,
+  unreadCount,
+}: {
+  href: string;
+  name: string;
+  peer?: { userId: string; name: string; image: string | null };
+  isActive: boolean;
+  unreadCount: number;
+}) {
+  const hasUnread = unreadCount > 0;
+  const unreadLabel = formatUnreadCount(unreadCount);
+
+  return (
+    <Button
+      variant={isActive ? 'secondary' : 'ghost'}
+      size="sm"
+      className={cn(
+        'h-6 min-w-0 w-full justify-start gap-1 px-1',
+        hasUnread
+          ? 'font-semibold text-foreground'
+          : isActive
+            ? 'font-medium'
+            : 'font-normal',
+        hasUnread && !isActive && 'bg-muted/50 hover:bg-muted/70',
+      )}
+      asChild
+    >
+      <Link href={href}>
+        {peer ? (
+          <PresenceAvatar
+            userId={peer.userId}
+            name={peer.name}
+            image={peer.image}
+            className="size-4! [&_[data-slot=avatar-fallback]]:text-[0.5rem] [&_[data-slot=avatar-badge]]:size-1.5 [&_[data-slot=avatar-badge]]:ring-1"
+          />
+        ) : (
+          <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-muted text-[0.5rem] font-medium">
+            {personInitials(name)}
+          </span>
+        )}
+        <span className="truncate text-[0.6875rem] leading-none">{name}</span>
+        {unreadLabel ? (
+          <Badge
+            variant="destructive"
+            className="ml-auto h-3.5 min-w-3.5 shrink-0 px-1 text-[0.5625rem] font-semibold bg-destructive/10! text-destructive! [a]:hover:bg-destructive/10! [a]:hover:text-destructive!"
+          >
+            {unreadLabel}
+          </Badge>
+        ) : null}
+      </Link>
+    </Button>
+  );
+}
+
 function ChannelNavLink({
   href,
   name,
   icon: Icon,
+  avatar,
+  isPrivate,
   isActive,
   unreadCount,
   className,
@@ -476,7 +620,9 @@ function ChannelNavLink({
 }: {
   href: string;
   name: string;
-  icon?: typeof Hash | typeof Lock;
+  icon?: typeof Inbox;
+  avatar?: { userId: string; name: string; image: string | null };
+  isPrivate?: boolean;
   isActive: boolean;
   unreadCount: number;
   className?: string;
@@ -484,6 +630,7 @@ function ChannelNavLink({
 }) {
   const hasUnread = unreadCount > 0;
   const unreadLabel = formatUnreadCount(unreadCount);
+  const iconClass = hasUnread ? 'text-foreground' : 'text-muted-foreground';
 
   return (
     <Button
@@ -502,12 +649,18 @@ function ChannelNavLink({
       asChild
     >
       <Link href={href}>
-        {Icon ? (
-          <Icon
-            className={
-              hasUnread ? 'text-foreground' : 'text-muted-foreground'
-            }
+        {avatar ? (
+          <PresenceAvatar
+            userId={avatar.userId}
+            name={avatar.name}
+            image={avatar.image}
+            size="sm"
+            showOffline
           />
+        ) : isPrivate !== undefined ? (
+          <ChannelTypeIcon isPrivate={isPrivate} className={iconClass} />
+        ) : Icon ? (
+          <Icon className={iconClass} />
         ) : null}
         <span className="truncate">{name}</span>
         {unreadLabel ? (

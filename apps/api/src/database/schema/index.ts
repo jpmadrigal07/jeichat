@@ -14,4 +14,5 @@ export * from './labels';
 export * from './channel-events';
 export * from './notifications';
 export * from './pinned-messages';
+export * from './message-reactions';
 export * from './channel-members';

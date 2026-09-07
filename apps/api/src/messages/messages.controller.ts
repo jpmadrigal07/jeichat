@@ -86,4 +86,19 @@ export class MessagesController {
   ) {
     return this.messagesService.unpin(channelId, id, session.user.id);
   }
+
+  @Post(':id/reactions')
+  toggleReaction(
+    @Param('channelId') channelId: string,
+    @Param('id') id: string,
+    @Body() body: { emoji?: string },
+    @Session() session: UserSession<typeof auth>,
+  ) {
+    return this.messagesService.toggleReaction(
+      channelId,
+      id,
+      session.user.id,
+      body.emoji ?? '',
+    );
+  }
 }

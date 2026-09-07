@@ -7,6 +7,19 @@ export type MessageAttachment = {
   sizeBytes: number;
 };
 
+export type MessageReaction = {
+  emoji: string;
+  count: number;
+  reactedByMe: boolean;
+  users: { id: string; name: string }[];
+};
+
+export type MessageReactionsPayload = {
+  messageId: string;
+  channelId: string;
+  reactions: MessageReaction[];
+};
+
 export type Message = {
   id: string;
   channelId: string;
@@ -19,6 +32,7 @@ export type Message = {
     image: string | null;
   } | null;
   attachments: MessageAttachment[];
+  reactions: MessageReaction[];
 };
 
 export async function fetchAttachmentDownloadUrl(
@@ -172,4 +186,26 @@ export async function unpinMessage(
   messageId: string,
 ): Promise<void> {
   await api.delete(`/channels/${channelId}/messages/${messageId}/pin`);
+}
+
+export async function toggleMessageReaction(
+  channelId: string,
+  messageId: string,
+  emoji: string,
+): Promise<MessageReactionsPayload> {
+  const { data } = await api.post<MessageReactionsPayload>(
+    `/channels/${channelId}/messages/${messageId}/reactions`,
+    { emoji },
+  );
+  return data;
+}
+
+export function reactionsWithViewer(
+  reactions: MessageReaction[],
+  currentUserId: string,
+): MessageReaction[] {
+  return reactions.map((reaction) => ({
+    ...reaction,
+    reactedByMe: reaction.users.some((user) => user.id === currentUserId),
+  }));
 }

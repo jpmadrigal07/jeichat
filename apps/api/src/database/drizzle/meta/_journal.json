@@ -120,6 +120,20 @@
       "when": 1788800000000,
       "tag": "0016_channel_members",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788900000000,
+      "tag": "0017_message_reactions",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1789000000000,
+      "tag": "0018_notification_reaction_emoji",
+      "breakpoints": true
     }
   ]
 }
