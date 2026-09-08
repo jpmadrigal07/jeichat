@@ -1,36 +1,39 @@
-import { redirect } from 'next/navigation';
-import { getServerSession } from '@/lib/auth-server';
-import { headers } from 'next/headers';
+'use client';
 
-export default async function WorkspaceIndexPage() {
-  const session = await getServerSession();
-  if (!session?.data?.user) redirect('/');
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { CreateWorkspaceDialog } from '../_components/create-workspace-dialog';
+import { useWorkspaces } from '../_hooks/use-workspaces';
 
-  const h = await headers();
-  const cookie = h.get('cookie') ?? '';
+export default function WorkspaceIndexPage() {
+  const router = useRouter();
+  const { data: workspaces, isLoading } = useWorkspaces();
 
-  try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/workspaces`, {
-      headers: { Cookie: cookie },
-      cache: 'no-store',
-    });
-    if (res.ok) {
-      const workspaces = await res.json();
-      if (workspaces.length > 0) {
-        redirect(`/w/${workspaces[0].id}`);
-      }
-    }
-  } catch {
-    // Fall through to empty state
+  useEffect(() => {
+    const first = workspaces?.[0];
+    if (!first) return;
+    router.replace(`/w/${first.id}`);
+  }, [workspaces, router]);
+
+  if (isLoading || workspaces?.length) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <p className="text-sm text-muted-foreground">Loading workspaces…</p>
+      </div>
+    );
   }
 
   return (
     <div className="flex flex-1 items-center justify-center">
       <div className="text-center">
-        <h2 className="text-lg font-semibold mb-2">Welcome to JeiChat</h2>
-        <p className="text-sm text-muted-foreground">
+        <h2 className="mb-2 text-lg font-semibold">Welcome to JeiChat</h2>
+        <p className="mb-4 text-sm text-muted-foreground">
           You don&apos;t have a workspace yet.
         </p>
+        <CreateWorkspaceDialog>
+          <Button>Create workspace</Button>
+        </CreateWorkspaceDialog>
       </div>
     </div>
   );

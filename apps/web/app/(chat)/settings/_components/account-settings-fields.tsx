@@ -248,7 +248,7 @@ export function SignOutButton() {
 
   async function handleSignOut() {
     await authClient.signOut();
-    router.push('/');
+    router.push('/login');
   }
 
   return (

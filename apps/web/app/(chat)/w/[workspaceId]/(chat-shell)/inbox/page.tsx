@@ -8,7 +8,7 @@ export default async function InboxPage({
   params: Promise<{ workspaceId: string }>;
 }) {
   const session = await getServerSession();
-  if (!session?.data?.user) redirect('/');
+  if (!session?.data?.user) redirect('/login');
 
   const { workspaceId } = await params;
   return <InboxView workspaceId={workspaceId} userId={session.data.user.id} />;

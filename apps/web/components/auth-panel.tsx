@@ -30,24 +30,13 @@ export type AuthMode = 'sign-in' | 'sign-up';
 
 type AuthPanelProps = {
   mode?: AuthMode;
-  /** From {@link getServerSession} on the server — avoids an empty flash before `useSession` finishes. */
   initialSession?: AuthPanelInitialSession;
 };
 
-export function AuthPanel({
-  mode = 'sign-in',
-  initialSession,
-}: AuthPanelProps = {}) {
-  const sessionState = authClient.useSession();
+export function AuthPanel({ mode = 'sign-in' }: AuthPanelProps = {}) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const isSignUp = mode === 'sign-up';
-
-  const user = sessionState.isPending
-    ? initialSession?.error == null && initialSession?.data?.user
-      ? initialSession.data.user
-      : sessionState.data?.user
-    : sessionState.data?.user;
 
   function enterApp() {
     window.location.assign('/w');
@@ -88,11 +77,6 @@ export function AuthPanel({
     });
   }
 
-  async function handleSignOut() {
-    setError(null);
-    await authClient.signOut();
-  }
-
   const submitLabel = pending
     ? 'Please wait...'
     : isSignUp
@@ -113,90 +97,68 @@ export function AuthPanel({
       </CardHeader>
 
       <CardContent>
-        {user ? (
-          <div className="flex flex-col gap-3">
-            <p className="text-sm">
-              Signed in as{' '}
-              <span className="font-medium">{user.name ?? user.email}</span>
-            </p>
-            <Button type="button" className="w-full" asChild>
-              <a href="/w">Continue</a>
-            </Button>
-            <Button type="button" variant="outline" onClick={handleSignOut}>
-              Sign out
-            </Button>
-          </div>
-        ) : (
-          <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-            <FieldGroup>
+        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+          <FieldGroup>
+            {isSignUp ? (
+              <Field>
+                <FieldLabel htmlFor="auth-name">Name</FieldLabel>
+                <Input
+                  id="auth-name"
+                  name="name"
+                  autoComplete="name"
+                  placeholder="Ada Lovelace"
+                />
+              </Field>
+            ) : null}
+            <Field>
+              <FieldLabel htmlFor="auth-email">Email</FieldLabel>
+              <Input
+                id="auth-email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                required
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="auth-password">Password</FieldLabel>
+              <Input
+                id="auth-password"
+                name="password"
+                type="password"
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                placeholder="••••••••"
+                minLength={8}
+                required
+              />
               {isSignUp ? (
-                <Field>
-                  <FieldLabel htmlFor="auth-name">Name</FieldLabel>
-                  <Input
-                    id="auth-name"
-                    name="name"
-                    autoComplete="name"
-                    placeholder="Ada Lovelace"
-                  />
-                </Field>
+                <FieldDescription>At least 8 characters.</FieldDescription>
               ) : null}
-              <Field>
-                <FieldLabel htmlFor="auth-email">Email</FieldLabel>
-                <Input
-                  id="auth-email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@example.com"
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="auth-password">Password</FieldLabel>
-                <Input
-                  id="auth-password"
-                  name="password"
-                  type="password"
-                  autoComplete={isSignUp ? 'new-password' : 'current-password'}
-                  placeholder="••••••••"
-                  minLength={8}
-                  required
-                />
-                {isSignUp ? (
-                  <FieldDescription>At least 8 characters.</FieldDescription>
-                ) : null}
-              </Field>
-            </FieldGroup>
+            </Field>
+          </FieldGroup>
 
-            {error ? <FieldError>{error}</FieldError> : null}
+          {error ? <FieldError>{error}</FieldError> : null}
 
-            <Button
-              type="submit"
-              size="lg"
-              className="w-full"
-              disabled={pending}
-            >
-              {pending ? (
-                <Loader2 data-icon="inline-start" className="animate-spin" />
-              ) : null}
-              {submitLabel}
-            </Button>
-          </form>
-        )}
+          <Button type="submit" size="lg" className="w-full" disabled={pending}>
+            {pending ? (
+              <Loader2 data-icon="inline-start" className="animate-spin" />
+            ) : null}
+            {submitLabel}
+          </Button>
+        </form>
       </CardContent>
 
-      {user ? null : (
-        <CardFooter>
-          <p className="text-sm text-muted-foreground">
-            {isSignUp ? 'Already have an account?' : 'Need an account?'}{' '}
-            <Button variant="link" size="sm" className="h-auto px-0" asChild>
-              <Link href={isSignUp ? '/' : '/?mode=sign-up'}>
-                {isSignUp ? 'Log in' : 'Register'}
-              </Link>
-            </Button>
-          </p>
-        </CardFooter>
-      )}
+      <CardFooter>
+        <p className="text-sm text-muted-foreground">
+          {isSignUp ? 'Already have an account?' : 'Need an account?'}{' '}
+          <Button variant="link" size="sm" className="h-auto px-0" asChild>
+            <Link href={isSignUp ? '/login' : '/sign-up'}>
+              {isSignUp ? 'Log in' : 'Register'}
+            </Link>
+          </Button>
+        </p>
+      </CardFooter>
     </Card>
   );
 }

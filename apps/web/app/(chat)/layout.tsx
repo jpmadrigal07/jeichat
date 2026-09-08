@@ -10,7 +10,7 @@ export default async function ChatLayout({
   const session = await getServerSession();
 
   if (!session?.data?.user) {
-    redirect('/');
+    redirect('/login');
   }
 
   return (

@@ -15,7 +15,7 @@ export default async function ChannelPage({
   }>;
 }) {
   const session = await getServerSession();
-  if (!session?.data?.user) redirect('/');
+  if (!session?.data?.user) redirect('/login');
 
   const query = await searchParams;
   const viewParam = Array.isArray(query.view) ? query.view[0] : query.view;

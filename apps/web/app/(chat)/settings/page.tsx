@@ -5,7 +5,7 @@ import { AccountSettings } from './_components/account-settings';
 export default async function SettingsPage() {
   const session = await getServerSession();
   const user = session?.data?.user;
-  if (!user) redirect('/');
+  if (!user) redirect('/login');
 
   return <AccountSettings user={user} />;
 }
