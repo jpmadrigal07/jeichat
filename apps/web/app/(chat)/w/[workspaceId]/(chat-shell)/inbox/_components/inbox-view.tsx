@@ -59,7 +59,9 @@ export function InboxView({
               </Button>
             ) : null}
             <MembersSidebarToggle />
-            <WorkspaceSearch workspaceId={workspaceId} />
+            <div className="ml-3">
+              <WorkspaceSearch workspaceId={workspaceId} />
+            </div>
           </div>
         </div>
       }

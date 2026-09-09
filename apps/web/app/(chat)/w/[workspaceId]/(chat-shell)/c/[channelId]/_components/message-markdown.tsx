@@ -18,11 +18,14 @@ import {
 } from '../_helpers/markdown-schema';
 import { remarkChatTags } from '../_helpers/remark-chat-tags';
 
+const EMPTY_MEMBERS: MentionableMember[] = [];
+const EMPTY_TICKETS: TaggableTicket[] = [];
+
 type MessageMarkdownProps = {
   content: string;
   className?: string;
-  members: MentionableMember[];
-  tickets: TaggableTicket[];
+  members?: MentionableMember[];
+  tickets?: TaggableTicket[];
   workspaceId: string;
 };
 
@@ -118,8 +121,8 @@ const markdownComponents: Components = {
 export const MessageMarkdown = memo(function MessageMarkdown({
   content,
   className,
-  members,
-  tickets,
+  members = EMPTY_MEMBERS,
+  tickets = EMPTY_TICKETS,
   workspaceId,
 }: MessageMarkdownProps) {
   if (!content.trim()) return null;

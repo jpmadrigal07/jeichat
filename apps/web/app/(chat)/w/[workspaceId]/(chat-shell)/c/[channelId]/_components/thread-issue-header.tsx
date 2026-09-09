@@ -6,7 +6,6 @@ import { ChevronDown, Paperclip } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import {
   Tooltip,
@@ -15,19 +14,24 @@ import {
 } from '@/components/ui/tooltip';
 import {
   ATTACHMENT_ACCEPT_ATTR,
-  MAX_THREAD_ATTACHMENTS,
+  countAttachmentKinds,
+  MAX_DOCUMENT_ATTACHMENTS,
+  MAX_IMAGE_ATTACHMENTS,
 } from '@/lib/attachment-mime';
 import { cn } from '@/lib/utils';
 import { useUpdateChannel } from '@chat/_hooks/use-channels';
 import type { Channel } from '@chat/_libs/channels';
+import type { MentionableMember } from '@chat/_helpers/mentions';
 import {
   ticketDisplayId,
   ticketPrefixOf,
 } from '@chat/_helpers/ticket-fields';
+import type { TaggableTicket } from '@chat/_helpers/ticket-mentions';
 import { useAttachmentUploads } from '../_hooks/use-attachment-uploads';
 import { AttachmentPreviewTray } from './attachment-preview-tray';
 import { ChannelDropZone } from './channel-drop-overlay';
 import { MessageAttachments } from './message-attachments';
+import { TicketDescription } from './ticket-description';
 import { TicketProperties } from './ticket-properties';
 
 const TICKET_DETAILS_PARAM = 'details';
@@ -37,10 +41,14 @@ export function ThreadIssueHeader({
   workspaceId,
   channel,
   parentChannel,
+  members,
+  tickets,
 }: {
   workspaceId: string;
   channel: Channel;
   parentChannel?: Channel;
+  members: MentionableMember[];
+  tickets: TaggableTicket[];
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const removeByServerIdRef = useRef<(id: string) => void>(() => undefined);
@@ -70,8 +78,21 @@ export function ThreadIssueHeader({
   const pendingItems = uploads.items.filter(
     (item) => !item.serverId || !savedIds.has(item.serverId),
   );
-  const remainingSlots =
-    MAX_THREAD_ATTACHMENTS - savedAttachments.length - pendingItems.length;
+  const pendingIds = new Set(
+    uploads.items.flatMap((item) =>
+      item.serverId ? [item.serverId] : [],
+    ),
+  );
+  const savedOnly = savedAttachments.filter(
+    (attachment) => !pendingIds.has(attachment.id),
+  );
+  const counts = countAttachmentKinds([
+    ...savedOnly,
+    ...pendingItems.map((item) => item.file),
+  ]);
+  const atUploadLimit =
+    counts.images >= MAX_IMAGE_ATTACHMENTS &&
+    counts.documents >= MAX_DOCUMENT_ATTACHMENTS;
 
   function setDetailsOpen(open: boolean) {
     const params = new URLSearchParams(searchParams.toString());
@@ -92,21 +113,12 @@ export function ThreadIssueHeader({
     updateChannel.mutate({ channelId: channel.id, name });
   }
 
-  function saveDescription(value: string) {
-    const description = value.trim() || null;
-    if (description === (channel.description ?? null)) return;
+  function saveDescription(description: string | null) {
     updateChannel.mutate({ channelId: channel.id, description });
   }
 
   function addFiles(files: File[]) {
-    if (remainingSlots <= 0) {
-      toast.error(`Max ${MAX_THREAD_ATTACHMENTS} attachments per ticket`);
-      return;
-    }
-    if (files.length > remainingSlots) {
-      toast.error(`Max ${MAX_THREAD_ATTACHMENTS} attachments per ticket`);
-    }
-    uploads.addFiles(files.slice(0, Math.max(remainingSlots, 0)));
+    uploads.addFiles(files, countAttachmentKinds(savedOnly));
   }
 
   function removeSaved(attachmentId: string) {
@@ -123,19 +135,49 @@ export function ThreadIssueHeader({
       onOpenChange={setDetailsOpen}
       className="shrink-0 border-b"
     >
-      <div
-        className={cn(
-          'relative px-4',
-          detailsOpen ? 'py-4' : 'py-2',
-        )}
-      >
+      <div className={cn(detailsOpen && 'max-h-72 overflow-y-auto')}>
         <ChannelDropZone
-          onAdd={addFiles}
-          className="relative flex w-full flex-col gap-3 pr-10"
-        >
-          <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,0.35fr)] items-start gap-x-4">
+            onAdd={addFiles}
+            className={cn(
+              'relative flex w-full flex-col gap-3 px-4',
+              detailsOpen ? 'py-4' : 'py-2',
+            )}
+          >
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="absolute right-4 top-3 z-10"
+                  aria-expanded={detailsOpen}
+                  aria-label={
+                    detailsOpen ? 'Minimize ticket' : 'Expand ticket'
+                  }
+                  onClick={() => setDetailsOpen(!detailsOpen)}
+                >
+                  <ChevronDown
+                    className={cn(
+                      'transition-transform',
+                      detailsOpen && 'rotate-180',
+                    )}
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {detailsOpen ? 'Minimize ticket' : 'Expand ticket'}
+              </TooltipContent>
+            </Tooltip>
+            <div
+              className={cn(
+                'grid w-full items-start gap-x-4',
+                detailsOpen
+                  ? 'grid-cols-1 sm:grid-cols-[2fr_1fr]'
+                  : 'grid-cols-1',
+              )}
+            >
             <div className="flex min-w-0 flex-col gap-3">
-              <div className="min-w-0">
+              <div className="min-w-0 pr-10">
                 {channel.ticketNumber ? (
                   <p className="text-xs text-muted-foreground">
                     {ticketDisplayId(
@@ -165,22 +207,28 @@ export function ThreadIssueHeader({
                 />
               </div>
               <CollapsibleContent>
-                <div className="max-h-72 overflow-y-auto">
-                  <div className="flex flex-col gap-3 pr-3">
-                    <Textarea
-                      key={`description-${channel.id}-${channel.description ?? ''}`}
-                      aria-label="Ticket description"
-                      defaultValue={channel.description ?? ''}
-                      placeholder="Add description..."
-                      className="min-h-16 border-transparent bg-transparent px-0 text-sm text-muted-foreground shadow-none dark:bg-transparent"
-                      onBlur={(e) => saveDescription(e.currentTarget.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Escape') {
-                          e.currentTarget.value = channel.description ?? '';
-                          e.currentTarget.blur();
-                        }
-                      }}
-                    />
+                <TicketDescription
+                  key={channel.id}
+                  workspaceId={workspaceId}
+                  description={channel.description}
+                  members={members}
+                  tickets={tickets}
+                  onSave={saveDescription}
+                />
+              </CollapsibleContent>
+            </div>
+            <CollapsibleContent className="min-w-0">
+              <div className="flex min-w-0 flex-col gap-3">
+                <TicketProperties
+                  workspaceId={workspaceId}
+                  channel={channel}
+                  className="min-w-0"
+                />
+                <div className="flex min-w-0 flex-col gap-2 px-2">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Attachments
+                  </p>
+                  <div className="flex min-w-0 flex-col gap-2">
                     <MessageAttachments
                       attachments={savedAttachments}
                       onRemove={removeSaved}
@@ -190,6 +238,7 @@ export function ThreadIssueHeader({
                       items={pendingItems}
                       onRemove={uploads.remove}
                       onRetry={uploads.retry}
+                      fullWidth
                     />
                     <input
                       ref={fileInputRef}
@@ -207,7 +256,7 @@ export function ThreadIssueHeader({
                       variant="ghost"
                       size="sm"
                       className="self-start"
-                      disabled={remainingSlots <= 0}
+                      disabled={atUploadLimit}
                       onClick={() => fileInputRef.current?.click()}
                     >
                       <Paperclip data-icon="inline-start" />
@@ -215,41 +264,10 @@ export function ThreadIssueHeader({
                     </Button>
                   </div>
                 </div>
-              </CollapsibleContent>
-            </div>
-            <CollapsibleContent>
-              <TicketProperties
-                workspaceId={workspaceId}
-                channel={channel}
-              />
+              </div>
             </CollapsibleContent>
-          </div>
-        </ChannelDropZone>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="absolute right-4 top-3 z-10"
-              aria-expanded={detailsOpen}
-              aria-label={
-                detailsOpen ? 'Minimize ticket' : 'Expand ticket'
-              }
-              onClick={() => setDetailsOpen(!detailsOpen)}
-            >
-              <ChevronDown
-                className={cn(
-                  'transition-transform',
-                  detailsOpen && 'rotate-180',
-                )}
-              />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            {detailsOpen ? 'Minimize ticket' : 'Expand ticket'}
-          </TooltipContent>
-        </Tooltip>
+            </div>
+          </ChannelDropZone>
       </div>
     </Collapsible>
   );

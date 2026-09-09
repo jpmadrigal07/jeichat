@@ -28,9 +28,12 @@ export const ATTACHMENT_ACCEPT_ATTR = [
   ...Object.values(ATTACHMENT_MIME_ALLOWLIST).map((ext) => `.${ext}`),
 ].join(',');
 
-export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
-export const MAX_ATTACHMENTS_PER_MESSAGE = 10;
-export const MAX_THREAD_ATTACHMENTS = 5;
+export const MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024;
+export const MAX_IMAGE_ATTACHMENTS = 5;
+export const MAX_DOCUMENT_ATTACHMENTS = 10;
+export const MAX_ATTACHMENTS_PER_MESSAGE =
+  MAX_IMAGE_ATTACHMENTS + MAX_DOCUMENT_ATTACHMENTS;
+export const MAX_THREAD_ATTACHMENTS = MAX_ATTACHMENTS_PER_MESSAGE;
 
 export const IMAGE_ACCEPT_ATTR = [
   ...Object.entries(ATTACHMENT_MIME_ALLOWLIST)
@@ -38,10 +41,16 @@ export const IMAGE_ACCEPT_ATTR = [
     .flatMap(([mime, ext]) => [mime, `.${ext}`]),
 ].join(',');
 
+export type AttachmentKindCounts = {
+  images: number;
+  documents: number;
+};
+
 export type FileRejection =
   | { kind: 'unsupported-type'; file: File }
   | { kind: 'too-large'; file: File; maxBytes: number }
-  | { kind: 'too-many'; file: File; max: number };
+  | { kind: 'too-many-images'; file: File; max: number }
+  | { kind: 'too-many-documents'; file: File; max: number };
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -58,22 +67,41 @@ export function extensionForFile(file: File): string | null {
   return Object.values(ATTACHMENT_MIME_ALLOWLIST).includes(ext) ? ext : null;
 }
 
+export function isImageContentType(contentType: string): boolean {
+  return contentType.toLowerCase().startsWith('image/');
+}
+
+export function isImageFile(file: File): boolean {
+  if (isImageContentType(file.type)) return true;
+  return isImageContentType(mimeTypeForFile(file));
+}
+
+export function countAttachmentKinds(
+  items: Array<{ contentType?: string; type?: string } | File>,
+): AttachmentKindCounts {
+  let images = 0;
+  let documents = 0;
+  for (const item of items) {
+    const mime =
+      item instanceof File
+        ? mimeTypeForFile(item)
+        : (item.contentType ?? item.type ?? '');
+    if (isImageContentType(mime)) images += 1;
+    else documents += 1;
+  }
+  return { images, documents };
+}
+
 export function validateFiles(
   incoming: File[],
-  alreadyAttachedCount: number,
+  already: AttachmentKindCounts = { images: 0, documents: 0 },
 ): { accepted: File[]; rejected: FileRejection[] } {
   const accepted: File[] = [];
   const rejected: FileRejection[] = [];
+  let images = already.images;
+  let documents = already.documents;
 
   for (const file of incoming) {
-    if (alreadyAttachedCount + accepted.length >= MAX_ATTACHMENTS_PER_MESSAGE) {
-      rejected.push({
-        kind: 'too-many',
-        file,
-        max: MAX_ATTACHMENTS_PER_MESSAGE,
-      });
-      continue;
-    }
     if (!extensionForFile(file)) {
       rejected.push({ kind: 'unsupported-type', file });
       continue;
@@ -85,6 +113,26 @@ export function validateFiles(
         maxBytes: MAX_ATTACHMENT_BYTES,
       });
       continue;
+    }
+    if (isImageFile(file)) {
+      if (images >= MAX_IMAGE_ATTACHMENTS) {
+        rejected.push({
+          kind: 'too-many-images',
+          file,
+          max: MAX_IMAGE_ATTACHMENTS,
+        });
+        continue;
+      }
+      images += 1;
+    } else if (documents >= MAX_DOCUMENT_ATTACHMENTS) {
+      rejected.push({
+        kind: 'too-many-documents',
+        file,
+        max: MAX_DOCUMENT_ATTACHMENTS,
+      });
+      continue;
+    } else {
+      documents += 1;
     }
     accepted.push(file);
   }

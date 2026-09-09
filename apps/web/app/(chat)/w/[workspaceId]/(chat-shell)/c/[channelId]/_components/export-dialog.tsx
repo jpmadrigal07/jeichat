@@ -3,7 +3,14 @@
 import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { CalendarIcon, Copy, Download, FileDown } from 'lucide-react';
-import { format } from 'date-fns';
+import {
+  addMonths,
+  endOfDay,
+  format,
+  min,
+  startOfDay,
+  subMonths,
+} from 'date-fns';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,6 +32,9 @@ import {
 import { cn } from '@/lib/utils';
 import { fetchExportMarkdown } from '../_libs/export';
 import type { Channel } from '@chat/_libs/channels';
+import { MessageMarkdown } from './message-markdown';
+
+const MAX_EXPORT_MONTHS = 1;
 
 type ExportDialogProps = {
   channelId: string;
@@ -37,14 +47,15 @@ export function ExportDialog({ channelId, channel }: ExportDialogProps) {
   const [toDate, setToDate] = useState<Date | undefined>();
   const previewRef = useRef<HTMLPreElement>(null);
 
-  const fromISO = fromDate ? fromDate.toISOString() : undefined;
-  const toISO = toDate ? toDate.toISOString() : undefined;
+  const fromISO = fromDate ? startOfDay(fromDate).toISOString() : undefined;
+  const toISO = toDate ? endOfDay(toDate).toISOString() : undefined;
+  const hasDateRange = Boolean(fromDate && toDate);
 
   const { data: markdown, isLoading } = useQuery({
     queryKey: ['export', channelId, fromISO, toISO],
     queryFn: ({ signal }) =>
       fetchExportMarkdown(channelId, fromISO, toISO, { signal }),
-    enabled: open,
+    enabled: open && hasDateRange,
   });
 
   function handleCopy() {
@@ -67,6 +78,29 @@ export function ExportDialog({ channelId, channel }: ExportDialogProps) {
     URL.revokeObjectURL(url);
   }
 
+  const today = startOfDay(new Date());
+  const fromMinDate = toDate ? subMonths(toDate, MAX_EXPORT_MONTHS) : undefined;
+  const fromMaxDate = min([toDate ?? today, today]);
+  const toMinDate = fromDate;
+  const toMaxDate = min([
+    fromDate ? addMonths(fromDate, MAX_EXPORT_MONTHS) : today,
+    today,
+  ]);
+
+  function handleFromSelect(date: Date | undefined) {
+    setFromDate(date);
+    if (!date || !toDate) return;
+    const latest = addMonths(date, MAX_EXPORT_MONTHS);
+    if (toDate < date || toDate > latest) setToDate(undefined);
+  }
+
+  function handleToSelect(date: Date | undefined) {
+    setToDate(date);
+    if (!date || !fromDate) return;
+    const earliest = subMonths(date, MAX_EXPORT_MONTHS);
+    if (fromDate > date || fromDate < earliest) setFromDate(undefined);
+  }
+
   function handleClearDates() {
     setFromDate(undefined);
     setToDate(undefined);
@@ -83,7 +117,7 @@ export function ExportDialog({ channelId, channel }: ExportDialogProps) {
         <DialogHeader>
           <DialogTitle>Export #{channel?.name ?? 'channel'}</DialogTitle>
           <DialogDescription>
-            Export messages as markdown for use with AI tools.
+            Export up to 1 month of messages as markdown for use with AI tools.
           </DialogDescription>
         </DialogHeader>
 
@@ -91,14 +125,16 @@ export function ExportDialog({ channelId, channel }: ExportDialogProps) {
           <DatePicker
             label="From"
             date={fromDate}
-            onSelect={setFromDate}
-            maxDate={toDate}
+            onSelect={handleFromSelect}
+            minDate={fromMinDate}
+            maxDate={fromMaxDate}
           />
           <DatePicker
             label="To"
             date={toDate}
-            onSelect={setToDate}
-            minDate={fromDate}
+            onSelect={handleToSelect}
+            minDate={toMinDate}
+            maxDate={toMaxDate}
           />
           {(fromDate || toDate) && (
             <Button variant="ghost" size="xs" onClick={handleClearDates}>
@@ -114,12 +150,18 @@ export function ExportDialog({ channelId, channel }: ExportDialogProps) {
           </TabsList>
           <TabsContent value="preview" className="mt-2">
             <div className="max-h-64 overflow-auto rounded-md border bg-muted/50 p-3">
-              {isLoading ? (
+              {!hasDateRange ? (
+                <p className="text-sm text-muted-foreground">
+                  Select From and To dates to preview the export.
+                </p>
+              ) : isLoading ? (
                 <p className="text-sm text-muted-foreground">Loading...</p>
-              ) : markdown ? (
-                <div className="prose prose-sm dark:prose-invert max-w-none text-xs whitespace-pre-wrap break-words">
-                  {markdown}
-                </div>
+              ) : markdown && channel ? (
+                <MessageMarkdown
+                  content={markdown}
+                  className="md-ticket text-sm"
+                  workspaceId={channel.workspaceId}
+                />
               ) : (
                 <p className="text-sm text-muted-foreground">
                   No messages to export.
@@ -132,24 +174,26 @@ export function ExportDialog({ channelId, channel }: ExportDialogProps) {
               ref={previewRef}
               className="max-h-64 overflow-auto rounded-md border bg-muted/50 p-3 text-xs whitespace-pre-wrap break-words"
             >
-              {isLoading
-                ? 'Loading...'
-                : markdown || 'No messages to export.'}
+              {!hasDateRange
+                ? 'Select From and To dates to preview the export.'
+                : isLoading
+                  ? 'Loading...'
+                  : markdown || 'No messages to export.'}
             </pre>
           </TabsContent>
         </Tabs>
 
-        <DialogFooter className="gap-2 sm:gap-0">
+        <DialogFooter>
           <Button
             variant="outline"
             onClick={handleCopy}
-            disabled={!markdown || isLoading}
+            disabled={!hasDateRange || !markdown || isLoading}
           >
-            <Copy className="mr-2 h-4 w-4" />
+            <Copy data-icon="inline-start" />
             Copy to Clipboard
           </Button>
-          <Button onClick={handleDownload} disabled={!markdown || isLoading}>
-            <Download className="mr-2 h-4 w-4" />
+          <Button onClick={handleDownload} disabled={!hasDateRange || !markdown || isLoading}>
+            <Download data-icon="inline-start" />
             Download .md
           </Button>
         </DialogFooter>
@@ -199,7 +243,6 @@ function DatePicker({
           disabled={(d) => {
             if (minDate && d < minDate) return true;
             if (maxDate && d > maxDate) return true;
-            if (d > new Date()) return true;
             return false;
           }}
         />

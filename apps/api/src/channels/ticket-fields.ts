@@ -40,6 +40,7 @@ export const DEFAULT_WORKSPACE_LABELS: { name: string; color: LabelColor }[] = [
 
 export const DEFAULT_TICKET_STATUS: TicketStatus = 'todo';
 export const DEFAULT_TICKET_PRIORITY: TicketPriority = 'none';
+export const MAX_TICKET_DESCRIPTION_LENGTH = 5000;
 
 function isTicketStatus(value: string): value is TicketStatus {
   return (TICKET_STATUSES as readonly string[]).includes(value);
@@ -61,6 +62,20 @@ export function parseTicketPriority(value: unknown): TicketPriority {
     throw new BadRequestException('Invalid ticket priority');
   }
   return value;
+}
+
+export function parseTicketDescription(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value !== 'string') {
+    throw new BadRequestException('Invalid ticket description');
+  }
+  const description = value.trim() || null;
+  if (description && description.length > MAX_TICKET_DESCRIPTION_LENGTH) {
+    throw new BadRequestException(
+      `Ticket description must be ${MAX_TICKET_DESCRIPTION_LENGTH} characters or fewer`,
+    );
+  }
+  return description;
 }
 
 export function parseTicketDueAt(value: string): Date {

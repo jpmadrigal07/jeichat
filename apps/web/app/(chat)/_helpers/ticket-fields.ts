@@ -64,6 +64,7 @@ export function nextLabelColor(existingCount: number): LabelColor {
 
 export const DEFAULT_TICKET_STATUS: TicketStatus = 'todo';
 export const DEFAULT_TICKET_PRIORITY: TicketPriority = 'none';
+export const MAX_TICKET_DESCRIPTION_LENGTH = 5000;
 
 export const TICKET_STATUS_META: Record<
   TicketStatus,

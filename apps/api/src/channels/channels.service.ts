@@ -23,6 +23,7 @@ import { InboxService } from '../inbox/inbox.service';
 import { StorageService } from '../storage/storage.service';
 import {
   ATTACHMENT_PURPOSE,
+  attachmentKindLimitMessage,
   MAX_THREAD_ATTACHMENTS,
 } from '../attachments/attachments.helpers';
 import {
@@ -30,6 +31,7 @@ import {
   DEFAULT_TICKET_STATUS,
   parseChannelKey,
   parseLabelIds,
+  parseTicketDescription,
   parseTicketDueAt,
   parseTicketPriority,
   parseTicketStatus,
@@ -224,7 +226,7 @@ export class ChannelsService {
       throw new BadRequestException('Ticket title is required');
     }
 
-    const trimmedDescription = description?.trim() || null;
+    const trimmedDescription = parseTicketDescription(description);
 
     if (attachmentIds.length > MAX_THREAD_ATTACHMENTS) {
       throw new BadRequestException(
@@ -248,6 +250,10 @@ export class ChannelsService {
       userId,
       attachmentIds,
     );
+    const kindError = attachmentKindLimitMessage(attachmentRows, 'ticket');
+    if (kindError) {
+      throw new BadRequestException(kindError);
+    }
 
     const [lastTicket] = await this.drizzle.db
       .select({ last: max(channels.ticketNumber) })
@@ -534,7 +540,9 @@ export class ChannelsService {
     }
 
     if (data.description !== undefined) {
-      patch.description = data.description?.trim() || null;
+      patch.description = isThread
+        ? parseTicketDescription(data.description)
+        : data.description?.trim() || null;
     }
 
     if (data.ticketKey !== undefined) {
@@ -627,6 +635,7 @@ export class ChannelsService {
           .select({
             id: attachments.id,
             storageKey: attachments.storageKey,
+            contentType: attachments.contentType,
           })
           .from(attachments)
           .where(
@@ -644,11 +653,13 @@ export class ChannelsService {
         }
 
         const removeSet = new Set(removeAttachmentIds);
-        const keptCount = current.filter((row) => !removeSet.has(row.id)).length;
-        if (keptCount + addRows.length > MAX_THREAD_ATTACHMENTS) {
-          throw new BadRequestException(
-            `Maximum ${MAX_THREAD_ATTACHMENTS} attachments per ticket`,
-          );
+        const kept = current.filter((row) => !removeSet.has(row.id));
+        const kindError = attachmentKindLimitMessage(
+          [...kept, ...addRows],
+          'ticket',
+        );
+        if (kindError) {
+          throw new BadRequestException(kindError);
         }
 
         removedKeys = current

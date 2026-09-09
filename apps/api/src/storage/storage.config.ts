@@ -56,7 +56,7 @@ export function loadStorageConfig(): StorageConfig {
     ),
     maxUploadBytes: parsePositiveInt(
       process.env.R2_MAX_UPLOAD_BYTES,
-      26_214_400,
+      52_428_800,
     ),
   };
 }

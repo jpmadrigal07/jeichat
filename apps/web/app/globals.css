@@ -247,6 +247,22 @@
   margin-top: 0.125rem;
 }
 
+.md-ticket.md-chat h1 {
+  font-size: 1.25rem;
+}
+
+.md-ticket.md-chat h2 {
+  font-size: 1.125rem;
+}
+
+.md-ticket.md-chat h3 {
+  font-size: 1rem;
+}
+
+.md-ticket.md-chat p + p {
+  margin-top: 0.5rem;
+}
+
 .md-chat table {
   border-collapse: collapse;
   font-size: 0.9em;

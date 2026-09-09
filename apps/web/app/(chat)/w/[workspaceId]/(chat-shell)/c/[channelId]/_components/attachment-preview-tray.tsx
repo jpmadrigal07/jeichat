@@ -19,6 +19,7 @@ type AttachmentPreviewTrayProps = {
   onRemove: (localId: string) => void;
   onRetry: (localId: string) => void;
   className?: string;
+  fullWidth?: boolean;
 };
 
 function fileIcon(file: File) {
@@ -31,10 +32,12 @@ function PreviewItem({
   item,
   onRemove,
   onRetry,
+  fullWidth,
 }: {
   item: PendingAttachment;
   onRemove: (localId: string) => void;
   onRetry: (localId: string) => void;
+  fullWidth?: boolean;
 }) {
   const isImage = !!item.previewUrl;
   const Icon = fileIcon(item.file);
@@ -88,9 +91,11 @@ function PreviewItem({
 
   return (
     <Card
-      className={`relative h-20 w-[220px] shrink-0 gap-0 overflow-hidden py-2 pl-3 pr-8 ${
-        isError ? 'border-destructive' : ''
-      }`}
+      className={cn(
+        'relative h-20 shrink-0 gap-0 overflow-hidden py-2 pl-3 pr-8',
+        fullWidth ? 'w-full' : 'w-[220px]',
+        isError && 'border-destructive',
+      )}
     >
       <div className="flex min-w-0 items-center gap-2">
         <Icon className="h-8 w-8 shrink-0 text-muted-foreground" />
@@ -137,6 +142,7 @@ export function AttachmentPreviewTray({
   onRemove,
   onRetry,
   className,
+  fullWidth,
 }: AttachmentPreviewTrayProps) {
   if (!items.length) return null;
 
@@ -148,6 +154,7 @@ export function AttachmentPreviewTray({
           item={item}
           onRemove={onRemove}
           onRetry={onRetry}
+          fullWidth={fullWidth}
         />
       ))}
     </div>

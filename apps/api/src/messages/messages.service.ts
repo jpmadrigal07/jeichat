@@ -12,7 +12,11 @@ import { user } from '../database/schema/auth';
 import { ChatGateway } from '../gateway/chat.gateway';
 import { InboxService } from '../inbox/inbox.service';
 import { StorageService } from '../storage/storage.service';
-import { ATTACHMENT_PURPOSE } from '../attachments/attachments.helpers';
+import {
+  ATTACHMENT_PURPOSE,
+  attachmentKindLimitMessage,
+  MAX_ATTACHMENTS_PER_MESSAGE,
+} from '../attachments/attachments.helpers';
 import {
   normalizeReactionEmoji,
   type MessageReactionSummary,
@@ -194,8 +198,10 @@ export class MessagesService {
     if (!content.trim() && attachmentIds.length === 0) {
       throw new BadRequestException('Empty message');
     }
-    if (attachmentIds.length > 10) {
-      throw new BadRequestException('Maximum 10 attachments per message');
+    if (attachmentIds.length > MAX_ATTACHMENTS_PER_MESSAGE) {
+      throw new BadRequestException(
+        `Maximum ${MAX_ATTACHMENTS_PER_MESSAGE} attachments per message`,
+      );
     }
 
     const messageId = crypto.randomUUID();
@@ -217,6 +223,11 @@ export class MessagesService {
 
     if (rows.length !== attachmentIds.length) {
       throw new BadRequestException('Invalid attachment reference');
+    }
+
+    const kindError = attachmentKindLimitMessage(rows, 'message');
+    if (kindError) {
+      throw new BadRequestException(kindError);
     }
 
     for (const row of rows) {

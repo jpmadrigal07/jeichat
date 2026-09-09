@@ -64,7 +64,7 @@ export function AttachmentFileCard({
       <Icon className="size-5 shrink-0 text-muted-foreground" />
       <Tooltip>
         <TooltipTrigger asChild>
-          <p className="max-w-36 truncate font-medium">
+          <p className="min-w-0 flex-1 truncate font-medium">
             {attachment.filename}
           </p>
         </TooltipTrigger>

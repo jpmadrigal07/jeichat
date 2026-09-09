@@ -5,6 +5,7 @@ import { Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAttachmentDownloadUrl } from '../_hooks/use-attachment-download-url';
 import type { MessageAttachment } from '../_libs/messages';
+import { cn } from '@/lib/utils';
 import { AttachmentFileCard } from './attachment-file-card';
 import { AttachmentImage } from './attachment-image';
 
@@ -12,6 +13,7 @@ type MessageAttachmentsProps = {
   attachments: MessageAttachment[];
   onRemove?: (attachmentId: string) => void;
   compact?: boolean;
+  className?: string;
 };
 
 function AttachmentVideo({ attachment }: { attachment: MessageAttachment }) {
@@ -91,24 +93,26 @@ function AttachmentItem({
   if (!compact && contentType.startsWith('audio/')) {
     return <AttachmentAudio attachment={attachment} />;
   }
-  return <AttachmentFileCard attachment={attachment} />;
+  return <AttachmentFileCard attachment={attachment} className={compact ? 'w-full max-w-none' : undefined} />;
 }
 
 function RemovableAttachment({
   id,
   filename,
   onRemove,
+  className,
   children,
 }: {
   id: string;
   filename: string;
   onRemove?: (attachmentId: string) => void;
+  className?: string;
   children: ReactNode;
 }) {
   if (!onRemove) return children;
 
   return (
-    <div className="group relative w-fit">
+    <div className={cn('group relative w-fit', className)}>
       {children}
       <Button
         type="button"
@@ -132,6 +136,7 @@ export function MessageAttachments({
   attachments,
   onRemove,
   compact,
+  className,
 }: MessageAttachmentsProps) {
   if (!attachments.length) return null;
 
@@ -143,7 +148,7 @@ export function MessageAttachments({
   );
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className={cn('flex flex-col gap-2', className)}>
       {images.length > 0 ? (
         <div className="flex flex-wrap gap-1.5">
           {images.map((attachment) => (
@@ -162,13 +167,14 @@ export function MessageAttachments({
         </div>
       ) : null}
       {others.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-col gap-1.5">
           {others.map((attachment) => (
             <RemovableAttachment
               key={attachment.id}
               id={attachment.id}
               filename={attachment.filename}
               onRemove={onRemove}
+              className={compact ? 'w-full' : undefined}
             >
               <AttachmentItem attachment={attachment} compact={compact} />
             </RemovableAttachment>

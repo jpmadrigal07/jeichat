@@ -1,5 +1,5 @@
 const STORAGE_KEY = 'jeichat:members-sidebar:v1';
-const DEFAULT_OPEN = true;
+const DEFAULT_OPEN = false;
 
 const listeners = new Set<() => void>();
 

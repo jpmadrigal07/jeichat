@@ -35,6 +35,7 @@ import {
   channelDisplayName,
   isDmChannel,
 } from '@chat/_helpers/channel-display';
+import { formatChannelTitleLabel } from '@chat/_helpers/document-title';
 
 type ChannelViewMode = 'messages' | 'threads';
 
@@ -73,7 +74,7 @@ export function ChannelHeader({
             <BreadcrumbSeparator />
             <BreadcrumbItem className="min-w-0">
               <BreadcrumbPage className="min-w-0 truncate font-medium">
-                {channel.name}
+                {formatChannelTitleLabel(channel, parentChannel)}
               </BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
@@ -129,7 +130,9 @@ export function ChannelHeader({
         <ExportDialog channelId={channelId} channel={channel} />
         <PinnedMessagesPopoverHost channelId={channelId} />
         <MembersSidebarToggle />
-        <WorkspaceSearch workspaceId={workspaceId} />
+        <div className="ml-3">
+          <WorkspaceSearch workspaceId={workspaceId} />
+        </div>
       </div>
     </div>
   );

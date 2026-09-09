@@ -3,11 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
+  countAttachmentKinds,
   formatBytes,
+  isImageFile,
   MAX_ATTACHMENT_BYTES,
-  MAX_ATTACHMENTS_PER_MESSAGE,
+  MAX_DOCUMENT_ATTACHMENTS,
+  MAX_IMAGE_ATTACHMENTS,
   mimeTypeForFile,
   validateFiles,
+  type AttachmentKindCounts,
   type FileRejection,
 } from '@/lib/attachment-mime';
 import { fetchPresign, putToR2 } from '../_libs/attachments';
@@ -39,7 +43,8 @@ function toastRejections(rejected: FileRejection[]) {
   const byKind = groupRejectionsByKind(rejected);
   const unsupported = byKind.get('unsupported-type');
   const tooLarge = byKind.get('too-large');
-  const tooMany = byKind.get('too-many');
+  const tooManyImages = byKind.get('too-many-images');
+  const tooManyDocuments = byKind.get('too-many-documents');
 
   if (unsupported?.length) {
     const first = unsupported[0];
@@ -54,13 +59,12 @@ function toastRejections(rejected: FileRejection[]) {
       `${tooLarge.length} file(s) exceed the ${formatBytes(MAX_ATTACHMENT_BYTES)} limit`,
     );
   }
-  if (tooMany?.length) {
-    toast.error(`Max ${MAX_ATTACHMENTS_PER_MESSAGE} attachments per message`);
+  if (tooManyImages?.length) {
+    toast.error(`Max ${MAX_IMAGE_ATTACHMENTS} images`);
   }
-}
-
-function isImageFile(file: File): boolean {
-  return file.type.startsWith('image/');
+  if (tooManyDocuments?.length) {
+    toast.error(`Max ${MAX_DOCUMENT_ATTACHMENTS} documents`);
+  }
 }
 
 function uploadErrorMessage(err: unknown): string {
@@ -148,13 +152,16 @@ export function useAttachmentUploads(
   );
 
   const addFiles = useCallback(
-    (files: File[]) => {
+    (files: File[], alreadyAttached?: AttachmentKindCounts) => {
       if (!files.length) return;
 
-      const { accepted, rejected } = validateFiles(
-        files,
-        itemsRef.current.length,
+      const pending = countAttachmentKinds(
+        itemsRef.current.map((item) => item.file),
       );
+      const { accepted, rejected } = validateFiles(files, {
+        images: pending.images + (alreadyAttached?.images ?? 0),
+        documents: pending.documents + (alreadyAttached?.documents ?? 0),
+      });
       toastRejections(rejected);
       if (!accepted.length) return;
 

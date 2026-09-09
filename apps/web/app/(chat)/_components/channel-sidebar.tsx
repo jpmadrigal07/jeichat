@@ -497,12 +497,19 @@ function DirectMessagesNav({
       defaultOpen={dms.length > 0 || hasActiveDm}
       className="group/dms flex flex-col gap-0.5"
     >
-      <div className="flex min-w-0 items-center gap-0.5 px-1">
+      <div
+        className={cn(
+          'flex min-w-0 items-center rounded-md',
+          hasActiveDm
+            ? 'bg-secondary text-secondary-foreground'
+            : 'hover:bg-muted hover:text-foreground dark:hover:bg-muted/50',
+        )}
+      >
         <CollapsibleTrigger asChild>
           <Button
             variant="ghost"
             size="sm"
-            className="min-w-0 flex-1 justify-start px-1 font-normal text-muted-foreground hover:text-foreground"
+            className="min-w-0 flex-1 justify-start px-1 font-normal text-muted-foreground hover:bg-transparent hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-foreground dark:hover:bg-transparent dark:aria-expanded:bg-transparent"
           >
             <ChevronRight
               data-icon="inline-start"
@@ -513,7 +520,11 @@ function DirectMessagesNav({
           </Button>
         </CollapsibleTrigger>
         <CreateDmDialog workspaceId={workspaceId} currentUserId={currentUserId}>
-          <Button variant="ghost" size="icon-sm" className="size-7 shrink-0">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="shrink-0 hover:bg-transparent aria-expanded:bg-transparent dark:hover:bg-transparent dark:aria-expanded:bg-transparent"
+          >
             <Plus />
             <span className="sr-only">Start direct message</span>
           </Button>

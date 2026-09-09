@@ -66,8 +66,38 @@ export const ATTACHMENT_PURPOSE = {
   THREAD: 'thread',
 } as const;
 
-export const MAX_THREAD_ATTACHMENTS = 5;
+export const MAX_IMAGE_ATTACHMENTS = 5;
+export const MAX_DOCUMENT_ATTACHMENTS = 10;
+export const MAX_ATTACHMENTS_PER_MESSAGE =
+  MAX_IMAGE_ATTACHMENTS + MAX_DOCUMENT_ATTACHMENTS;
+export const MAX_THREAD_ATTACHMENTS = MAX_ATTACHMENTS_PER_MESSAGE;
 
 export function isImageContentType(contentType: string): boolean {
   return contentType.toLowerCase().startsWith('image/');
+}
+
+export function countAttachmentKinds(
+  items: { contentType: string }[],
+): { images: number; documents: number } {
+  let images = 0;
+  let documents = 0;
+  for (const item of items) {
+    if (isImageContentType(item.contentType)) images += 1;
+    else documents += 1;
+  }
+  return { images, documents };
+}
+
+export function attachmentKindLimitMessage(
+  items: { contentType: string }[],
+  noun: 'ticket' | 'message',
+): string | null {
+  const { images, documents } = countAttachmentKinds(items);
+  if (images > MAX_IMAGE_ATTACHMENTS) {
+    return `Maximum ${MAX_IMAGE_ATTACHMENTS} images per ${noun}`;
+  }
+  if (documents > MAX_DOCUMENT_ATTACHMENTS) {
+    return `Maximum ${MAX_DOCUMENT_ATTACHMENTS} documents per ${noun}`;
+  }
+  return null;
 }

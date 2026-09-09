@@ -3,7 +3,6 @@
 import { Suspense, useRef } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Paperclip } from 'lucide-react';
-import toast from 'react-hot-toast';
 import {
   Dialog,
   DialogContent,
@@ -14,15 +13,20 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import {
   ATTACHMENT_ACCEPT_ATTR,
-  MAX_THREAD_ATTACHMENTS,
+  countAttachmentKinds,
+  MAX_DOCUMENT_ATTACHMENTS,
+  MAX_IMAGE_ATTACHMENTS,
 } from '@/lib/attachment-mime';
-import { useCreateThread } from '../_hooks/use-channels';
+import { MAX_TICKET_DESCRIPTION_LENGTH } from '../_helpers/ticket-fields';
+import { useChannels, useCreateThread } from '../_hooks/use-channels';
+import { useWorkspaceMembers } from '../_hooks/use-workspaces';
+import { taggableTicketsForChannel } from '../_helpers/ticket-mentions';
 import { useAttachmentUploads } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_hooks/use-attachment-uploads';
 import { AttachmentPreviewTray } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_components/attachment-preview-tray';
+import { MarkdownWritePreview } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_components/markdown-write-preview';
 
 export const CREATE_THREAD_PARAM = 'create-thread';
 export const CREATE_STATUS_PARAM = 'create-status';
@@ -102,25 +106,23 @@ function CreateThreadDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const createThread = useCreateThread(workspaceId);
+  const { data: channels } = useChannels(workspaceId);
+  const { data: members } = useWorkspaceMembers(workspaceId);
+  const parentChannel = channels?.find((channel) => channel.id === channelId);
+  const tickets = taggableTicketsForChannel(channels ?? [], parentChannel);
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploads = useAttachmentUploads(channelId ?? '');
+  const uploadCounts = countAttachmentKinds(
+    uploads.items.map((item) => item.file),
+  );
+  const atUploadLimit =
+    uploadCounts.images >= MAX_IMAGE_ATTACHMENTS &&
+    uploadCounts.documents >= MAX_DOCUMENT_ATTACHMENTS;
 
   function handleOpenChange(next: boolean) {
     if (!next) uploads.reset();
     onOpenChange(next);
-  }
-
-  function addFiles(files: File[]) {
-    const remaining = MAX_THREAD_ATTACHMENTS - uploads.items.length;
-    if (remaining <= 0) {
-      toast.error(`Max ${MAX_THREAD_ATTACHMENTS} attachments per ticket`);
-      return;
-    }
-    if (files.length > remaining) {
-      toast.error(`Max ${MAX_THREAD_ATTACHMENTS} attachments per ticket`);
-    }
-    uploads.addFiles(files.slice(0, remaining));
   }
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -176,11 +178,15 @@ function CreateThreadDialog({
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="thread-description">Description</Label>
-            <Textarea
+            <MarkdownWritePreview
               id="thread-description"
               name="description"
-              placeholder="What is this ticket about?"
+              placeholder="What is this ticket about? Markdown is supported."
+              maxLength={MAX_TICKET_DESCRIPTION_LENGTH}
               rows={4}
+              workspaceId={workspaceId}
+              members={members}
+              tickets={tickets}
             />
           </div>
           <div className="flex flex-col gap-2">
@@ -197,7 +203,7 @@ function CreateThreadDialog({
               hidden
               accept={ATTACHMENT_ACCEPT_ATTR}
               onChange={(e) => {
-                addFiles(Array.from(e.target.files ?? []));
+                uploads.addFiles(Array.from(e.target.files ?? []));
                 e.target.value = '';
               }}
             />
@@ -206,10 +212,7 @@ function CreateThreadDialog({
               variant="outline"
               size="sm"
               className="self-start"
-              disabled={
-                !channelId ||
-                uploads.items.length >= MAX_THREAD_ATTACHMENTS
-              }
+              disabled={!channelId || atUploadLimit}
               onClick={() => fileInputRef.current?.click()}
             >
               <Paperclip data-icon="inline-start" />

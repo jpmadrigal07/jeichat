@@ -71,7 +71,7 @@ export function TicketProperties({
   const dueDate = channel.dueAt ? new Date(channel.dueAt) : undefined;
 
   return (
-    <div className={cn('flex min-w-52 flex-col gap-2', className)}>
+    <div className={cn('flex min-w-0 flex-col gap-2', className)}>
       <p className="px-2 text-xs font-medium text-muted-foreground">
         Properties
       </p>

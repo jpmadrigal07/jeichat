@@ -211,6 +211,8 @@ export function ChannelView({
             workspaceId={workspaceId}
             channel={channel}
             parentChannel={parentChannel}
+            members={members ?? []}
+            tickets={tickets}
           />
         ) : null}
         <div className="flex flex-1 flex-col gap-3 p-4">
@@ -235,6 +237,8 @@ export function ChannelView({
           workspaceId={workspaceId}
           channel={channel}
           parentChannel={parentChannel}
+          members={members ?? []}
+          tickets={tickets}
         />
       ) : null}
       <ChannelAttachmentLightbox />
