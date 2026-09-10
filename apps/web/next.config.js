@@ -2,10 +2,14 @@ import { config } from 'dotenv';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const monorepoRoot = join(dirname(fileURLToPath(import.meta.url)), '../..');
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const monorepoRoot = join(__dirname, '../..');
 config({ path: join(monorepoRoot, '.env') });
 
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+const nextConfig = {
+  output: 'standalone',
+  outputFileTracingRoot: monorepoRoot,
+};
 
 export default nextConfig;

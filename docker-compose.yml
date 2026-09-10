@@ -1,0 +1,53 @@
+# Local / VPS: web + API + Postgres.
+# Coolify / Railway: do not use this file — create two apps from docker/web and docker/api.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: jeichat
+      POSTGRES_PASSWORD: jeichat
+      POSTGRES_DB: jeichat
+    ports:
+      - '5432:5432'
+    volumes:
+      - jeichat_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U jeichat -d jeichat']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api/Dockerfile
+    ports:
+      - '3001:3001'
+    environment:
+      PORT: 3001
+      DATABASE_URL: postgresql://jeichat:jeichat@postgres:5432/jeichat
+      BETTER_AUTH_SECRET: change-me-jeichat-docker-secret-32ch
+      BETTER_AUTH_URL: http://localhost:3001
+      WEB_ORIGIN: http://localhost:3000
+      NEXT_PUBLIC_API_CREDENTIALS: 'true'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3001
+        NEXT_PUBLIC_API_CREDENTIALS: 'true'
+    ports:
+      - '3000:3000'
+    environment:
+      PORT: 3000
+    depends_on:
+      - api
+
+volumes:
+  jeichat_pg:
