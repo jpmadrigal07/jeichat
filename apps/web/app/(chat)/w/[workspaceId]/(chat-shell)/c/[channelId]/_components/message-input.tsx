@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useCallback, useEffect, useState } from 'react';
-import { SendHorizonal } from 'lucide-react';
+import { Hash, MessageSquare, SendHorizonal } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -19,11 +19,17 @@ import {
 } from '@chat/_helpers/mentions';
 import {
   activeComposerTag,
-  filterTaggableTickets,
+  hashPickerItems,
+  insertChannelTag,
+  insertMessageLink,
   insertTicketTag,
+  messageMentionLabel,
   type ComposerTag,
+  type TaggableChannel,
+  type TaggableMessage,
   type TaggableTicket,
 } from '@chat/_helpers/ticket-mentions';
+import { messagePageHref } from '../_libs/messages';
 import {
   markdownShortcutForKey,
   wrapAsMarkdownLink,
@@ -36,8 +42,11 @@ import type { PendingAttachment } from '../_hooks/use-attachment-uploads';
 type MessageInputProps = {
   channelName: string | undefined;
   currentUserId: string;
+  workspaceId: string;
   members: MentionableMember[];
   tickets: TaggableTicket[];
+  channels: TaggableChannel[];
+  mentionMessages: TaggableMessage[];
   onSend: (content: string, attachmentIds: string[]) => void;
   onTyping: () => void;
   sendDisabled?: boolean;
@@ -60,8 +69,11 @@ function focusTextarea(textarea: HTMLTextAreaElement | null) {
 export function MessageInput({
   channelName,
   currentUserId,
+  workspaceId,
   members,
   tickets,
+  channels,
+  mentionMessages,
   onSend,
   onTyping,
   sendDisabled,
@@ -78,16 +90,17 @@ export function MessageInput({
     members.filter((member) => member.userId !== currentUserId),
     composerTag?.type === 'mention' ? composerTag.query : '',
   ).slice(0, 8);
-  const mentionTickets = filterTaggableTickets(
+  const hashItems = hashPickerItems(
     tickets,
-    composerTag?.type === 'ticket' ? composerTag.query : '',
-  ).slice(0, 8);
+    channels,
+    mentionMessages,
+    composerTag?.type === 'hash' ? composerTag.query : '',
+  );
   const mentionOpen =
     composerTag?.type === 'mention' && mentionMembers.length > 0;
-  const ticketOpen =
-    composerTag?.type === 'ticket' && mentionTickets.length > 0;
-  const pickerItems = mentionOpen ? mentionMembers : mentionTickets;
-  const pickerOpen = mentionOpen || ticketOpen;
+  const hashOpen = composerTag?.type === 'hash' && hashItems.length > 0;
+  const pickerItems = mentionOpen ? mentionMembers : hashItems;
+  const pickerOpen = mentionOpen || hashOpen;
   const selectedIndex = pickerOpen
     ? Math.min(mentionIndex, pickerItems.length - 1)
     : 0;
@@ -144,7 +157,7 @@ export function MessageInput({
 
   function applyTicketTag(ticket: TaggableTicket) {
     const textarea = textareaRef.current;
-    if (!textarea || composerTag?.type !== 'ticket') return;
+    if (!textarea || composerTag?.type !== 'hash') return;
     const cursor = textarea.selectionStart ?? textarea.value.length;
     const next = insertTicketTag(
       textarea.value,
@@ -153,6 +166,42 @@ export function MessageInput({
       ticket.displayId,
     );
     applyInsertedText(next, composerTag.start + ticket.displayId.length + 2);
+  }
+
+  function applyChannelTag(channel: TaggableChannel) {
+    const textarea = textareaRef.current;
+    if (!textarea || composerTag?.type !== 'hash') return;
+    const cursor = textarea.selectionStart ?? textarea.value.length;
+    const next = insertChannelTag(
+      textarea.value,
+      composerTag.start,
+      cursor,
+      channel.name,
+    );
+    applyInsertedText(next, composerTag.start + channel.name.length + 2);
+  }
+
+  function applyMessageTag(message: TaggableMessage) {
+    const textarea = textareaRef.current;
+    if (!textarea || composerTag?.type !== 'hash') return;
+    const cursor = textarea.selectionStart ?? textarea.value.length;
+    const label = messageMentionLabel(message);
+    const href = messagePageHref(workspaceId, message.channelId, message.id);
+    const token = `[${label}](${href}) `;
+    const next = insertMessageLink(
+      textarea.value,
+      composerTag.start,
+      cursor,
+      label,
+      href,
+    );
+    applyInsertedText(next, composerTag.start + token.length);
+  }
+
+  function applyHashItem(item: (typeof hashItems)[number]) {
+    if (item.kind === 'ticket') applyTicketTag(item.ticket);
+    else if (item.kind === 'channel') applyChannelTag(item.channel);
+    else applyMessageTag(item.message);
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -175,8 +224,8 @@ export function MessageInput({
           const member = mentionMembers[selectedIndex];
           if (member) applyMention(member);
         } else {
-          const ticket = mentionTickets[selectedIndex];
-          if (ticket) applyTicketTag(ticket);
+          const item = hashItems[selectedIndex];
+          if (item) applyHashItem(item);
         }
         return;
       }
@@ -273,14 +322,58 @@ export function MessageInput({
             ))}
           </div>
         ) : null}
-        {ticketOpen ? (
-          <div className="absolute inset-x-0 bottom-full z-10 mb-1 overflow-hidden rounded-md border bg-popover p-1 shadow-md">
-            {mentionTickets.map((ticket, index) => {
-              const meta = TICKET_STATUS_META[ticketStatusOf(ticket.status)];
-              const StatusIcon = meta.icon;
+        {hashOpen ? (
+          <div className="absolute inset-x-0 bottom-full z-10 mb-1 max-h-72 overflow-auto rounded-md border bg-popover p-1 shadow-md">
+            {hashItems.map((item, index) => {
+              if (item.kind === 'ticket') {
+                const meta = TICKET_STATUS_META[ticketStatusOf(item.ticket.status)];
+                const StatusIcon = meta.icon;
+                return (
+                  <Button
+                    key={`ticket-${item.ticket.id}`}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      'w-full justify-start font-normal',
+                      index === selectedIndex && 'bg-muted',
+                    )}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => applyTicketTag(item.ticket)}
+                  >
+                    <StatusIcon
+                      data-icon="inline-start"
+                      className={meta.iconClassName}
+                    />
+                    <span className="shrink-0 tabular-nums text-muted-foreground">
+                      {item.ticket.displayId}
+                    </span>
+                    <span className="truncate">{item.ticket.name}</span>
+                  </Button>
+                );
+              }
+              if (item.kind === 'channel') {
+                return (
+                  <Button
+                    key={`channel-${item.channel.id}`}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      'w-full justify-start font-normal',
+                      index === selectedIndex && 'bg-muted',
+                    )}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => applyChannelTag(item.channel)}
+                  >
+                    <Hash data-icon="inline-start" />
+                    <span className="truncate">{item.channel.name}</span>
+                  </Button>
+                );
+              }
               return (
                 <Button
-                  key={ticket.id}
+                  key={`message-${item.message.id}`}
                   type="button"
                   variant="ghost"
                   size="sm"
@@ -289,16 +382,12 @@ export function MessageInput({
                     index === selectedIndex && 'bg-muted',
                   )}
                   onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => applyTicketTag(ticket)}
+                  onClick={() => applyMessageTag(item.message)}
                 >
-                  <StatusIcon
-                    data-icon="inline-start"
-                    className={meta.iconClassName}
-                  />
-                  <span className="shrink-0 tabular-nums text-muted-foreground">
-                    {ticket.displayId}
+                  <MessageSquare data-icon="inline-start" />
+                  <span className="truncate">
+                    {messageMentionLabel(item.message)}
                   </span>
-                  <span className="truncate">{ticket.name}</span>
                 </Button>
               );
             })}

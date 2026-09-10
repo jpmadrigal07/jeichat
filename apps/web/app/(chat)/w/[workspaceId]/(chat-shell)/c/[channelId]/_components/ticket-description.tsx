@@ -6,20 +6,25 @@ import { Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { MentionableMember } from '@chat/_helpers/mentions';
 import { MAX_TICKET_DESCRIPTION_LENGTH } from '@chat/_helpers/ticket-fields';
-import type { TaggableTicket } from '@chat/_helpers/ticket-mentions';
+import type {
+  TaggableChannel,
+  TaggableTicket,
+} from '@chat/_helpers/ticket-mentions';
 import { cn } from '@/lib/utils';
 import { MarkdownWritePreview } from './markdown-write-preview';
 import { MessageMarkdown } from './message-markdown';
-
-const COLLAPSED_MAX_CLASS = 'max-h-36';
-const COLLAPSED_MAX_REM = 9;
 
 type TicketDescriptionProps = {
   workspaceId: string;
   description: string | null;
   members: MentionableMember[];
   tickets: TaggableTicket[];
+  channels?: TaggableChannel[];
   onSave: (description: string | null) => void;
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
+  editing: boolean;
+  onEditingChange: (editing: boolean) => void;
 };
 
 export function TicketDescription({
@@ -27,40 +32,45 @@ export function TicketDescription({
   description,
   members,
   tickets,
+  channels,
   onSave,
+  expanded,
+  onExpandedChange,
+  editing,
+  onEditingChange,
 }: TicketDescriptionProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
-  const [editing, setEditing] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const [canCollapse, setCanCollapse] = useState(false);
 
   useLayoutEffect(() => {
+    if (editing) return;
     const node = previewRef.current;
-    if (!node || editing || !description) {
+    if (!node || !description) {
       setCanCollapse(false);
       return;
     }
 
     function measure() {
-      const rem = parseFloat(
-        getComputedStyle(document.documentElement).fontSize,
-      );
-      setCanCollapse(node.scrollHeight > rem * COLLAPSED_MAX_REM + 1);
+      if (expanded) return;
+      if (node.clientHeight === 0) return;
+      setCanCollapse(node.scrollHeight > node.clientHeight + 1);
     }
 
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(node);
+    const content = node.firstElementChild;
+    if (content) observer.observe(content);
     return () => observer.disconnect();
-  }, [description, editing]);
+  }, [description, editing, expanded]);
 
   function startEdit() {
-    setEditing(true);
+    onEditingChange(true);
   }
 
   function cancel() {
-    setEditing(false);
+    onEditingChange(false);
   }
 
   function save() {
@@ -73,13 +83,13 @@ export function TicketDescription({
     }
     const next = value.trim() || null;
     if (next !== (description ?? null)) onSave(next);
-    setExpanded(false);
-    setEditing(false);
+    onExpandedChange(false);
+    onEditingChange(false);
   }
 
   if (editing) {
     return (
-      <div className="flex min-w-0 flex-col gap-2">
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
         <MarkdownWritePreview
           key={`edit-${description ?? ''}`}
           textareaRef={textareaRef}
@@ -90,6 +100,7 @@ export function TicketDescription({
           workspaceId={workspaceId}
           members={members}
           tickets={tickets}
+          channels={channels}
           textareaClassName="min-h-24 border-transparent bg-transparent px-0 shadow-none dark:bg-transparent"
           onKeyDown={(event) => {
             if (event.key === 'Escape') {
@@ -124,34 +135,48 @@ export function TicketDescription({
   }
 
   return (
-    <div className="flex min-w-0 items-start gap-2">
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="relative min-w-0">
-          <div
-            ref={previewRef}
-            className={cn(!expanded && `${COLLAPSED_MAX_CLASS} overflow-hidden`)}
-          >
-            <MessageMarkdown
-              content={description}
-              className="md-ticket text-sm"
-              members={members}
-              tickets={tickets}
-              workspaceId={workspaceId}
-            />
-          </div>
+    <div className="flex min-h-0 min-w-0 flex-1 gap-2">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1">
+        <div
+          ref={previewRef}
+          className={cn(
+            'relative min-h-0',
+            !expanded &&
+              'max-h-48 overflow-hidden sm:h-0 sm:max-h-none sm:flex-1',
+          )}
+        >
+          <MessageMarkdown
+            content={description}
+            className="md-ticket text-sm"
+            members={members}
+            tickets={tickets}
+            channels={channels}
+            workspaceId={workspaceId}
+          />
           {!expanded && canCollapse ? (
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-linear-to-t from-background" />
+            <>
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-linear-to-t from-background from-40%" />
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="absolute bottom-0 left-0 z-10 h-auto px-0"
+                onClick={() => onExpandedChange(true)}
+              >
+                See more
+              </Button>
+            </>
           ) : null}
         </div>
-        {canCollapse ? (
+        {expanded && canCollapse ? (
           <Button
             type="button"
             variant="link"
             size="sm"
-            className="h-auto self-start px-0"
-            onClick={() => setExpanded((open) => !open)}
+            className="h-auto shrink-0 self-start px-0"
+            onClick={() => onExpandedChange(false)}
           >
-            {expanded ? 'See less' : 'See more'}
+            See less
           </Button>
         ) : null}
       </div>
@@ -159,7 +184,7 @@ export function TicketDescription({
         type="button"
         variant="outline"
         size="sm"
-        className="shrink-0"
+        className="shrink-0 self-start"
         onClick={startEdit}
       >
         <Pencil data-icon="inline-start" />

@@ -19,12 +19,19 @@ export function mergeTicketTimeline(
   messages: Message[],
   events: TicketEvent[],
   hasOlderMessages: boolean,
+  hasNewerMessages = false,
 ): TicketTimelineEntry[] {
   const oldestLoaded = messages.at(-1)?.createdAt;
-  const visibleEvents =
-    !hasOlderMessages || !oldestLoaded
-      ? events
-      : events.filter((event) => event.createdAt >= oldestLoaded);
+  const newestLoaded = messages[0]?.createdAt;
+  const visibleEvents = events.filter((event) => {
+    if (hasOlderMessages && oldestLoaded && event.createdAt < oldestLoaded) {
+      return false;
+    }
+    if (hasNewerMessages && newestLoaded && event.createdAt > newestLoaded) {
+      return false;
+    }
+    return true;
+  });
 
   const entries: TicketTimelineEntry[] = [
     ...messages.map((message) => ({ type: 'message' as const, message })),

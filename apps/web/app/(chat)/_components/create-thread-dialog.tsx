@@ -23,7 +23,7 @@ import {
 import { MAX_TICKET_DESCRIPTION_LENGTH } from '../_helpers/ticket-fields';
 import { useChannels, useCreateThread } from '../_hooks/use-channels';
 import { useWorkspaceMembers } from '../_hooks/use-workspaces';
-import { taggableTicketsForChannel } from '../_helpers/ticket-mentions';
+import { taggableTicketsForChannel, taggableChannels } from '../_helpers/ticket-mentions';
 import { useAttachmentUploads } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_hooks/use-attachment-uploads';
 import { AttachmentPreviewTray } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_components/attachment-preview-tray';
 import { MarkdownWritePreview } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_components/markdown-write-preview';
@@ -110,6 +110,7 @@ function CreateThreadDialog({
   const { data: members } = useWorkspaceMembers(workspaceId);
   const parentChannel = channels?.find((channel) => channel.id === channelId);
   const tickets = taggableTicketsForChannel(channels ?? [], parentChannel);
+  const hashChannels = taggableChannels(channels ?? []);
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploads = useAttachmentUploads(channelId ?? '');
@@ -187,6 +188,7 @@ function CreateThreadDialog({
               workspaceId={workspaceId}
               members={members}
               tickets={tickets}
+              channels={hashChannels}
             />
           </div>
           <div className="flex flex-col gap-2">

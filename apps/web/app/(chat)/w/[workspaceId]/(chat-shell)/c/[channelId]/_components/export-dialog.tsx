@@ -1,8 +1,8 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { CalendarIcon, Copy, Download, FileDown } from 'lucide-react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { CalendarIcon, Copy, Download, FileArchive, FileDown, Loader2 } from 'lucide-react';
 import {
   addMonths,
   endOfDay,
@@ -30,7 +30,11 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { fetchExportMarkdown } from '../_libs/export';
+import {
+  downloadBlob,
+  fetchExportMarkdown,
+  fetchExportZip,
+} from '../_libs/export';
 import type { Channel } from '@chat/_libs/channels';
 import { MessageMarkdown } from './message-markdown';
 
@@ -56,6 +60,18 @@ export function ExportDialog({ channelId, channel }: ExportDialogProps) {
     queryFn: ({ signal }) =>
       fetchExportMarkdown(channelId, fromISO, toISO, { signal }),
     enabled: open && hasDateRange,
+  });
+
+  const zipMutation = useMutation({
+    mutationFn: () => {
+      if (!fromISO || !toISO) {
+        return Promise.reject(new Error('Select From and To dates'));
+      }
+      return fetchExportZip(channelId, fromISO, toISO);
+    },
+    onSuccess: ({ blob, filename }) => {
+      downloadBlob(blob, filename);
+    },
   });
 
   function handleCopy() {
@@ -117,7 +133,8 @@ export function ExportDialog({ channelId, channel }: ExportDialogProps) {
         <DialogHeader>
           <DialogTitle>Export #{channel?.name ?? 'channel'}</DialogTitle>
           <DialogDescription>
-            Export up to 1 month of messages as markdown for use with AI tools.
+            Export up to 1 month of messages as markdown. Download a zip to
+            include original images and files.
           </DialogDescription>
         </DialogHeader>
 
@@ -183,18 +200,37 @@ export function ExportDialog({ channelId, channel }: ExportDialogProps) {
           </TabsContent>
         </Tabs>
 
-        <DialogFooter>
+        <DialogFooter className="flex-wrap">
           <Button
             variant="outline"
             onClick={handleCopy}
-            disabled={!hasDateRange || !markdown || isLoading}
+            disabled={
+              !hasDateRange || !markdown || isLoading || zipMutation.isPending
+            }
           >
             <Copy data-icon="inline-start" />
             Copy to Clipboard
           </Button>
-          <Button onClick={handleDownload} disabled={!hasDateRange || !markdown || isLoading}>
+          <Button
+            variant="outline"
+            onClick={handleDownload}
+            disabled={
+              !hasDateRange || !markdown || isLoading || zipMutation.isPending
+            }
+          >
             <Download data-icon="inline-start" />
             Download .md
+          </Button>
+          <Button
+            onClick={() => zipMutation.mutate()}
+            disabled={!hasDateRange || isLoading || zipMutation.isPending}
+          >
+            {zipMutation.isPending ? (
+              <Loader2 data-icon="inline-start" className="animate-spin" />
+            ) : (
+              <FileArchive data-icon="inline-start" />
+            )}
+            Download .zip
           </Button>
         </DialogFooter>
       </DialogContent>

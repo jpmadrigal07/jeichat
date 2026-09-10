@@ -60,7 +60,7 @@ function AttachmentItem({
   if (!compact && contentType.startsWith('audio/')) {
     return <AttachmentAudio attachment={attachment} />;
   }
-  return <AttachmentFileCard attachment={attachment} className={compact ? 'w-full max-w-none' : undefined} />;
+  return <AttachmentFileCard attachment={attachment} compact={compact} />;
 }
 
 function RemovableAttachment({
@@ -134,14 +134,17 @@ export function MessageAttachments({
         </div>
       ) : null}
       {others.length > 0 ? (
-        <div className="flex flex-col gap-1.5">
+        <div
+          className={
+            compact ? 'flex flex-wrap gap-1' : 'flex flex-col gap-1.5'
+          }
+        >
           {others.map((attachment) => (
             <RemovableAttachment
               key={attachment.id}
               id={attachment.id}
               filename={attachment.filename}
               onRemove={onRemove}
-              className={compact ? 'w-full' : undefined}
             >
               <AttachmentItem attachment={attachment} compact={compact} />
             </RemovableAttachment>

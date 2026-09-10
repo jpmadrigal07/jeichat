@@ -1,6 +1,8 @@
 'use client';
 
 import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { useChannels } from '@chat/_hooks/use-channels';
 import { useWorkspaceMembers } from '@chat/_hooks/use-workspaces';
 import { useMarkChannelRead } from '@chat/_hooks/use-unread-counts';
@@ -16,11 +18,11 @@ import {
   useUnpinMessage,
 } from './_hooks/use-pins';
 import { useToggleMessageReaction } from './_hooks/use-reactions';
-import { flattenMessagePages } from './_libs/messages';
+import { flattenMessagePages, MESSAGE_HIGHLIGHT_PARAM, messagesQueryKey } from './_libs/messages';
 import { useSocket } from './_hooks/use-socket';
 import { useChannelEvents } from './_hooks/use-channel-events';
 import { mergeTicketTimeline } from './_helpers/merge-ticket-timeline';
-import { taggableTicketsForChannel } from '@chat/_helpers/ticket-mentions';
+import { taggableTicketsForChannel, taggableChannels, taggableMessages } from '@chat/_helpers/ticket-mentions';
 import type { TicketLayout } from '@chat/_libs/channels';
 import { ChannelHeader } from './_components/channel-header';
 import { ChannelThreadCards } from './_components/channel-thread-cards';
@@ -52,6 +54,10 @@ export function ChannelView({
   highlightMessageId,
 }: Props) {
   const { workspaceId, channelId } = use(params);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const { data: channels } = useChannels(workspaceId);
   const { data: members } = useWorkspaceMembers(workspaceId);
   const channel = channels?.find((c) => c.id === channelId);
@@ -65,14 +71,21 @@ export function ChannelView({
     () => taggableTicketsForChannel(channels ?? [], channel),
     [channel, channels],
   );
+  const hashChannels = useMemo(
+    () => taggableChannels(channels ?? []),
+    [channels],
+  );
 
   const {
     data,
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage,
+    hasPreviousPage,
+    isFetchingPreviousPage,
+    fetchPreviousPage,
     isPending,
-  } = useMessages(channelId, !showThreadCards);
+  } = useMessages(channelId, !showThreadCards, highlightMessageId);
   const { data: ticketEvents = [] } = useChannelEvents(
     workspaceId,
     channelId,
@@ -136,6 +149,10 @@ export function ChannelView({
     () => flattenMessagePages(data?.pages),
     [data?.pages],
   );
+  const mentionMessages = useMemo(
+    () => taggableMessages(messages),
+    [messages],
+  );
 
   const timeline = useMemo(
     () =>
@@ -143,8 +160,9 @@ export function ChannelView({
         messages,
         ticketEvents,
         Boolean(hasNextPage),
+        Boolean(hasPreviousPage),
       ),
-    [hasNextPage, messages, ticketEvents],
+    [hasNextPage, hasPreviousPage, messages, ticketEvents],
   );
 
   const typingNames = useMemo(
@@ -152,10 +170,25 @@ export function ChannelView({
     [typingUsers],
   );
 
+  function jumpToLatest() {
+    void queryClient.invalidateQueries({
+      queryKey: messagesQueryKey(channelId),
+    });
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete(MESSAGE_HIGHLIGHT_PARAM);
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+
   function handleSend(content: string, attachmentIds: string[]) {
     sendMutation.mutate(
       { content, attachmentIds },
-      { onSuccess: () => uploads.reset() },
+      {
+        onSuccess: () => {
+          uploads.reset();
+          if (highlightMessageId) jumpToLatest();
+        },
+      },
     );
   }
 
@@ -206,25 +239,28 @@ export function ChannelView({
   if (isPending) {
     return (
       <ChatPane header={header} currentUserId={userId}>
-        {isThread && channel ? (
-          <ThreadIssueHeader
-            workspaceId={workspaceId}
-            channel={channel}
-            parentChannel={parentChannel}
-            members={members ?? []}
-            tickets={tickets}
-          />
-        ) : null}
-        <div className="flex flex-1 flex-col gap-3 p-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="flex gap-3">
-              <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
-              <div className="flex flex-col gap-1.5">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-4 w-48" />
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          {isThread && channel ? (
+            <ThreadIssueHeader
+              workspaceId={workspaceId}
+              channel={channel}
+              parentChannel={parentChannel}
+              members={members ?? []}
+              tickets={tickets}
+              channels={hashChannels}
+            />
+          ) : null}
+          <div className="flex flex-col gap-3 p-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex gap-3">
+                <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
+                <div className="flex flex-col gap-1.5">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-48" />
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </ChatPane>
     );
@@ -232,27 +268,34 @@ export function ChannelView({
 
   return (
     <ChatPane header={header} currentUserId={userId}>
-      {isThread && channel ? (
-        <ThreadIssueHeader
-          workspaceId={workspaceId}
-          channel={channel}
-          parentChannel={parentChannel}
-          members={members ?? []}
-          tickets={tickets}
-        />
-      ) : null}
       <ChannelAttachmentLightbox />
       <ChannelDropZone
         onAdd={uploads.addFiles}
         className="relative flex min-h-0 flex-1 flex-col"
       >
         <MessageList
-          key={channelId}
+          key={`${channelId}:${highlightMessageId ?? 'live'}`}
+          header={
+            isThread && channel ? (
+              <ThreadIssueHeader
+                workspaceId={workspaceId}
+                channel={channel}
+                parentChannel={parentChannel}
+                members={members ?? []}
+                tickets={tickets}
+                channels={hashChannels}
+              />
+            ) : null
+          }
           entries={timeline}
           currentUserId={userId}
           hasNextPage={hasNextPage}
           isFetchingNextPage={isFetchingNextPage}
           fetchNextPage={fetchNextPage}
+          hasPreviousPage={hasPreviousPage}
+          isFetchingPreviousPage={isFetchingPreviousPage}
+          fetchPreviousPage={fetchPreviousPage}
+          onJumpToLatest={jumpToLatest}
           onEdit={handleEdit}
           onDelete={handleDelete}
           onPin={handlePin}
@@ -268,6 +311,7 @@ export function ChannelView({
           highlightMessageId={highlightMessageId}
           members={members ?? []}
           tickets={tickets}
+          channels={hashChannels}
           workspaceId={workspaceId}
           showTicketLink={!isThread}
         />
@@ -275,8 +319,11 @@ export function ChannelView({
         <MessageInput
           channelName={channel?.name}
           currentUserId={userId}
+          workspaceId={workspaceId}
           members={members ?? []}
           tickets={tickets}
+          channels={hashChannels}
+          mentionMessages={mentionMessages}
           onSend={handleSend}
           onTyping={emitTyping}
           sendDisabled={sendMutation.isPending}

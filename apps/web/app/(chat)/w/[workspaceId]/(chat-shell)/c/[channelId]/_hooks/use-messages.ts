@@ -5,33 +5,64 @@ import {
   useMutation,
   useQueryClient,
 } from '@tanstack/react-query';
+import { isApiError } from '@/lib/api-error';
 import {
   fetchMessages,
   sendMessage,
   editMessage,
   deleteMessage,
   messagesQueryKey,
-  MESSAGES_PAGE_SIZE,
+  messagesQueryKeyPrefix,
   type Message,
-  type MessagesResponse,
+  type MessagesInfiniteData,
+  type MessagesPageParam,
 } from '../_libs/messages';
+
+const LATEST_PAGE_PARAM: MessagesPageParam = { kind: 'latest' };
 
 const MESSAGES_STALE_TIME_MS = 5 * 60 * 1000;
 const MESSAGES_GC_TIME_MS = 30 * 60 * 1000;
 
-export function useMessages(channelId: string, enabled = true) {
+function isAtLiveTail(data: MessagesInfiniteData | undefined) {
+  return !data?.pages[0]?.prevCursor;
+}
+
+export function useMessages(
+  channelId: string,
+  enabled = true,
+  aroundMessageId?: string | null,
+) {
   return useInfiniteQuery({
-    queryKey: messagesQueryKey(channelId),
-    queryFn: ({ pageParam, signal }) =>
-      fetchMessages(channelId, pageParam, { signal }),
-    initialPageParam: undefined as string | undefined,
+    queryKey: messagesQueryKey(channelId, aroundMessageId),
+    queryFn: async ({ pageParam, signal }) => {
+      try {
+        return await fetchMessages(channelId, pageParam, { signal });
+      } catch (error) {
+        if (
+          pageParam.kind === 'around' &&
+          isApiError(error) &&
+          error.statusCode === 404
+        ) {
+          return fetchMessages(channelId, { kind: 'latest' }, { signal });
+        }
+        throw error;
+      }
+    },
+    initialPageParam: aroundMessageId
+      ? { kind: 'around', messageId: aroundMessageId }
+      : LATEST_PAGE_PARAM,
     getNextPageParam: (lastPage) =>
-      lastPage.data.length < MESSAGES_PAGE_SIZE
-        ? undefined
-        : (lastPage.nextCursor ?? undefined),
+      lastPage.nextCursor
+        ? { kind: 'older' as const, cursor: lastPage.nextCursor }
+        : undefined,
+    getPreviousPageParam: (firstPage) =>
+      firstPage.prevCursor
+        ? { kind: 'newer' as const, cursor: firstPage.prevCursor }
+        : undefined,
     enabled: !!channelId && enabled,
     staleTime: MESSAGES_STALE_TIME_MS,
     gcTime: MESSAGES_GC_TIME_MS,
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
   });
 }
@@ -47,23 +78,7 @@ export function useSendMessage(channelId: string) {
         ? sendMessage(channelId, input)
         : sendMessage(channelId, input.content, input.attachmentIds ?? []),
     onSuccess: (newMessage) => {
-      queryClient.setQueryData<{
-        pages: MessagesResponse[];
-        pageParams: (string | undefined)[];
-      }>(messagesQueryKey(channelId), (old) => {
-        if (!old) return old;
-        const firstPage = old.pages[0];
-        if (!firstPage) return old;
-        const exists = firstPage.data.some((m) => m.id === newMessage.id);
-        if (exists) return old;
-        return {
-          ...old,
-          pages: [
-            { ...firstPage, data: [newMessage, ...firstPage.data] },
-            ...old.pages.slice(1),
-          ],
-        };
-      });
+      addMessageToCache(queryClient, channelId, newMessage);
     },
   });
 }
@@ -96,21 +111,21 @@ export function updateMessageInCache(
   channelId: string,
   updatedMessage: Message,
 ) {
-  queryClient.setQueryData<{
-    pages: MessagesResponse[];
-    pageParams: (string | undefined)[];
-  }>(messagesQueryKey(channelId), (old) => {
-    if (!old) return old;
-    return {
-      ...old,
-      pages: old.pages.map((page) => ({
-        ...page,
-        data: page.data.map((m) =>
-          m.id === updatedMessage.id ? updatedMessage : m,
-        ),
-      })),
-    };
-  });
+  queryClient.setQueriesData<MessagesInfiniteData>(
+    { queryKey: messagesQueryKeyPrefix(channelId) },
+    (old) => {
+      if (!old) return old;
+      return {
+        ...old,
+        pages: old.pages.map((page) => ({
+          ...page,
+          data: page.data.map((m) =>
+            m.id === updatedMessage.id ? updatedMessage : m,
+          ),
+        })),
+      };
+    },
+  );
 }
 
 export function removeMessageFromCache(
@@ -118,19 +133,19 @@ export function removeMessageFromCache(
   channelId: string,
   messageId: string,
 ) {
-  queryClient.setQueryData<{
-    pages: MessagesResponse[];
-    pageParams: (string | undefined)[];
-  }>(messagesQueryKey(channelId), (old) => {
-    if (!old) return old;
-    return {
-      ...old,
-      pages: old.pages.map((page) => ({
-        ...page,
-        data: page.data.filter((m) => m.id !== messageId),
-      })),
-    };
-  });
+  queryClient.setQueriesData<MessagesInfiniteData>(
+    { queryKey: messagesQueryKeyPrefix(channelId) },
+    (old) => {
+      if (!old) return old;
+      return {
+        ...old,
+        pages: old.pages.map((page) => ({
+          ...page,
+          data: page.data.filter((m) => m.id !== messageId),
+        })),
+      };
+    },
+  );
 }
 
 export function addMessageToCache(
@@ -138,21 +153,22 @@ export function addMessageToCache(
   channelId: string,
   message: Message,
 ) {
-  queryClient.setQueryData<{
-    pages: MessagesResponse[];
-    pageParams: (string | undefined)[];
-  }>(messagesQueryKey(channelId), (old) => {
-    if (!old) return old;
-    const firstPage = old.pages[0];
-    if (!firstPage) return old;
-    const exists = firstPage.data.some((m) => m.id === message.id);
-    if (exists) return old;
-    return {
-      ...old,
-      pages: [
-        { ...firstPage, data: [message, ...firstPage.data] },
-        ...old.pages.slice(1),
-      ],
-    };
-  });
+  queryClient.setQueriesData<MessagesInfiniteData>(
+    { queryKey: messagesQueryKeyPrefix(channelId) },
+    (old) => {
+      if (!old) return old;
+      if (!isAtLiveTail(old)) return old;
+      const firstPage = old.pages[0];
+      if (!firstPage) return old;
+      const exists = firstPage.data.some((m) => m.id === message.id);
+      if (exists) return old;
+      return {
+        ...old,
+        pages: [
+          { ...firstPage, data: [message, ...firstPage.data] },
+          ...old.pages.slice(1),
+        ],
+      };
+    },
+  );
 }

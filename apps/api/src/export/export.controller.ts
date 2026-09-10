@@ -30,4 +30,26 @@ export class ExportController {
     );
     res.send(markdown.content);
   }
+
+  @Get('zip')
+  async exportChannelZip(
+    @Param('channelId') channelId: string,
+    @Query('from') from: string | undefined,
+    @Query('to') to: string | undefined,
+    @Session() session: UserSession<typeof auth>,
+    @Res() res: Response,
+  ) {
+    try {
+      await this.exportService.exportChannelAsZip(
+        channelId,
+        session.user.id,
+        res,
+        from,
+        to,
+      );
+    } catch (error) {
+      if (!res.headersSent) throw error;
+      res.destroy();
+    }
+  }
 }

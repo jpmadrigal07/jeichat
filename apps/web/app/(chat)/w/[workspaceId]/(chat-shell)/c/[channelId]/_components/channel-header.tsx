@@ -35,7 +35,6 @@ import {
   channelDisplayName,
   isDmChannel,
 } from '@chat/_helpers/channel-display';
-import { formatChannelTitleLabel } from '@chat/_helpers/document-title';
 
 type ChannelViewMode = 'messages' | 'threads';
 
@@ -67,14 +66,14 @@ export function ChannelHeader({
             <BreadcrumbItem className="min-w-0">
               <BreadcrumbLink asChild className="min-w-0 truncate">
                 <Link href={channelPageHref(workspaceId, parentChannel.id)}>
-                  #{parentChannel.name}
+                  # {parentChannel.name}
                 </Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem className="min-w-0">
               <BreadcrumbPage className="min-w-0 truncate font-medium">
-                {formatChannelTitleLabel(channel, parentChannel)}
+                {channelDisplayName(channel)}
               </BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>

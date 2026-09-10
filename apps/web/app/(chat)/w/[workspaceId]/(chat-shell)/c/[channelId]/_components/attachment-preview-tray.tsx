@@ -10,6 +10,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { formatBytes } from '@/lib/attachment-mime';
 import type { PendingAttachment } from '../_hooks/use-attachment-uploads';
@@ -19,7 +24,7 @@ type AttachmentPreviewTrayProps = {
   onRemove: (localId: string) => void;
   onRetry: (localId: string) => void;
   className?: string;
-  fullWidth?: boolean;
+  compact?: boolean;
 };
 
 function fileIcon(file: File) {
@@ -32,12 +37,12 @@ function PreviewItem({
   item,
   onRemove,
   onRetry,
-  fullWidth,
+  compact,
 }: {
   item: PendingAttachment;
   onRemove: (localId: string) => void;
   onRetry: (localId: string) => void;
-  fullWidth?: boolean;
+  compact?: boolean;
 }) {
   const isImage = !!item.previewUrl;
   const Icon = fileIcon(item.file);
@@ -48,36 +53,38 @@ function PreviewItem({
   if (isImage) {
     return (
       <div
-        className={`relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border bg-muted ${
-          isError ? 'border-destructive' : ''
-        }`}
+        className={cn(
+          'relative shrink-0 overflow-hidden rounded-lg border bg-muted',
+          compact ? 'size-12' : 'size-20',
+          isError && 'border-destructive',
+        )}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={item.previewUrl!}
           alt={item.file.name}
-          className="h-full w-full object-cover"
+          className="size-full object-cover"
         />
         <Button
           type="button"
-          size="icon"
+          size="icon-xs"
           variant="secondary"
-          className="absolute right-1 top-1 h-6 w-6 opacity-90"
+          className="absolute right-0.5 top-0.5 opacity-90"
           onClick={() => onRemove(item.localId)}
           aria-label={`Remove ${item.file.name}`}
         >
-          <X className="h-3.5 w-3.5" />
+          <X />
         </Button>
         {isError && (
           <Button
             type="button"
-            size="icon"
+            size="icon-xs"
             variant="secondary"
-            className="absolute bottom-1 left-1 h-6 w-6"
+            className="absolute bottom-0.5 left-0.5"
             onClick={() => onRetry(item.localId)}
             aria-label={`Retry ${item.file.name}`}
           >
-            <RotateCcw className="h-3.5 w-3.5" />
+            <RotateCcw />
           </Button>
         )}
         {showProgress && (
@@ -89,16 +96,70 @@ function PreviewItem({
     );
   }
 
+  if (compact) {
+    return (
+      <div
+        className={cn(
+          'relative max-w-44',
+          isError && 'rounded-md ring-1 ring-destructive',
+        )}
+      >
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full pr-7"
+            >
+              <Icon data-icon="inline-start" />
+              <span className="min-w-0 truncate">{item.file.name}</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            {item.file.name} · {formatBytes(item.file.size)}
+          </TooltipContent>
+        </Tooltip>
+        <Button
+          type="button"
+          size="icon-xs"
+          variant="ghost"
+          className="absolute right-0.5 top-1/2 -translate-y-1/2"
+          onClick={() => onRemove(item.localId)}
+          aria-label={`Remove ${item.file.name}`}
+        >
+          <X />
+        </Button>
+        {isError ? (
+          <Button
+            type="button"
+            size="icon-xs"
+            variant="ghost"
+            className="absolute right-5 top-1/2 -translate-y-1/2"
+            onClick={() => onRetry(item.localId)}
+            aria-label={`Retry ${item.file.name}`}
+          >
+            <RotateCcw />
+          </Button>
+        ) : null}
+        {showProgress ? (
+          <div className="absolute inset-x-1 bottom-0.5">
+            <Progress value={item.progress * 100} className="h-0.5" />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <Card
       className={cn(
-        'relative h-20 shrink-0 gap-0 overflow-hidden py-2 pl-3 pr-8',
-        fullWidth ? 'w-full' : 'w-[220px]',
+        'relative h-20 w-[220px] shrink-0 gap-0 overflow-hidden py-2 pl-3 pr-8',
         isError && 'border-destructive',
       )}
     >
       <div className="flex min-w-0 items-center gap-2">
-        <Icon className="h-8 w-8 shrink-0 text-muted-foreground" />
+        <Icon className="size-8 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-medium">{item.file.name}</p>
           <p className="text-xs text-muted-foreground">
@@ -108,24 +169,24 @@ function PreviewItem({
       </div>
       <Button
         type="button"
-        size="icon"
+        size="icon-sm"
         variant="ghost"
-        className="absolute right-1 top-1 h-6 w-6"
+        className="absolute right-1 top-1"
         onClick={() => onRemove(item.localId)}
         aria-label={`Remove ${item.file.name}`}
       >
-        <X className="h-3.5 w-3.5" />
+        <X />
       </Button>
       {isError && (
         <Button
           type="button"
-          size="icon"
+          size="icon-sm"
           variant="ghost"
-          className="absolute right-1 bottom-1 h-6 w-6"
+          className="absolute right-1 bottom-1"
           onClick={() => onRetry(item.localId)}
           aria-label={`Retry ${item.file.name}`}
         >
-          <RotateCcw className="h-3.5 w-3.5" />
+          <RotateCcw />
         </Button>
       )}
       {showProgress && (
@@ -142,19 +203,19 @@ export function AttachmentPreviewTray({
   onRemove,
   onRetry,
   className,
-  fullWidth,
+  compact,
 }: AttachmentPreviewTrayProps) {
   if (!items.length) return null;
 
   return (
-    <div className={cn('flex flex-wrap gap-2', className)}>
+    <div className={cn('flex flex-wrap gap-1.5', className)}>
       {items.map((item) => (
         <PreviewItem
           key={item.localId}
           item={item}
           onRemove={onRemove}
           onRetry={onRetry}
-          fullWidth={fullWidth}
+          compact={compact}
         />
       ))}
     </div>

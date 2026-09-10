@@ -1,15 +1,19 @@
 'use client';
 
-import { useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useLayoutEffect, useCallback, useState, type ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Loader2 } from 'lucide-react';
+import { ChevronDown, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { MessageItem } from './message-item';
 import { TicketActivityItem } from './ticket-activity-item';
 import type { TicketEvent } from '../_libs/channel-events';
 import type { Message } from '../_libs/messages';
 import type { TicketTimelineEntry } from '../_helpers/merge-ticket-timeline';
 import type { MentionableMember } from '@chat/_helpers/mentions';
-import type { TaggableTicket } from '@chat/_helpers/ticket-mentions';
+import type {
+  TaggableChannel,
+  TaggableTicket,
+} from '@chat/_helpers/ticket-mentions';
 
 type MessageListProps = {
   entries: TicketTimelineEntry[];
@@ -17,6 +21,10 @@ type MessageListProps = {
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   fetchNextPage: () => void;
+  hasPreviousPage?: boolean;
+  isFetchingPreviousPage?: boolean;
+  fetchPreviousPage?: () => void;
+  onJumpToLatest?: () => void;
   onEdit: (messageId: string, content: string) => void;
   onDelete: (messageId: string) => void;
   onPin: (messageId: string) => void;
@@ -28,8 +36,10 @@ type MessageListProps = {
   highlightMessageId: string | null;
   members: MentionableMember[];
   tickets: TaggableTicket[];
+  channels: TaggableChannel[];
   workspaceId: string;
   showTicketLink?: boolean;
+  header?: ReactNode;
 };
 
 const EDITING_ROW_ESTIMATE = 160;
@@ -94,6 +104,10 @@ export function MessageList({
   hasNextPage,
   isFetchingNextPage,
   fetchNextPage,
+  hasPreviousPage = false,
+  isFetchingPreviousPage = false,
+  fetchPreviousPage,
+  onJumpToLatest,
   onEdit,
   onDelete,
   onPin,
@@ -105,12 +119,24 @@ export function MessageList({
   highlightMessageId,
   members,
   tickets,
+  channels,
   workspaceId,
   showTicketLink = false,
+  header,
 }: MessageListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+  const prevScrollMarginRef = useRef(0);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const items = buildListItems(entries);
+  const highlightIndex = highlightMessageId
+    ? items.findIndex(
+        (item) =>
+          item.type === 'message' && item.message.id === highlightMessageId,
+      )
+    : -1;
   const stickToBottomRef = useRef(true);
   const isInitialPinRef = useRef(true);
   const isAutoScrollingRef = useRef(false);
@@ -122,6 +148,35 @@ export function MessageList({
   const wasFetchingNextPageRef = useRef(false);
   const scrollHeightBeforePrependRef = useRef(0);
   itemCountRef.current = items.length;
+
+  useLayoutEffect(() => {
+    const listEl = listRef.current;
+    const headerEl = headerRef.current;
+    if (!listEl) return;
+
+    function updateMargin() {
+      const node = listRef.current;
+      if (!node) return;
+      const nextMargin = node.offsetTop;
+      setScrollMargin((current) =>
+        current === nextMargin ? current : nextMargin,
+      );
+    }
+
+    updateMargin();
+    const observer = new ResizeObserver(updateMargin);
+    if (headerEl) observer.observe(headerEl);
+    return () => observer.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = parentRef.current;
+    const previous = prevScrollMarginRef.current;
+    if (el && previous > 0 && scrollMargin !== previous && el.scrollTop > 0) {
+      el.scrollTop += scrollMargin - previous;
+    }
+    prevScrollMarginRef.current = scrollMargin;
+  }, [scrollMargin]);
 
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -140,6 +195,7 @@ export function MessageList({
       return 72;
     },
     overscan: 10,
+    scrollMargin,
     useAnimationFrameWithResizeObserver: true,
     onChange: (instance) => {
       if (!isInitialPinRef.current || itemCountRef.current === 0) return;
@@ -219,10 +275,16 @@ export function MessageList({
     }
 
     if (items.length === 0) {
-      isInitialPinRef.current = true;
-      stickToBottomRef.current = true;
+      isInitialPinRef.current = highlightIndex < 0;
+      stickToBottomRef.current = highlightIndex < 0;
       userHasScrolledRef.current = false;
       prevItemCountRef.current = 0;
+      return;
+    }
+
+    if (highlightIndex >= 0) {
+      isInitialPinRef.current = false;
+      stickToBottomRef.current = false;
       return;
     }
 
@@ -270,18 +332,19 @@ export function MessageList({
         pinFrameRef.current = null;
       }
     };
-  }, [items.length, totalSize, scrollToBottom, isAtBottom, virtualizer]);
+  }, [highlightIndex, items.length, totalSize, scrollToBottom, isAtBottom, virtualizer]);
 
   useEffect(() => {
     if (
       items.length > prevItemCountRef.current &&
       stickToBottomRef.current &&
+      !hasPreviousPage &&
       !isInitialPinRef.current
     ) {
       scrollToBottom();
     }
     prevItemCountRef.current = items.length;
-  }, [items.length, scrollToBottom]);
+  }, [hasPreviousPage, items.length, scrollToBottom]);
 
   useEffect(() => {
     const el = parentRef.current;
@@ -318,13 +381,26 @@ export function MessageList({
         userHasScrolledRef.current = false;
       }
 
+      const fromListTop = el.scrollTop - scrollMargin;
       if (
         userHasScrolledRef.current &&
-        el.scrollTop < 100 &&
+        fromListTop < 100 &&
+        fromListTop >= -8 &&
         hasNextPage &&
         !isFetchingNextPage
       ) {
         fetchNextPage();
+      }
+
+      const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (
+        userHasScrolledRef.current &&
+        fromBottom < 100 &&
+        hasPreviousPage &&
+        !isFetchingPreviousPage &&
+        fetchPreviousPage
+      ) {
+        fetchPreviousPage();
       }
     };
 
@@ -337,30 +413,40 @@ export function MessageList({
       el.removeEventListener('touchstart', releasePin);
       el.removeEventListener('scroll', handleScroll);
     };
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage, isAtBottom]);
-
-  const highlightIndex = highlightMessageId
-    ? items.findIndex(
-        (item) =>
-          item.type === 'message' && item.message.id === highlightMessageId,
-      )
-    : -1;
+  }, [
+    fetchNextPage,
+    fetchPreviousPage,
+    hasNextPage,
+    hasPreviousPage,
+    isAtBottom,
+    isFetchingNextPage,
+    isFetchingPreviousPage,
+    scrollMargin,
+  ]);
 
   useLayoutEffect(() => {
     if (highlightIndex < 0) return;
     stickToBottomRef.current = false;
     isInitialPinRef.current = false;
+    isAutoScrollingRef.current = true;
     virtualizer.scrollToIndex(highlightIndex, { align: 'center' });
+    requestAnimationFrame(() => {
+      isAutoScrollingRef.current = false;
+    });
   }, [highlightIndex, virtualizer]);
 
   return (
-    <div ref={parentRef} className="flex-1 overflow-y-auto min-h-0">
-      {isFetchingNextPage && (
-        <div className="flex justify-center py-3">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        </div>
-      )}
+    <div ref={parentRef} className="relative min-h-0 flex-1 overflow-y-auto">
+      <div ref={headerRef}>
+        {header}
+        {isFetchingNextPage ? (
+          <div className="flex justify-center py-3">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : null}
+      </div>
       <div
+        ref={listRef}
         style={{
           height: `${virtualizer.getTotalSize()}px`,
           width: '100%',
@@ -370,6 +456,7 @@ export function MessageList({
         {virtualizer.getVirtualItems().map((virtualRow) => {
           const item = items[virtualRow.index];
           if (!item) return null;
+          const translateY = virtualRow.start - scrollMargin;
 
           if (item.type === 'date') {
             return (
@@ -382,7 +469,7 @@ export function MessageList({
                   top: 0,
                   left: 0,
                   width: '100%',
-                  transform: `translateY(${virtualRow.start}px)`,
+                  transform: `translateY(${translateY}px)`,
                 }}
                 className="flex items-center px-4"
               >
@@ -406,7 +493,7 @@ export function MessageList({
                   top: 0,
                   left: 0,
                   width: '100%',
-                  transform: `translateY(${virtualRow.start}px)`,
+                  transform: `translateY(${translateY}px)`,
                 }}
               >
                 <TicketActivityItem
@@ -429,7 +516,7 @@ export function MessageList({
                 top: 0,
                 left: 0,
                 width: '100%',
-                transform: `translateY(${virtualRow.start}px)`,
+                transform: `translateY(${translateY}px)`,
               }}
             >
               <MessageItem
@@ -449,12 +536,31 @@ export function MessageList({
                 reactionPending={pendingReactionMessageId === item.message.id}
                 members={members}
                 tickets={tickets}
+                channels={channels}
                 workspaceId={workspaceId}
               />
             </div>
           );
         })}
       </div>
+      {isFetchingPreviousPage ? (
+        <div className="flex justify-center py-3">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : null}
+      {hasPreviousPage && onJumpToLatest ? (
+        <div className="sticky bottom-3 z-10 flex justify-center">
+          <Button
+            type="button"
+            size="sm"
+            className="shadow-md"
+            onClick={onJumpToLatest}
+          >
+            <ChevronDown data-icon="inline-start" />
+            Jump to latest
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

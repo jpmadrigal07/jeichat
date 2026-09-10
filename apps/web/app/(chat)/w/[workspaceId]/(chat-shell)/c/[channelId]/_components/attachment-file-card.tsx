@@ -16,6 +16,7 @@ import type { MessageAttachment } from '../_libs/messages';
 type AttachmentFileCardProps = {
   attachment: MessageAttachment;
   className?: string;
+  compact?: boolean;
 };
 
 function fileIcon(contentType: string) {
@@ -27,9 +28,34 @@ function fileIcon(contentType: string) {
 export function AttachmentFileCard({
   attachment,
   className,
+  compact = false,
 }: AttachmentFileCardProps) {
   const Icon = fileIcon(attachment.contentType);
   const href = attachmentFileUrl(attachment.id, { download: true });
+  const sizeLabel = formatBytes(attachment.sizeBytes);
+
+  if (compact) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className={cn('max-w-44', className)}
+            asChild
+          >
+            <a href={href} download={attachment.filename}>
+              <Icon data-icon="inline-start" />
+              <span className="min-w-0 truncate">{attachment.filename}</span>
+            </a>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          {attachment.filename} · {sizeLabel}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
 
   return (
     <Card
@@ -48,7 +74,7 @@ export function AttachmentFileCard({
         <TooltipContent side="top">{attachment.filename}</TooltipContent>
       </Tooltip>
       <span className="shrink-0 text-muted-foreground tabular-nums">
-        {formatBytes(attachment.sizeBytes)}
+        {sizeLabel}
       </span>
       <Button
         size="icon-sm"

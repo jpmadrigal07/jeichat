@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, count, desc, eq, inArray, lt, or } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, lt, or, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { DrizzleService } from '../database/drizzle.service';
 import { attachments, messages, messageReactions, pinnedMessages } from '../database/schema';
@@ -24,12 +24,30 @@ import {
 } from './message-reactions';
 import { PERMISSIONS } from '../workspaces/permissions';
 import { WorkspacePermissionsService } from '../workspaces/workspace-permissions.service';
+import {
+  aroundWindowSizes,
+  encodeMessageCursor,
+  parseMessageCursor,
+} from './message-cursor';
 
 export type MessageAttachmentPublic = {
   id: string;
   filename: string;
   contentType: string;
   sizeBytes: number;
+};
+
+type MessageListRow = {
+  id: string;
+  channelId: string;
+  senderId: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+  sender: {
+    name: string | null;
+    image: string | null;
+  } | null;
 };
 
 export const MAX_PINNED_MESSAGES = 50;
@@ -275,29 +293,153 @@ export class MessagesService {
   async findAll(
     channelId: string,
     userId: string,
-    cursor?: string,
-    limit = 50,
+    options: {
+      cursor?: string;
+      around?: string;
+      direction?: 'older' | 'newer';
+      limit?: number;
+    } = {},
   ) {
     await this.verifyChannelAccess(channelId, userId, PERMISSIONS.VIEW_CHANNEL);
 
-    const fetchLimit = Math.min(Math.max(limit, 1), 100);
-
-    const conditions = [eq(messages.channelId, channelId)];
-
-    if (cursor) {
-      const separatorIndex = cursor.lastIndexOf('_');
-      if (separatorIndex !== -1) {
-        const cursorDate = new Date(cursor.slice(0, separatorIndex));
-        const cursorId = cursor.slice(separatorIndex + 1);
-
-        conditions.push(
-          or(
-            lt(messages.createdAt, cursorDate),
-            and(eq(messages.createdAt, cursorDate), lt(messages.id, cursorId)),
-          )!,
-        );
-      }
+    const fetchLimit = Math.min(Math.max(options.limit ?? 50, 1), 100);
+    if (options.around) {
+      return this.findAround(channelId, userId, options.around, fetchLimit);
     }
+
+    const direction = options.direction === 'newer' ? 'newer' : 'older';
+    if (direction === 'newer' && !options.cursor) {
+      throw new BadRequestException('cursor is required when direction=newer');
+    }
+
+    const extra = this.cursorCondition(options.cursor, direction);
+    const page = await this.fetchMessagePage({
+      channelId,
+      userId,
+      extra,
+      direction,
+      limit: fetchLimit,
+    });
+
+    const oldest = page.rows[page.rows.length - 1];
+    const newest = page.rows[0];
+    const nextCursor =
+      direction === 'older' && page.hasMore && oldest
+        ? encodeMessageCursor(oldest.createdAt, oldest.id)
+        : null;
+    const prevCursor =
+      direction === 'newer' && page.hasMore && newest
+        ? encodeMessageCursor(newest.createdAt, newest.id)
+        : null;
+
+    return { data: page.data, nextCursor, prevCursor };
+  }
+
+  private async findAround(
+    channelId: string,
+    userId: string,
+    messageId: string,
+    limit: number,
+  ) {
+    const [target] = await this.drizzle.db
+      .select({
+        id: messages.id,
+        createdAt: messages.createdAt,
+      })
+      .from(messages)
+      .where(and(eq(messages.id, messageId), eq(messages.channelId, channelId)));
+
+    if (!target) throw new NotFoundException('Message not found');
+
+    const { older, newer } = aroundWindowSizes(limit);
+    const [olderPage, newerPage, targetPage] = await Promise.all([
+      older > 0
+        ? this.fetchMessagePage({
+            channelId,
+            userId,
+            extra: this.cursorCondition(
+              encodeMessageCursor(target.createdAt, target.id),
+              'older',
+            ),
+            direction: 'older',
+            limit: older,
+          })
+        : {
+            data: [],
+            rows: [] as MessageListRow[],
+            hasMore: false,
+          },
+      newer > 0
+        ? this.fetchMessagePage({
+            channelId,
+            userId,
+            extra: this.cursorCondition(
+              encodeMessageCursor(target.createdAt, target.id),
+              'newer',
+            ),
+            direction: 'newer',
+            limit: newer,
+          })
+        : {
+            data: [],
+            rows: [] as MessageListRow[],
+            hasMore: false,
+          },
+      this.fetchMessagePage({
+        channelId,
+        userId,
+        extra: and(eq(messages.id, target.id)),
+        direction: 'older',
+        limit: 1,
+      }),
+    ]);
+
+    const targetMessage = targetPage.data[0];
+    if (!targetMessage) throw new NotFoundException('Message not found');
+
+    const data = [...newerPage.data, targetMessage, ...olderPage.data];
+    const oldest = olderPage.rows[olderPage.rows.length - 1];
+    const newest = newerPage.rows[0] ?? target;
+    const nextCursor =
+      olderPage.hasMore && oldest
+        ? encodeMessageCursor(oldest.createdAt, oldest.id)
+        : null;
+    const prevCursor =
+      newerPage.hasMore && newest
+        ? encodeMessageCursor(newest.createdAt, newest.id)
+        : null;
+
+    return { data, nextCursor, prevCursor };
+  }
+
+  private cursorCondition(
+    cursor: string | undefined,
+    direction: 'older' | 'newer',
+  ): SQL | undefined {
+    if (!cursor) return undefined;
+    const parsed = parseMessageCursor(cursor);
+    if (!parsed) return undefined;
+    if (direction === 'newer') {
+      return or(
+        gt(messages.createdAt, parsed.createdAt),
+        and(eq(messages.createdAt, parsed.createdAt), gt(messages.id, parsed.id)),
+      )!;
+    }
+    return or(
+      lt(messages.createdAt, parsed.createdAt),
+      and(eq(messages.createdAt, parsed.createdAt), lt(messages.id, parsed.id)),
+    )!;
+  }
+
+  private async fetchMessagePage(params: {
+    channelId: string;
+    userId: string;
+    extra?: SQL;
+    direction: 'older' | 'newer';
+    limit: number;
+  }) {
+    const conditions: SQL[] = [eq(messages.channelId, params.channelId)];
+    if (params.extra) conditions.push(params.extra);
 
     const rows = await this.drizzle.db
       .select({
@@ -315,29 +457,35 @@ export class MessagesService {
       .from(messages)
       .leftJoin(user, eq(messages.senderId, user.id))
       .where(and(...conditions))
-      .orderBy(desc(messages.createdAt), desc(messages.id))
-      .limit(fetchLimit + 1);
+      .orderBy(
+        params.direction === 'newer'
+          ? asc(messages.createdAt)
+          : desc(messages.createdAt),
+        params.direction === 'newer' ? asc(messages.id) : desc(messages.id),
+      )
+      .limit(params.limit + 1);
 
-    const hasMore = rows.length > fetchLimit;
-    const data = hasMore ? rows.slice(0, fetchLimit) : rows;
-    const last = data[data.length - 1];
-    const nextCursor =
-      hasMore && last ? `${last.createdAt.toISOString()}_${last.id}` : null;
+    const hasMore = rows.length > params.limit;
+    const sliced = hasMore ? rows.slice(0, params.limit) : rows;
+    const ordered =
+      params.direction === 'newer' ? [...sliced].reverse() : sliced;
+    const data = await this.enrichMessageRows(ordered, params.userId);
+    return { data, rows: ordered, hasMore };
+  }
 
+  private async enrichMessageRows(rows: MessageListRow[], userId: string) {
     const grouped = await this.loadAttachmentsByMessageIds(
-      data.map((m) => m.id),
+      rows.map((row) => row.id),
     );
     const reactionsGrouped = await this.loadReactionsByMessageIds(
-      data.map((m) => m.id),
+      rows.map((row) => row.id),
       userId,
     );
-    const enriched = data.map((m) => ({
-      ...m,
-      attachments: grouped.get(m.id) ?? [],
-      reactions: reactionsGrouped.get(m.id) ?? [],
+    return rows.map((row) => ({
+      ...row,
+      attachments: grouped.get(row.id) ?? [],
+      reactions: reactionsGrouped.get(row.id) ?? [],
     }));
-
-    return { data: enriched, nextCursor };
   }
 
   async update(channelId: string, id: string, userId: string, content: string) {

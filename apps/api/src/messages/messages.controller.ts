@@ -34,15 +34,17 @@ export class MessagesController {
   findAll(
     @Param('channelId') channelId: string,
     @Query('cursor') cursor: string | undefined,
+    @Query('around') around: string | undefined,
+    @Query('direction') direction: string | undefined,
     @Query('limit') limit: string | undefined,
     @Session() session: UserSession<typeof auth>,
   ) {
-    return this.messagesService.findAll(
-      channelId,
-      session.user.id,
+    return this.messagesService.findAll(channelId, session.user.id, {
       cursor,
-      limit ? parseInt(limit, 10) : undefined,
-    );
+      around,
+      direction: direction === 'newer' ? 'newer' : 'older',
+      limit: limit ? parseInt(limit, 10) : undefined,
+    });
   }
 
   @Patch(':id')

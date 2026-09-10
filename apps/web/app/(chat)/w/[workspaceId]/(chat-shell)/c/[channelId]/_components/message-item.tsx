@@ -27,7 +27,10 @@ import { MessageAttachments } from './message-attachments';
 import { MessageMarkdown } from './message-markdown';
 import { MessageReactions } from './message-reactions';
 import type { MentionableMember } from '@chat/_helpers/mentions';
-import type { TaggableTicket } from '@chat/_helpers/ticket-mentions';
+import type {
+  TaggableChannel,
+  TaggableTicket,
+} from '@chat/_helpers/ticket-mentions';
 
 type MessageItemProps = {
   message: Message;
@@ -46,6 +49,7 @@ type MessageItemProps = {
   reactionPending?: boolean;
   members: MentionableMember[];
   tickets: TaggableTicket[];
+  channels: TaggableChannel[];
   workspaceId: string;
 };
 
@@ -105,6 +109,7 @@ export function MessageItem({
   reactionPending = false,
   members,
   tickets,
+  channels,
   workspaceId,
 }: MessageItemProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -191,6 +196,7 @@ export function MessageItem({
                 className="text-sm break-words"
                 members={members}
                 tickets={tickets}
+                channels={channels}
                 workspaceId={workspaceId}
               />
             ) : null}

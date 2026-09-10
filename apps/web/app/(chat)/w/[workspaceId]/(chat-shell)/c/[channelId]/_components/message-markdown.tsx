@@ -10,7 +10,10 @@ import rehypeHighlight from 'rehype-highlight';
 import rehypeSanitize from 'rehype-sanitize';
 import { cn } from '@/lib/utils';
 import type { MentionableMember } from '@chat/_helpers/mentions';
-import type { TaggableTicket } from '@chat/_helpers/ticket-mentions';
+import type {
+  TaggableChannel,
+  TaggableTicket,
+} from '@chat/_helpers/ticket-mentions';
 import {
   chatSanitizeSchema,
   isSafeHref,
@@ -20,12 +23,14 @@ import { remarkChatTags } from '../_helpers/remark-chat-tags';
 
 const EMPTY_MEMBERS: MentionableMember[] = [];
 const EMPTY_TICKETS: TaggableTicket[] = [];
+const EMPTY_CHANNELS: TaggableChannel[] = [];
 
 type MessageMarkdownProps = {
   content: string;
   className?: string;
   members?: MentionableMember[];
   tickets?: TaggableTicket[];
+  channels?: TaggableChannel[];
   workspaceId: string;
 };
 
@@ -123,6 +128,7 @@ export const MessageMarkdown = memo(function MessageMarkdown({
   className,
   members = EMPTY_MEMBERS,
   tickets = EMPTY_TICKETS,
+  channels = EMPTY_CHANNELS,
   workspaceId,
 }: MessageMarkdownProps) {
   if (!content.trim()) return null;
@@ -133,7 +139,7 @@ export const MessageMarkdown = memo(function MessageMarkdown({
         remarkPlugins={[
           remarkGfm,
           remarkBreaks,
-          [remarkChatTags, { members, tickets, workspaceId }],
+          [remarkChatTags, { members, tickets, channels, workspaceId }],
         ]}
         rehypePlugins={[
           rehypeHighlight,

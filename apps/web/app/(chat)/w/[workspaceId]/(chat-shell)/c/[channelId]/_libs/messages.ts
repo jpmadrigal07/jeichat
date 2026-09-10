@@ -1,3 +1,4 @@
+import { channelPageHref } from '@chat/_libs/channels';
 import { api } from '@/lib/api';
 
 export type MessageAttachment = {
@@ -38,14 +39,35 @@ export type Message = {
 export type MessagesResponse = {
   data: Message[];
   nextCursor: string | null;
+  prevCursor?: string | null;
 };
 
-/** Messages loaded per infinite-query page (initial channel open + each scroll-up fetch). */
+export type MessagesPageParam =
+  | { kind: 'latest' }
+  | { kind: 'around'; messageId: string }
+  | { kind: 'older'; cursor: string }
+  | { kind: 'newer'; cursor: string };
+
+export type MessagesInfiniteData = {
+  pages: MessagesResponse[];
+  pageParams: MessagesPageParam[];
+};
+
+/** Messages loaded per infinite-query page (initial channel open + each scroll fetch). */
 export const MESSAGES_PAGE_SIZE = 50;
 
 export const MESSAGE_HIGHLIGHT_PARAM = 'message';
 
-export function messagesQueryKey(channelId: string) {
+export function messagesQueryKey(
+  channelId: string,
+  aroundMessageId?: string | null,
+) {
+  return aroundMessageId
+    ? (['channels', channelId, 'messages', aroundMessageId] as const)
+    : (['channels', channelId, 'messages'] as const);
+}
+
+export function messagesQueryKeyPrefix(channelId: string) {
   return ['channels', channelId, 'messages'] as const;
 }
 
@@ -80,6 +102,16 @@ export function pinnedMessageHref(
   return `?${params.toString()}`;
 }
 
+export function messagePageHref(
+  workspaceId: string,
+  channelId: string,
+  messageId: string,
+) {
+  const params = new URLSearchParams();
+  params.set(MESSAGE_HIGHLIGHT_PARAM, messageId);
+  return `${channelPageHref(workspaceId, channelId)}?${params.toString()}`;
+}
+
 export function flattenMessagePages(
   pages: MessagesResponse[] | undefined,
 ): Message[] {
@@ -101,13 +133,22 @@ export function flattenMessagePages(
 
 export async function fetchMessages(
   channelId: string,
-  cursor?: string,
+  pageParam: MessagesPageParam | string | undefined = { kind: 'latest' },
   ctx?: { signal?: AbortSignal },
 ): Promise<MessagesResponse> {
+  const param: MessagesPageParam =
+    typeof pageParam === 'string'
+      ? { kind: 'older', cursor: pageParam }
+      : (pageParam ?? { kind: 'latest' });
   const params: Record<string, string> = {
     limit: String(MESSAGES_PAGE_SIZE),
   };
-  if (cursor) params.cursor = cursor;
+  if (param.kind === 'around') params.around = param.messageId;
+  if (param.kind === 'older') params.cursor = param.cursor;
+  if (param.kind === 'newer') {
+    params.cursor = param.cursor;
+    params.direction = 'newer';
+  }
   const { data } = await api.get<MessagesResponse>(
     `/channels/${channelId}/messages`,
     { params, signal: ctx?.signal },

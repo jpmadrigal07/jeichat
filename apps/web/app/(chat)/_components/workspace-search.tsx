@@ -40,10 +40,10 @@ import {
 import { useChannels } from '../_hooks/use-channels';
 import { useWorkspaceSearch, useSearchHistory } from '../_hooks/use-search';
 import { useWorkspaces, useWorkspaceMembers } from '../_hooks/use-workspaces';
-import { channelPageHref } from '../_libs/channels';
 import { channelDisplayName } from '../_helpers/channel-display';
 import { ChannelTypeIcon } from './channel-type-icon';
 import type { SearchHit } from '../_libs/search';
+import { messagePageHref } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_libs/messages';
 import { personInitials } from '../_helpers/ticket-fields';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
@@ -411,7 +411,7 @@ function SearchHitRow({
       asChild
     >
       <Link
-        href={channelPageHref(workspaceId, hit.channelId)}
+        href={messagePageHref(workspaceId, hit.channelId, hit.id)}
         onClick={onSelect}
       >
         <Avatar size="sm">
