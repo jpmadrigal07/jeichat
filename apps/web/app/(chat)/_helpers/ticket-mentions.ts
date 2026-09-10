@@ -69,7 +69,8 @@ export function taggableTicketsForChannel(
         },
       ];
     })
-    .toSorted((a, b) => {
+    .slice()
+    .sort((a, b) => {
       const aNumber = Number(a.displayId.split('-').at(-1) ?? 0);
       const bNumber = Number(b.displayId.split('-').at(-1) ?? 0);
       return bNumber - aNumber;
@@ -85,7 +86,8 @@ export function taggableChannels(channels: Channel[]): TaggableChannel[] {
       if (!name) return [];
       return [{ id: item.id, name }];
     })
-    .toSorted((a, b) => a.name.localeCompare(b.name));
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function taggableMessages(
@@ -246,7 +248,8 @@ export function ticketTagRanges(
       ticket,
       needle: `#${ticket.displayId.toLowerCase()}`,
     }))
-    .toSorted((a, b) => b.needle.length - a.needle.length);
+    .slice()
+    .sort((a, b) => b.needle.length - a.needle.length);
 
   for (const { ticket, needle } of byNeedle) {
     let from = 0;
@@ -289,7 +292,8 @@ export function channelTagRanges(
       channel,
       needle: `#${channel.name.toLowerCase()}`,
     }))
-    .toSorted((a, b) => b.needle.length - a.needle.length);
+    .slice()
+    .sort((a, b) => b.needle.length - a.needle.length);
 
   for (const { channel, needle } of byNeedle) {
     let from = 0;
@@ -344,7 +348,7 @@ export function splitMessageContent(
       ...range,
       kind: 'channel' as const,
     })),
-  ].toSorted((a, b) => a.start - b.start || b.end - a.end);
+  ].slice().sort((a, b) => a.start - b.start || b.end - a.end);
 
   const merged: MarkedRange[] = [];
   for (const range of ranges) {

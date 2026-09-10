@@ -45,22 +45,23 @@ export function TicketDescription({
 
   useLayoutEffect(() => {
     if (editing) return;
-    const node = previewRef.current;
-    if (!node || !description) {
+    const preview = previewRef.current;
+    if (!preview || !description) {
       setCanCollapse(false);
       return;
     }
+    const el: HTMLElement = preview;
 
     function measure() {
       if (expanded) return;
-      if (node.clientHeight === 0) return;
-      setCanCollapse(node.scrollHeight > node.clientHeight + 1);
+      if (el.clientHeight === 0) return;
+      setCanCollapse(el.scrollHeight > el.clientHeight + 1);
     }
 
     measure();
     const observer = new ResizeObserver(measure);
-    observer.observe(node);
-    const content = node.firstElementChild;
+    observer.observe(el);
+    const content = el.firstElementChild;
     if (content) observer.observe(content);
     return () => observer.disconnect();
   }, [description, editing, expanded]);

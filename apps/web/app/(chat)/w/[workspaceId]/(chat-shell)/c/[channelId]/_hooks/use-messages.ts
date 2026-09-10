@@ -49,7 +49,7 @@ export function useMessages(
       }
     },
     initialPageParam: aroundMessageId
-      ? { kind: 'around', messageId: aroundMessageId }
+      ? ({ kind: 'around' as const, messageId: aroundMessageId } satisfies MessagesPageParam)
       : LATEST_PAGE_PARAM,
     getNextPageParam: (lastPage) =>
       lastPage.nextCursor
