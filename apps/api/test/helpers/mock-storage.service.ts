@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream';
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
@@ -37,6 +38,18 @@ export class MockStorageService {
   ): Promise<{ size: number; contentType: string } | null> {
     if (!this.uploadedKeys.has(key)) return null;
     return this.headResult;
+  }
+
+  async getObject(key: string, _range?: string) {
+    if (!this.uploadedKeys.has(key)) return null;
+    const payload = Buffer.from('mock-object');
+    const body = Readable.from([payload]);
+    return {
+      body,
+      contentType: this.headResult?.contentType ?? 'application/octet-stream',
+      contentLength: payload.length,
+      statusCode: 200 as const,
+    };
   }
 
   markUploaded(key: string) {

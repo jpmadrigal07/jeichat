@@ -35,20 +35,6 @@ export type Message = {
   reactions: MessageReaction[];
 };
 
-export async function fetchAttachmentDownloadUrl(
-  attachmentId: string,
-  ctx?: { signal?: AbortSignal },
-): Promise<{ url: string; filename: string; contentType: string }> {
-  const { data } = await api.get<{
-    url: string;
-    filename: string;
-    contentType: string;
-  }>(`/attachments/${attachmentId}/download-url`, {
-    signal: ctx?.signal,
-  });
-  return data;
-}
-
 export type MessagesResponse = {
   data: Message[];
   nextCursor: string | null;

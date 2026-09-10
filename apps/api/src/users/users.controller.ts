@@ -1,3 +1,4 @@
+import { finished } from 'node:stream/promises';
 import {
   BadRequestException,
   Body,
@@ -11,6 +12,7 @@ import {
 import { AllowAnonymous, Session, type UserSession } from '@thallesp/nestjs-better-auth';
 import type { Response } from 'express';
 import type { auth } from '../auth/auth';
+import { pipeStorageObject } from '../storage/storage.service';
 import { UsersService } from './users.service';
 
 @Controller('users')
@@ -66,8 +68,14 @@ export class UsersController {
     @Param('file') file: string,
     @Res() res: Response,
   ) {
-    const url = await this.users.avatarDownloadUrl(userId, file);
-    res.setHeader('Cache-Control', 'no-store');
-    res.redirect(302, url);
+    const object = await this.users.getAvatarObject(userId, file);
+    pipeStorageObject(res, object, {
+      cacheControl: 'public, max-age=86400, immutable',
+    });
+    try {
+      await finished(res);
+    } catch {
+      // Client disconnected before the stream finished.
+    }
   }
 }

@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { Download, FileText, Film, Music, Loader2 } from 'lucide-react';
+import { Download, FileText, Film, Music } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -11,7 +10,7 @@ import {
 } from '@/components/ui/tooltip';
 import { formatBytes } from '@/lib/attachment-mime';
 import { cn } from '@/lib/utils';
-import { useAttachmentDownloadUrl } from '../_hooks/use-attachment-download-url';
+import { attachmentFileUrl } from '../_helpers/attachment-file-url';
 import type { MessageAttachment } from '../_libs/messages';
 
 type AttachmentFileCardProps = {
@@ -29,30 +28,8 @@ export function AttachmentFileCard({
   attachment,
   className,
 }: AttachmentFileCardProps) {
-  const [fetchEnabled, setFetchEnabled] = useState(false);
-  const pendingOpenRef = useRef(false);
   const Icon = fileIcon(attachment.contentType);
-
-  const { data, isFetching } = useAttachmentDownloadUrl(
-    attachment.id,
-    fetchEnabled,
-  );
-
-  useEffect(() => {
-    if (pendingOpenRef.current && data?.url) {
-      pendingOpenRef.current = false;
-      window.open(data.url, '_blank', 'noopener,noreferrer');
-    }
-  }, [data?.url]);
-
-  function handleDownload() {
-    if (data?.url) {
-      window.open(data.url, '_blank', 'noopener,noreferrer');
-      return;
-    }
-    pendingOpenRef.current = true;
-    setFetchEnabled(true);
-  }
+  const href = attachmentFileUrl(attachment.id, { download: true });
 
   return (
     <Card
@@ -74,19 +51,18 @@ export function AttachmentFileCard({
         {formatBytes(attachment.sizeBytes)}
       </span>
       <Button
-        type="button"
         size="icon-sm"
         variant="ghost"
         className="shrink-0"
-        onClick={handleDownload}
-        disabled={isFetching}
-        aria-label={`Download ${attachment.filename}`}
+        asChild
       >
-        {isFetching ? (
-          <Loader2 className="animate-spin" />
-        ) : (
+        <a
+          href={href}
+          download={attachment.filename}
+          aria-label={`Download ${attachment.filename}`}
+        >
           <Download />
-        )}
+        </a>
       </Button>
     </Card>
   );

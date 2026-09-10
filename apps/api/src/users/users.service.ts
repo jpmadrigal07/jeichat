@@ -111,12 +111,12 @@ export class UsersService {
     return updated;
   }
 
-  async avatarDownloadUrl(userId: string, file: string): Promise<string> {
+  async getAvatarObject(userId: string, file: string) {
     if (!isAvatarFileName(file)) throw new NotFoundException();
     const key = avatarStorageKey(userId, file);
-    const head = await this.storage.head(key);
-    if (!head) throw new NotFoundException();
-    return this.storage.presignDownload(key, { contentType: head.contentType });
+    const object = await this.storage.getObject(key);
+    if (!object) throw new NotFoundException();
+    return object;
   }
 
   private publicAvatarUrl(userId: string, file: string): string {

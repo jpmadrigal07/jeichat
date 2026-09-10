@@ -8,6 +8,7 @@ import { AttachmentsRateLimitService } from '../src/attachments/attachments-rate
 import { AttachmentsService } from '../src/attachments/attachments.service';
 import { DrizzleService } from '../src/database/drizzle.service';
 import { ChatGateway } from '../src/gateway/chat.gateway';
+import { InboxService } from '../src/inbox/inbox.service';
 import { MessagesController } from '../src/messages/messages.controller';
 import { MessagesService } from '../src/messages/messages.service';
 import type { StorageConfig } from '../src/storage/storage.config';
@@ -107,6 +108,13 @@ describe('Attachments API (e2e)', () => {
           useValue: { sweep: jest.fn() },
         },
         { provide: ChatGateway, useValue: { emitNewMessage: jest.fn() } },
+        {
+          provide: InboxService,
+          useValue: {
+            notifyMentions: jest.fn().mockResolvedValue(undefined),
+            notifyReaction: jest.fn().mockResolvedValue(undefined),
+          },
+        },
       ],
     }).compile();
 
@@ -259,6 +267,57 @@ describe('Attachments API (e2e)', () => {
 
       await request(app.getHttpServer())
         .get('/attachments/att-dl/download-url')
+        .expect(403);
+    });
+  });
+
+  describe('GET /attachments/:id', () => {
+    const row = {
+      id: 'att-file',
+      workspaceId: WORKSPACE_ID,
+      channelId: CHANNEL_ID,
+      messageId: null,
+      uploaderId: SENDER_ID,
+      storageKey: `${WORKSPACE_ID}/${CHANNEL_ID}/att-file.png`,
+      filename: 'photo.png',
+      contentType: 'image/png',
+      sizeBytes: 1024,
+      status: 'uploaded',
+      createdAt: new Date(),
+    };
+
+    it('streams the object with a private cache header', async () => {
+      store.seedAttachment(row);
+      mockStorage.markUploaded(row.storageKey);
+
+      const res = await request(app.getHttpServer())
+        .get('/attachments/att-file')
+        .buffer(true)
+        .parse((incoming, callback) => {
+          const chunks: Buffer[] = [];
+          incoming.on('data', (chunk: Buffer) => {
+            chunks.push(chunk);
+          });
+          incoming.on('end', () => {
+            callback(null, Buffer.concat(chunks));
+          });
+        })
+        .expect(200);
+
+      expect(res.headers['cache-control']).toContain('private');
+      expect(res.headers['content-type']).toMatch(/image\/png/);
+      expect(Buffer.isBuffer(res.body) ? res.body.toString() : res.text).toBe(
+        'mock-object',
+      );
+    });
+
+    it('returns 403 when viewer lacks VIEW_CHANNEL', async () => {
+      store.seedAttachment(row);
+      denyViewChannel = true;
+      setE2eSessionUserId(VIEWER_DENIED_ID);
+
+      await request(app.getHttpServer())
+        .get('/attachments/att-file')
         .expect(403);
     });
   });

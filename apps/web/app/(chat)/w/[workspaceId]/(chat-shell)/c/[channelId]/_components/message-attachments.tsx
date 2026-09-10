@@ -1,11 +1,11 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Loader2, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useAttachmentDownloadUrl } from '../_hooks/use-attachment-download-url';
 import type { MessageAttachment } from '../_libs/messages';
 import { cn } from '@/lib/utils';
+import { attachmentFileUrl } from '../_helpers/attachment-file-url';
 import { AttachmentFileCard } from './attachment-file-card';
 import { AttachmentImage } from './attachment-image';
 
@@ -17,57 +17,24 @@ type MessageAttachmentsProps = {
 };
 
 function AttachmentVideo({ attachment }: { attachment: MessageAttachment }) {
-  const { data, isLoading, isError } = useAttachmentDownloadUrl(
-    attachment.id,
-    true,
-  );
-
-  if (isError) {
-    return (
-      <p className="text-xs text-destructive">Failed to load video</p>
-    );
-  }
-
-  if (isLoading || !data?.url) {
-    return (
-      <div className="flex max-w-[400px] items-center justify-center rounded-lg border bg-muted/50 p-8">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
   return (
     <video
       controls
       preload="metadata"
-      src={data.url}
+      src={attachmentFileUrl(attachment.id)}
       className="max-h-[300px] max-w-[400px] rounded-lg"
     />
   );
 }
 
 function AttachmentAudio({ attachment }: { attachment: MessageAttachment }) {
-  const { data, isLoading, isError } = useAttachmentDownloadUrl(
-    attachment.id,
-    true,
+  return (
+    <audio
+      controls
+      src={attachmentFileUrl(attachment.id)}
+      className="max-w-full"
+    />
   );
-
-  if (isError) {
-    return (
-      <p className="text-xs text-destructive">Failed to load audio</p>
-    );
-  }
-
-  if (isLoading || !data?.url) {
-    return (
-      <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-4 py-3">
-        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-        <span className="text-xs text-muted-foreground">Loading audio…</span>
-      </div>
-    );
-  }
-
-  return <audio controls src={data.url} className="max-w-full" />;
 }
 
 function AttachmentItem({

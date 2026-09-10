@@ -7,7 +7,10 @@ import {
 import { eq } from 'drizzle-orm';
 import { DrizzleService } from '../database/drizzle.service';
 import { attachments } from '../database/schema';
-import { StorageService } from '../storage/storage.service';
+import {
+  StorageService,
+  type StorageObject,
+} from '../storage/storage.service';
 import { PERMISSIONS } from '../workspaces/permissions';
 import { WorkspacePermissionsService } from '../workspaces/workspace-permissions.service';
 import {
@@ -120,5 +123,45 @@ export class AttachmentsService {
       filename: row.filename,
       contentType: row.contentType,
     };
+  }
+
+  async streamFile(
+    userId: string,
+    attachmentId: string,
+    options: { download: boolean; range?: string },
+  ): Promise<{ object: StorageObject; contentDisposition: string }> {
+    const [row] = await this.drizzle.db
+      .select()
+      .from(attachments)
+      .where(eq(attachments.id, attachmentId));
+
+    if (!row) {
+      throw new NotFoundException();
+    }
+
+    await this.workspacePermissions.assertChannelPermissionByChannelId(
+      row.channelId,
+      userId,
+      PERMISSIONS.VIEW_CHANNEL,
+    );
+
+    const range =
+      typeof options.range === 'string' && /^bytes=/i.test(options.range)
+        ? options.range
+        : undefined;
+
+    const object = await this.storage.getObject(row.storageKey, range);
+    if (!object) {
+      throw new NotFoundException();
+    }
+
+    const filename = sanitizeContentDispositionFilename(row.filename);
+    const forceDownload =
+      options.download || shouldForceDownloadDisposition(row.contentType);
+    const contentDisposition = forceDownload
+      ? `attachment; filename="${filename}"`
+      : `inline; filename="${filename}"`;
+
+    return { object, contentDisposition };
   }
 }

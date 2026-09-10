@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Loader2, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -10,7 +10,7 @@ import {
   DialogContent,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useAttachmentDownloadUrl } from '../_hooks/use-attachment-download-url';
+import { attachmentFileUrl } from '../_helpers/attachment-file-url';
 
 export function ChannelAttachmentLightbox() {
   const router = useRouter();
@@ -18,11 +18,6 @@ export function ChannelAttachmentLightbox() {
   const searchParams = useSearchParams();
   const attachmentId = searchParams.get('lightbox');
   const isOpen = !!attachmentId;
-
-  const { data, isLoading, isError } = useAttachmentDownloadUrl(
-    attachmentId ?? '',
-    isOpen,
-  );
 
   const closeLightbox = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
@@ -48,25 +43,15 @@ export function ChannelAttachmentLightbox() {
             <span className="sr-only">Close</span>
           </Button>
         </DialogClose>
-        <DialogTitle className="sr-only">
-          {data?.filename ?? 'Attachment preview'}
-        </DialogTitle>
-        {isError ? (
-          <p className="px-4 py-8 text-sm text-destructive">
-            Failed to load image
-          </p>
-        ) : isLoading || !data?.url ? (
-          <div className="flex min-h-[200px] min-w-[200px] items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
+        <DialogTitle className="sr-only">Attachment preview</DialogTitle>
+        {attachmentId ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
-            src={data.url}
-            alt={data.filename}
+            src={attachmentFileUrl(attachmentId)}
+            alt="Attachment preview"
             className="max-h-[85vh] w-full object-contain"
           />
-        )}
+        ) : null}
       </DialogContent>
     </Dialog>
   );
