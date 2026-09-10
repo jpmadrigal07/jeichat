@@ -54,6 +54,40 @@ function formatTime(dateStr: string): string {
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
+function MessageHoverAction({
+  label,
+  onClick,
+  destructive = false,
+  children,
+}: {
+  label: string;
+  onClick?: () => void;
+  destructive?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className={cn(
+            'rounded-sm',
+            destructive &&
+              'text-destructive hover:bg-destructive/10 hover:text-destructive',
+          )}
+          onClick={onClick}
+        >
+          {children}
+          <span className="sr-only">{label}</span>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="top">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function MessageItem({
   message,
   isOwn,
@@ -98,7 +132,7 @@ export function MessageItem({
   return (
     <div
       className={cn(
-        'group flex gap-3 px-4 py-1.5 hover:bg-muted/50',
+        'group relative flex gap-3 px-4 py-1.5 hover:bg-muted/50',
         isHighlighted && 'bg-accent/50',
       )}
     >
@@ -171,73 +205,66 @@ export function MessageItem({
       </div>
 
       {showActions ? (
-        <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
+        <div
+          className={cn(
+            'absolute -top-3 right-4 z-10 flex items-center rounded-md border bg-popover p-0.5 shadow-md',
+            'pointer-events-none opacity-0',
+            'group-hover:pointer-events-auto group-hover:opacity-100',
+            'group-focus-within:pointer-events-auto group-focus-within:opacity-100',
+          )}
+        >
           {canManageMessages ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() =>
-                    isPinned ? onUnpin(message.id) : onPin(message.id)
-                  }
-                >
-                  {isPinned ? (
-                    <PinOff className="h-3.5 w-3.5" />
-                  ) : (
-                    <Pin className="h-3.5 w-3.5" />
-                  )}
-                  <span className="sr-only">
-                    {isPinned ? 'Unpin message' : 'Pin message'}
-                  </span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {isPinned ? 'Unpin message' : 'Pin message'}
-              </TooltipContent>
-            </Tooltip>
-          ) : null}
-          {isOwn ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={onStartEdit}
+            <MessageHoverAction
+              label={isPinned ? 'Unpin message' : 'Pin message'}
+              onClick={() =>
+                isPinned ? onUnpin(message.id) : onPin(message.id)
+              }
             >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
+              {isPinned ? <PinOff /> : <Pin />}
+            </MessageHoverAction>
           ) : null}
           {isOwn ? (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-destructive hover:text-destructive"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete message?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This message will be permanently deleted. This action cannot
-                  be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  variant="destructive"
-                  onClick={() => onDelete(message.id)}
-                >
-                  Delete
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+            <MessageHoverAction label="Edit message" onClick={onStartEdit}>
+              <Pencil />
+            </MessageHoverAction>
+          ) : null}
+          {isOwn ? (
+            <AlertDialog>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="rounded-sm text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 />
+                      <span className="sr-only">Delete message</span>
+                    </Button>
+                  </AlertDialogTrigger>
+                </TooltipTrigger>
+                <TooltipContent side="top">Delete message</TooltipContent>
+              </Tooltip>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete message?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This message will be permanently deleted. This action
+                    cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
+                    onClick={() => onDelete(message.id)}
+                  >
+                    Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           ) : null}
         </div>
       ) : null}

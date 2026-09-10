@@ -423,6 +423,7 @@ export function MessageList({
               key={getListItemKey(item, editingMessageId)}
               data-index={virtualRow.index}
               ref={virtualizer.measureElement}
+              className="hover:z-10 focus-within:z-10"
               style={{
                 position: 'absolute',
                 top: 0,
