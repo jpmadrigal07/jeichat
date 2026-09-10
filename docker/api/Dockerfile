@@ -3,31 +3,39 @@
 # ================================
 # Stage 1: Install dependencies
 # ================================
-FROM oven/bun:1.3.10-debian AS base
+FROM node:24.13-bookworm-slim AS base
 
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3 make g++ \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends \
+      bash \
+      ca-certificates \
+      curl \
+      python3 \
+      make \
+      g++ \
+      unzip \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.10"
+
+ENV PATH="/root/.bun/bin:$PATH"
 
 COPY package.json bun.lock turbo.json ./
+COPY docker/bunfig.toml ./bunfig.toml
 COPY apps/web/package.json ./apps/web/package.json
 COPY apps/api/package.json ./apps/api/package.json
 COPY packages ./packages
 
-RUN bun install --frozen-lockfile \
-    || bun install --frozen-lockfile \
-    || bun install --frozen-lockfile
+RUN bun install --frozen-lockfile
 
 # ================================
 # Stage 2: Build
 # ================================
-FROM oven/bun:1.3.10-debian AS builder
+FROM base AS builder
 
 WORKDIR /app
 
-COPY --from=base /app/node_modules ./node_modules
 COPY . .
 
 RUN bun run --filter api build
@@ -35,14 +43,26 @@ RUN bun run --filter api build
 # ================================
 # Stage 3: Runtime
 # ================================
-FROM oven/bun:1.3.10-debian AS runtime
+FROM node:24.13-bookworm-slim AS runtime
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+      bash \
+      ca-certificates \
+      curl \
+      unzip \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.10"
+
+ENV PATH="/root/.bun/bin:$PATH"
 ENV NODE_ENV=production
 
 COPY package.json bun.lock turbo.json ./
+COPY docker/bunfig.toml ./bunfig.toml
 COPY packages ./packages
+COPY apps/web/package.json ./apps/web/package.json
 COPY apps/api/package.json ./apps/api/package.json
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
