@@ -1,11 +1,13 @@
 'use client';
 
+import { useEffect } from 'react';
 import {
   useQuery,
   useMutation,
   useQueryClient,
   type QueryClient,
 } from '@tanstack/react-query';
+import { getSocket } from '@/lib/socket';
 import {
   fetchWorkspaces,
   createWorkspace,
@@ -29,6 +31,35 @@ export function useWorkspaces() {
     queryKey: workspacesQueryKey,
     queryFn: ({ signal }) => fetchWorkspaces({ signal }),
   });
+}
+
+export function useWorkspaceMembershipSocket() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    const handleMembership = (payload: {
+      workspaceId: string;
+      action: 'added' | 'removed';
+    }) => {
+      queryClient.invalidateQueries({ queryKey: workspacesQueryKey });
+      queryClient.invalidateQueries({
+        queryKey: workspaceMembersQueryKey(payload.workspaceId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: channelsQueryKey(payload.workspaceId),
+      });
+    };
+
+    socket.on('workspace_membership', handleMembership);
+    return () => {
+      socket.off('workspace_membership', handleMembership);
+    };
+  }, [queryClient]);
 }
 
 export function useCreateWorkspace() {

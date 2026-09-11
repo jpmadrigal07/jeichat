@@ -18,6 +18,7 @@ import {
 } from '../database/schema';
 import { canCreateWorkspace } from './workspace-creation';
 import { WorkspaceRolesService } from './workspace-roles.service';
+import { ChatGateway } from '../gateway/chat.gateway';
 import {
   DEFAULT_WORKSPACE_LABELS,
   LABEL_COLORS,
@@ -31,6 +32,8 @@ export class WorkspacesService {
     private readonly drizzle: DrizzleService,
     @Inject(forwardRef(() => WorkspaceRolesService))
     private readonly workspaceRolesService: WorkspaceRolesService,
+    @Inject(forwardRef(() => ChatGateway))
+    private readonly chatGateway: ChatGateway,
   ) {}
 
   async create(name: string, icon: string | null, userId: string) {
@@ -218,6 +221,11 @@ export class WorkspacesService {
       })
       .returning();
 
+    this.chatGateway.emitWorkspaceMembership(targetUserId, {
+      workspaceId,
+      action: 'added',
+    });
+
     return member;
   }
 
@@ -245,6 +253,11 @@ export class WorkspacesService {
     if (result.length === 0) {
       throw new NotFoundException('Member not found in workspace');
     }
+
+    this.chatGateway.emitWorkspaceMembership(targetUserId, {
+      workspaceId,
+      action: 'removed',
+    });
   }
 
   async verifyMembership(workspaceId: string, userId: string) {

@@ -273,50 +273,52 @@ export function ChannelView({
         onAdd={uploads.addFiles}
         className="relative flex min-h-0 flex-1 flex-col"
       >
-        <MessageList
-          key={`${channelId}:${highlightMessageId ?? 'live'}`}
-          header={
-            isThread && channel ? (
-              <ThreadIssueHeader
-                workspaceId={workspaceId}
-                channel={channel}
-                parentChannel={parentChannel}
-                members={members ?? []}
-                tickets={tickets}
-                channels={hashChannels}
-                mentionMessages={mentionMessages}
-              />
-            ) : null
-          }
-          entries={timeline}
-          currentUserId={userId}
-          hasNextPage={hasNextPage}
-          isFetchingNextPage={isFetchingNextPage}
-          fetchNextPage={fetchNextPage}
-          hasPreviousPage={hasPreviousPage}
-          isFetchingPreviousPage={isFetchingPreviousPage}
-          fetchPreviousPage={fetchPreviousPage}
-          onJumpToLatest={jumpToLatest}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onPin={handlePin}
-          onUnpin={handleUnpin}
-          onToggleReaction={handleToggleReaction}
-          pendingReactionMessageId={
-            reactionMutation.isPending
-              ? reactionMutation.variables?.messageId
-              : undefined
-          }
-          pinnedMessageIds={pinnedMessageIds}
-          canManageMessages={canManageMessages}
-          highlightMessageId={highlightMessageId}
-          members={members ?? []}
-          tickets={tickets}
-          channels={hashChannels}
-          workspaceId={workspaceId}
-          showTicketLink={!isThread}
-        />
-        <TypingIndicator users={typingNames} />
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <MessageList
+            key={`${channelId}:${highlightMessageId ?? 'live'}`}
+            header={
+              isThread && channel ? (
+                <ThreadIssueHeader
+                  workspaceId={workspaceId}
+                  channel={channel}
+                  parentChannel={parentChannel}
+                  members={members ?? []}
+                  tickets={tickets}
+                  channels={hashChannels}
+                  mentionMessages={mentionMessages}
+                />
+              ) : null
+            }
+            entries={timeline}
+            currentUserId={userId}
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            fetchNextPage={fetchNextPage}
+            hasPreviousPage={hasPreviousPage}
+            isFetchingPreviousPage={isFetchingPreviousPage}
+            fetchPreviousPage={fetchPreviousPage}
+            onJumpToLatest={jumpToLatest}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            onPin={handlePin}
+            onUnpin={handleUnpin}
+            onToggleReaction={handleToggleReaction}
+            pendingReactionMessageId={
+              reactionMutation.isPending
+                ? reactionMutation.variables?.messageId
+                : undefined
+            }
+            pinnedMessageIds={pinnedMessageIds}
+            canManageMessages={canManageMessages}
+            highlightMessageId={highlightMessageId}
+            members={members ?? []}
+            tickets={tickets}
+            channels={hashChannels}
+            workspaceId={workspaceId}
+            showTicketLink={!isThread}
+          />
+          <TypingIndicator users={typingNames} />
+        </div>
         <MessageInput
           channelName={channel?.name}
           currentUserId={userId}

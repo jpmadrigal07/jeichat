@@ -8,7 +8,7 @@ import {
   type PresenceSnapshot,
   type PresenceUpdate,
 } from '../_libs/presence';
-import { useWorkspaces } from './use-workspaces';
+import { useWorkspaces, useWorkspaceMembershipSocket } from './use-workspaces';
 
 const EMPTY_WORKSPACE_IDS: string[] = [];
 
@@ -93,6 +93,7 @@ export function usePresenceSocket(workspaceIds: string[]) {
 }
 
 export function useWorkspacePresenceSocket() {
+  useWorkspaceMembershipSocket();
   const { data: workspaces } = useWorkspaces();
   const workspaceIds = useMemo(
     () => workspaces?.map((workspace) => workspace.id) ?? EMPTY_WORKSPACE_IDS,

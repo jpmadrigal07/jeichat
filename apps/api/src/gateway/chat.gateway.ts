@@ -1,3 +1,4 @@
+import { Inject, forwardRef } from '@nestjs/common';
 import {
   WebSocketGateway,
   WebSocketServer,
@@ -34,6 +35,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   constructor(
     private readonly workspacePermissionsService: WorkspacePermissionsService,
+    @Inject(forwardRef(() => WorkspacesService))
     private readonly workspacesService: WorkspacesService,
   ) {}
 
@@ -216,6 +218,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   emitInboxNotification(userId: string, notification: unknown) {
     this.server.to(`user:${userId}`).emit('inbox_notification', notification);
+  }
+
+  emitWorkspaceMembership(
+    userId: string,
+    payload: { workspaceId: string; action: 'added' | 'removed' },
+  ) {
+    this.server.to(`user:${userId}`).emit('workspace_membership', payload);
   }
 
   private trackSocket(userId: string, socketId: string) {

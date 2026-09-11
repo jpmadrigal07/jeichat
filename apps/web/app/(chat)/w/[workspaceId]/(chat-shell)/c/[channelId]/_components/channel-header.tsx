@@ -14,6 +14,10 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from '@/components/ui/toggle-group';
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -159,36 +163,38 @@ function ChannelHeaderTicketActions({
   layout,
   search,
 }: ChannelHeaderTicketActionsProps) {
+  const mode = view === 'threads' ? 'threads' : 'messages';
+
   return (
     <>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant={view === 'threads' ? 'secondary' : 'ghost'}
-            size="sm"
-            asChild
+      <ToggleGroup
+        type="single"
+        value={mode}
+        variant="outline"
+        size="sm"
+        spacing={0}
+        aria-label="Channel view"
+      >
+        <ToggleGroupItem value="messages" asChild>
+          <Link href={channelPageHref(workspaceId, channelId)}>
+            <MessageSquare data-icon="inline-start" />
+            Chat
+          </Link>
+        </ToggleGroupItem>
+        <ToggleGroupItem value="threads" asChild>
+          <Link
+            href={channelThreadsViewHref(
+              workspaceId,
+              channelId,
+              layout,
+              search,
+            )}
           >
-            <Link
-              href={
-                view === 'threads'
-                  ? channelPageHref(workspaceId, channelId)
-                  : channelThreadsViewHref(
-                      workspaceId,
-                      channelId,
-                      layout,
-                      search,
-                    )
-              }
-            >
-              <Columns3 data-icon="inline-start" />
-              Board
-            </Link>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          {view === 'threads' ? 'Back to messages' : 'View board'}
-        </TooltipContent>
-      </Tooltip>
+            <Columns3 data-icon="inline-start" />
+            Board
+          </Link>
+        </ToggleGroupItem>
+      </ToggleGroup>
       <Tooltip>
         <TooltipTrigger asChild>
           <Button variant="ghost" size="icon-sm" asChild>

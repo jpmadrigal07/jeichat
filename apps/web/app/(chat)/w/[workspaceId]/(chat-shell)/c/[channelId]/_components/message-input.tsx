@@ -193,7 +193,7 @@ export function MessageInput({
           <Textarea
             ref={textareaRef}
             placeholder={`Message #${channelName ?? '...'}`}
-            className="min-h-[24px] max-h-[200px] resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
+            className="min-h-6 max-h-[200px] resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0 dark:bg-transparent"
             rows={1}
             autoFocus
             onKeyDown={handleKeyDown}

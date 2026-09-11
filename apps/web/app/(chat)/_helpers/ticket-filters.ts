@@ -128,25 +128,41 @@ function isOpenStatus(status: TicketStatus) {
   return status !== 'done' && status !== 'cancelled';
 }
 
+function normalizeTicketSearchText(value: string) {
+  return value
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/[`*_~#>]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 export function ticketMatchesSearch(
   thread: TicketFilterable,
   query: string,
   displayId?: string,
   assigneeName?: string,
 ) {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
+  const tokens = query
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (tokens.length === 0) return true;
 
-  const haystacks = [
-    thread.name,
-    displayId ?? '',
-    displayId?.replace('-', '') ?? '',
-    thread.description ?? '',
-    assigneeName ?? '',
-    ...(thread.labels ?? []).map((label) => label.name),
-  ];
+  const haystack = normalizeTicketSearchText(
+    [
+      thread.name,
+      displayId ?? '',
+      displayId?.replaceAll('-', '') ?? '',
+      thread.description ?? '',
+      assigneeName ?? '',
+      ...(thread.labels ?? []).map((label) => label.name),
+    ].join(' '),
+  );
 
-  return haystacks.some((value) => value.toLowerCase().includes(q));
+  return tokens.every((token) => haystack.includes(token));
 }
 
 export function ticketMatchesFilters(

@@ -48,6 +48,27 @@ export const CHANNEL_MEMBER_PERMISSIONS: Permission[] = [
   PERMISSIONS.SEND_MESSAGES,
 ];
 
+/** Workspace members with no extra role still get public-channel access. */
+export const DEFAULT_MEMBER_PERMISSIONS: Permission[] = [
+  PERMISSIONS.VIEW_CHANNEL,
+  PERMISSIONS.SEND_MESSAGES,
+];
+
+const EVERYONE_ROLE: RolePermissionContext = {
+  id: '__everyone__',
+  isAdministrator: false,
+  permissions: DEFAULT_MEMBER_PERMISSIONS,
+};
+
+export function withDefaultMemberRole(
+  roles: RolePermissionContext[],
+  isWorkspaceMember: boolean,
+): RolePermissionContext[] {
+  if (roles.length > 0) return roles;
+  if (!isWorkspaceMember) return [];
+  return [EVERYONE_ROLE];
+}
+
 export const PRIVATE_CHANNEL_WORKSPACE_PERMISSIONS: Permission[] = [
   PERMISSIONS.MANAGE_CHANNEL,
   PERMISSIONS.MANAGE_ROLES,

@@ -6,7 +6,7 @@ export function TypingIndicator({ users }: TypingIndicatorProps) {
   if (users.length === 0) return null;
 
   return (
-    <div className="absolute inset-x-0 bottom-0 z-10 bg-background/10 px-4 py-1.5 backdrop-blur-xl backdrop-saturate-125">
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-4 py-1.5">
       <div className="flex items-center gap-1.5 text-[11px] leading-none text-muted-foreground">
         <span className="flex items-center gap-0.5" aria-hidden="true">
           <span className="size-[3px] animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]" />

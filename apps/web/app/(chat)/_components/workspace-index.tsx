@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/empty';
 import { authClient } from '@/lib/auth-client';
 import { CreateWorkspaceDialog } from './create-workspace-dialog';
-import { useWorkspaces } from '../_hooks/use-workspaces';
+import { useWorkspaces, useWorkspaceMembershipSocket } from '../_hooks/use-workspaces';
 
 export function WorkspaceIndex({
   canCreateWorkspace,
@@ -22,6 +22,7 @@ export function WorkspaceIndex({
 }) {
   const router = useRouter();
   const { data: workspaces, isLoading } = useWorkspaces();
+  useWorkspaceMembershipSocket();
 
   useEffect(() => {
     const first = workspaces?.[0];

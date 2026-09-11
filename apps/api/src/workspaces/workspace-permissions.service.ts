@@ -17,6 +17,7 @@ import {
   isChannelMemberPermission,
   parsePermissions,
   resolveChannelPermission,
+  withDefaultMemberRole,
   type ChannelPermissionOverride,
   type Permission,
 } from './permissions';
@@ -89,12 +90,14 @@ export class WorkspacePermissionsService {
       return access.memberOf.has(permissionChannelId);
     }
 
-    if (await this.isWorkspaceOwner(workspaceId, userId)) return true;
+    const membership = await this.getMembership(workspaceId, userId);
+    if (membership?.role === 'owner') return true;
 
-    const [access, roles] = await Promise.all([
+    const [access, assignedRoles] = await Promise.all([
       this.loadChannelAccessContext(userId, [permissionChannelId]),
       this.getUserRoles(workspaceId, userId),
     ]);
+    const roles = withDefaultMemberRole(assignedRoles, Boolean(membership));
 
     if (access.memberOf.has(permissionChannelId)) {
       if (isChannelMemberPermission(permission)) return true;
@@ -125,8 +128,8 @@ export class WorkspacePermissionsService {
       );
     }
 
-    const roles = await this.getUserRoles(workspaceId, userId);
-    if (roles.some((role) => role.isAdministrator)) {
+    const assignedRoles = await this.getUserRoles(workspaceId, userId);
+    if (assignedRoles.some((role) => role.isAdministrator)) {
       return this.restrictDmChannelsToMembers(
         channelIds,
         new Set(channelIds),
@@ -134,6 +137,7 @@ export class WorkspacePermissionsService {
       );
     }
 
+    const roles = withDefaultMemberRole(assignedRoles, true);
     const permissionChannelIds = await this.resolvePermissionChannelIds(
       channelIds,
     );
@@ -270,7 +274,7 @@ export class WorkspacePermissionsService {
     return result;
   }
 
-  private async isWorkspaceOwner(workspaceId: string, userId: string) {
+  private async getMembership(workspaceId: string, userId: string) {
     const [member] = await this.drizzle.db
       .select({ role: workspaceMembers.role })
       .from(workspaceMembers)
@@ -281,6 +285,11 @@ export class WorkspacePermissionsService {
         ),
       );
 
+    return member ?? null;
+  }
+
+  private async isWorkspaceOwner(workspaceId: string, userId: string) {
+    const member = await this.getMembership(workspaceId, userId);
     return member?.role === 'owner';
   }
 
