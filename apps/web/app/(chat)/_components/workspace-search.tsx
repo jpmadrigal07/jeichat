@@ -27,7 +27,6 @@ import {
   PopoverAnchor,
   PopoverContent,
 } from '@/components/ui/popover';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -213,75 +212,73 @@ export function WorkspaceSearch({ workspaceId }: { workspaceId: string }) {
       </PopoverAnchor>
       <PopoverContent
         align="end"
-        className="w-80 gap-0 p-1 lg:w-96"
+        className="max-h-80 w-80 gap-0 overflow-x-hidden overflow-y-auto overscroll-contain p-1 lg:w-96 data-closed:overflow-hidden"
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
         {showSuggestions ? (
-          <ScrollArea className="max-h-80">
-            <div className="flex flex-col p-1">
-              {parsed.incomplete === 'has'
-                ? HAS_OPTIONS.map((option) => {
-                    const Icon = option.icon;
-                    return (
-                      <Button
-                        key={option.value}
-                        type="button"
-                        variant="ghost"
-                        className="h-auto w-full justify-start py-2 font-normal"
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => insertFilter('has', option.value)}
-                      >
-                        <Icon />
-                        {option.label}
-                      </Button>
-                    );
-                  })
-                : null}
-              {suggestionMembers.map((member) => (
-                <Button
-                  key={member.userId}
-                  type="button"
-                  variant="ghost"
-                  className="h-auto w-full justify-start py-2 font-normal"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() =>
-                    insertFilter(parsed.incomplete ?? 'from', member.name)
-                  }
-                >
-                  <Avatar size="sm">
-                    <AvatarImage src={member.image ?? undefined} alt="" />
-                    <AvatarFallback>
-                      {personInitials(member.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="truncate">{member.name}</span>
-                </Button>
-              ))}
-              {suggestionChannels.map((channel) => (
-                <Button
-                  key={channel.id}
-                  type="button"
-                  variant="ghost"
-                  className="h-auto w-full justify-start py-2 font-normal"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() =>
-                    insertFilter('in', channelDisplayName(channel))
-                  }
-                >
-                  <ChannelTypeIcon
-                    isPrivate={channel.isPrivate && !channel.parentId}
-                  />
-                  <span className="truncate">
-                    {channel.parentId
-                      ? channel.name
-                      : channel.channelType === 'dm'
-                        ? channelDisplayName(channel)
-                        : `#${channel.name}`}
-                  </span>
-                </Button>
-              ))}
-            </div>
-          </ScrollArea>
+          <div className="flex flex-col p-1">
+            {parsed.incomplete === 'has'
+              ? HAS_OPTIONS.map((option) => {
+                  const Icon = option.icon;
+                  return (
+                    <Button
+                      key={option.value}
+                      type="button"
+                      variant="ghost"
+                      className="h-auto w-full justify-start py-2 font-normal"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => insertFilter('has', option.value)}
+                    >
+                      <Icon />
+                      {option.label}
+                    </Button>
+                  );
+                })
+              : null}
+            {suggestionMembers.map((member) => (
+              <Button
+                key={member.userId}
+                type="button"
+                variant="ghost"
+                className="h-auto w-full justify-start py-2 font-normal"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() =>
+                  insertFilter(parsed.incomplete ?? 'from', member.name)
+                }
+              >
+                <Avatar size="sm">
+                  <AvatarImage src={member.image ?? undefined} alt="" />
+                  <AvatarFallback>
+                    {personInitials(member.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="truncate">{member.name}</span>
+              </Button>
+            ))}
+            {suggestionChannels.map((channel) => (
+              <Button
+                key={channel.id}
+                type="button"
+                variant="ghost"
+                className="h-auto w-full justify-start py-2 font-normal"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() =>
+                  insertFilter('in', channelDisplayName(channel))
+                }
+              >
+                <ChannelTypeIcon
+                  isPrivate={channel.isPrivate && !channel.parentId}
+                />
+                <span className="truncate">
+                  {channel.parentId
+                    ? channel.name
+                    : channel.channelType === 'dm'
+                      ? channelDisplayName(channel)
+                      : `#${channel.name}`}
+                </span>
+              </Button>
+            ))}
+          </div>
         ) : null}
 
         {showResults ? (
@@ -304,21 +301,19 @@ export function WorkspaceSearch({ workspaceId }: { workspaceId: string }) {
               </EmptyHeader>
             </Empty>
           ) : (
-            <ScrollArea className="max-h-80">
-              <div className="flex flex-col p-1">
-                {hits.map((hit) => (
-                  <SearchHitRow
-                    key={hit.id}
-                    hit={hit}
-                    workspaceId={workspaceId}
-                    onSelect={() => {
-                      commitQuery();
-                      setOpen(false);
-                    }}
-                  />
-                ))}
-              </div>
-            </ScrollArea>
+            <div className="flex flex-col p-1">
+              {hits.map((hit) => (
+                <SearchHitRow
+                  key={hit.id}
+                  hit={hit}
+                  workspaceId={workspaceId}
+                  onSelect={() => {
+                    commitQuery();
+                    setOpen(false);
+                  }}
+                />
+              ))}
+            </div>
           )
         ) : null}
 

@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Empty,
@@ -10,6 +11,7 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from '@/components/ui/empty';
+import { authClient } from '@/lib/auth-client';
 import { CreateWorkspaceDialog } from './create-workspace-dialog';
 import { useWorkspaces } from '../_hooks/use-workspaces';
 
@@ -26,6 +28,11 @@ export function WorkspaceIndex({
     if (!first) return;
     router.replace(`/w/${first.id}`);
   }, [workspaces, router]);
+
+  async function handleSignOut() {
+    await authClient.signOut();
+    router.push('/login');
+  }
 
   if (isLoading || workspaces?.length) {
     return (
@@ -47,13 +54,17 @@ export function WorkspaceIndex({
             : "You don't have a workspace yet. Ask an admin to invite you."}
         </EmptyDescription>
       </EmptyHeader>
-      {canCreateWorkspace ? (
-        <EmptyContent>
+      <EmptyContent>
+        {canCreateWorkspace ? (
           <CreateWorkspaceDialog>
             <Button>Create workspace</Button>
           </CreateWorkspaceDialog>
-        </EmptyContent>
-      ) : null}
+        ) : null}
+        <Button type="button" variant="ghost" onClick={handleSignOut}>
+          <LogOut data-icon="inline-start" />
+          Log out
+        </Button>
+      </EmptyContent>
     </Empty>
   );
 }

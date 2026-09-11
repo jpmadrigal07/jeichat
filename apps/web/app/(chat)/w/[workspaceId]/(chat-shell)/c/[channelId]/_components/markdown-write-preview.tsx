@@ -6,8 +6,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { MentionableMember } from '@chat/_helpers/mentions';
 import type {
   TaggableChannel,
+  TaggableMessage,
   TaggableTicket,
 } from '@chat/_helpers/ticket-mentions';
+import { ComposerTagPicker } from '@chat/_components/composer-tag-picker';
+import { useComposerTagPicker } from '@chat/_hooks/use-composer-tag-picker';
 import { cn } from '@/lib/utils';
 import { MessageMarkdown } from './message-markdown';
 
@@ -21,9 +24,11 @@ type MarkdownWritePreviewProps = {
   className?: string;
   textareaClassName?: string;
   workspaceId: string;
+  currentUserId?: string;
   members?: MentionableMember[];
   tickets?: TaggableTicket[];
   channels?: TaggableChannel[];
+  mentionMessages?: TaggableMessage[];
   autoFocus?: boolean;
   onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   textareaRef?: RefObject<HTMLTextAreaElement | null>;
@@ -39,9 +44,11 @@ export function MarkdownWritePreview({
   className,
   textareaClassName,
   workspaceId,
-  members,
-  tickets,
-  channels,
+  currentUserId,
+  members = [],
+  tickets = [],
+  channels = [],
+  mentionMessages = [],
   autoFocus,
   onKeyDown,
   textareaRef,
@@ -50,6 +57,15 @@ export function MarkdownWritePreview({
   const [tab, setTab] = useState('write');
   const [preview, setPreview] = useState(defaultValue);
   const ref = textareaRef ?? innerRef;
+  const picker = useComposerTagPicker({
+    textareaRef: ref,
+    workspaceId,
+    members,
+    currentUserId,
+    tickets,
+    channels,
+    localMessages: mentionMessages,
+  });
 
   return (
     <Tabs
@@ -67,18 +83,36 @@ export function MarkdownWritePreview({
         <TabsTrigger value="preview">Preview</TabsTrigger>
       </TabsList>
       <TabsContent value="write" forceMount hidden={tab !== 'write'}>
-        <Textarea
-          ref={ref}
-          id={id}
-          name={name}
-          defaultValue={defaultValue}
-          placeholder={placeholder}
-          maxLength={maxLength}
-          rows={rows}
-          autoFocus={autoFocus}
-          onKeyDown={onKeyDown}
-          className={textareaClassName}
-        />
+        <div className="relative">
+          <Textarea
+            ref={ref}
+            id={id}
+            name={name}
+            defaultValue={defaultValue}
+            placeholder={placeholder}
+            maxLength={maxLength}
+            rows={rows}
+            autoFocus={autoFocus}
+            onKeyDown={(event) => {
+              if (picker.handlePickerKeyDown(event)) return;
+              onKeyDown?.(event);
+            }}
+            onSelect={picker.syncFromTextarea}
+            onInput={picker.syncFromTextarea}
+            className={textareaClassName}
+          />
+          <ComposerTagPicker
+            mentionOpen={picker.mentionOpen}
+            mentionMembers={picker.mentionMembers}
+            hashOpen={picker.hashOpen}
+            hashItems={picker.hashItems}
+            selectedIndex={picker.selectedIndex}
+            isSearching={picker.isSearching}
+            placement="below"
+            onMention={picker.applyMention}
+            onHashItem={picker.applyHashItem}
+          />
+        </div>
       </TabsContent>
       <TabsContent value="preview">
         {preview.trim() ? (

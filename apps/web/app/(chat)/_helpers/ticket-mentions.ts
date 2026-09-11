@@ -25,6 +25,7 @@ export type TaggableMessage = {
   channelId: string;
   senderName: string;
   content: string;
+  channelName?: string;
 };
 
 export type HashPickerItem =
@@ -42,6 +43,7 @@ type TicketTagRange = MentionRange & { ticketId: string; name: string };
 type ChannelTagRange = MentionRange & { channelId: string; name: string };
 
 const HASH_PICKER_GROUP_LIMIT = 6;
+const HASH_PICKER_MESSAGE_LIMIT = 8;
 const AFTER_TAG = /[\s.,!?;:)'"]/;
 
 export function taggableTicketsForChannel(
@@ -96,14 +98,32 @@ export function taggableMessages(
     channelId: string;
     content: string;
     sender: { name: string } | null;
+    channel?: { name: string } | null;
   }>,
+  channelName?: string,
 ): TaggableMessage[] {
   return messages.map((message) => ({
     id: message.id,
     channelId: message.channelId,
     senderName: message.sender?.name ?? 'Unknown',
     content: message.content,
+    channelName: message.channel?.name ?? channelName,
   }));
+}
+
+export function mergeTaggableMessages(
+  ...groups: TaggableMessage[][]
+): TaggableMessage[] {
+  const seen = new Set<string>();
+  const merged: TaggableMessage[] = [];
+  for (const group of groups) {
+    for (const message of group) {
+      if (seen.has(message.id)) continue;
+      seen.add(message.id);
+      merged.push(message);
+    }
+  }
+  return merged;
 }
 
 export function activeTicketTag(
@@ -194,7 +214,7 @@ export function hashPickerItems(
       .slice(0, HASH_PICKER_GROUP_LIMIT)
       .map((channel) => ({ kind: 'channel' as const, channel })),
     ...filterTaggableMessages(messages, query)
-      .slice(0, HASH_PICKER_GROUP_LIMIT)
+      .slice(0, HASH_PICKER_MESSAGE_LIMIT)
       .map((message) => ({ kind: 'message' as const, message })),
   ];
 }

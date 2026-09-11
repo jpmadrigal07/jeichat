@@ -182,7 +182,7 @@ function CreateThreadDialog({
             <MarkdownWritePreview
               id="thread-description"
               name="description"
-              placeholder="What is this ticket about? Markdown is supported."
+              placeholder="What is this ticket about? Use @ and # to mention people, tickets, or messages."
               maxLength={MAX_TICKET_DESCRIPTION_LENGTH}
               rows={4}
               workspaceId={workspaceId}

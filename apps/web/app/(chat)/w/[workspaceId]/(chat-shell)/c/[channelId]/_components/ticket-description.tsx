@@ -8,6 +8,7 @@ import type { MentionableMember } from '@chat/_helpers/mentions';
 import { MAX_TICKET_DESCRIPTION_LENGTH } from '@chat/_helpers/ticket-fields';
 import type {
   TaggableChannel,
+  TaggableMessage,
   TaggableTicket,
 } from '@chat/_helpers/ticket-mentions';
 import { cn } from '@/lib/utils';
@@ -20,6 +21,7 @@ type TicketDescriptionProps = {
   members: MentionableMember[];
   tickets: TaggableTicket[];
   channels?: TaggableChannel[];
+  mentionMessages?: TaggableMessage[];
   onSave: (description: string | null) => void;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
@@ -33,6 +35,7 @@ export function TicketDescription({
   members,
   tickets,
   channels,
+  mentionMessages,
   onSave,
   expanded,
   onExpandedChange,
@@ -95,13 +98,14 @@ export function TicketDescription({
           key={`edit-${description ?? ''}`}
           textareaRef={textareaRef}
           defaultValue={description ?? ''}
-          placeholder="Add a description. Markdown is supported."
+          placeholder="Add a description. Use @ and # to mention people, tickets, or messages."
           maxLength={MAX_TICKET_DESCRIPTION_LENGTH}
           autoFocus
           workspaceId={workspaceId}
           members={members}
           tickets={tickets}
           channels={channels}
+          mentionMessages={mentionMessages}
           textareaClassName="min-h-24 border-transparent bg-transparent px-0 shadow-none dark:bg-transparent"
           onKeyDown={(event) => {
             if (event.key === 'Escape') {

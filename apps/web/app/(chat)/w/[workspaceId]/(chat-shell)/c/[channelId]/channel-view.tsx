@@ -150,8 +150,8 @@ export function ChannelView({
     [data?.pages],
   );
   const mentionMessages = useMemo(
-    () => taggableMessages(messages),
-    [messages],
+    () => taggableMessages(messages, channel?.name),
+    [channel?.name, messages],
   );
 
   const timeline = useMemo(
@@ -284,6 +284,7 @@ export function ChannelView({
                 members={members ?? []}
                 tickets={tickets}
                 channels={hashChannels}
+                mentionMessages={mentionMessages}
               />
             ) : null
           }

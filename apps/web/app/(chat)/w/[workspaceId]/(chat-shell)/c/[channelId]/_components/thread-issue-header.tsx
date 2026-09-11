@@ -28,6 +28,7 @@ import {
 } from '@chat/_helpers/ticket-fields';
 import type {
   TaggableChannel,
+  TaggableMessage,
   TaggableTicket,
 } from '@chat/_helpers/ticket-mentions';
 import { useAttachmentUploads } from '../_hooks/use-attachment-uploads';
@@ -47,6 +48,7 @@ export function ThreadIssueHeader({
   members,
   tickets,
   channels,
+  mentionMessages,
 }: {
   workspaceId: string;
   channel: Channel;
@@ -54,6 +56,7 @@ export function ThreadIssueHeader({
   members: MentionableMember[];
   tickets: TaggableTicket[];
   channels?: TaggableChannel[];
+  mentionMessages?: TaggableMessage[];
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const removeByServerIdRef = useRef<(id: string) => void>(() => undefined);
@@ -232,6 +235,7 @@ export function ThreadIssueHeader({
                     members={members}
                     tickets={tickets}
                     channels={channels}
+                    mentionMessages={mentionMessages}
                     onSave={saveDescription}
                     expanded={descriptionExpanded}
                     onExpandedChange={setDescriptionExpanded}
