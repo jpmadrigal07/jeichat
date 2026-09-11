@@ -1,6 +1,10 @@
 import { api } from '@/lib/api';
 
-export type InboxNotificationType = 'mention' | 'assigned' | 'reaction';
+export type InboxNotificationType =
+  | 'mention'
+  | 'assigned'
+  | 'watched'
+  | 'reaction';
 
 export type InboxNotification = {
   id: string;

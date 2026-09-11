@@ -5,6 +5,7 @@ export const TICKET_EVENT_TYPES = [
   'assignee_changed',
   'due_changed',
   'labels_changed',
+  'watchers_changed',
 ] as const;
 
 export const PARENT_CHANNEL_EVENT_TYPES = [
@@ -42,6 +43,11 @@ export type TicketEventLabel = {
   id: string;
   name: string;
   color: string;
+};
+
+export type TicketEventWatcher = {
+  id: string;
+  name: string;
 };
 
 export type TicketEventTicket = {

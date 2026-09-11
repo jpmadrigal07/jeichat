@@ -241,6 +241,7 @@ export class ChannelsController {
       assigneeId?: string | null;
       dueAt?: string | null;
       labelIds?: string[];
+      watcherIds?: string[];
       isPrivate?: boolean;
     },
     @Session() session: UserSession<typeof auth>,

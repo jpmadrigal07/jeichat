@@ -123,6 +123,21 @@ export function parseLabelIds(value: unknown): string[] {
   return ids;
 }
 
+export function parseWatcherIds(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length > 100) {
+    throw new BadRequestException('Invalid watchers');
+  }
+  const ids = [
+    ...new Set(
+      value.filter((id): id is string => typeof id === 'string' && id.length > 0),
+    ),
+  ];
+  if (ids.length !== value.length) {
+    throw new BadRequestException('Invalid watchers');
+  }
+  return ids;
+}
+
 export function suggestChannelKey(name: string): string {
   const letters = name.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
   if (letters.length >= 3) return letters.slice(0, 3);

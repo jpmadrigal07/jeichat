@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils';
 import { useUpdateChannel } from '@chat/_hooks/use-channels';
 import { useWorkspaceMembers } from '@chat/_hooks/use-workspaces';
 import type { Channel } from '@chat/_libs/channels';
-import { TicketLabelsMenu } from './ticket-property-menus';
+import { TicketLabelsMenu, TicketWatchersMenu } from './ticket-property-menus';
 import {
   TICKET_PRIORITIES,
   TICKET_PRIORITY_META,
@@ -167,18 +167,22 @@ export function TicketProperties({
         <PropertyRow label="Assignee">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="w-full justify-start">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start overflow-hidden"
+              >
                 {assignee ? (
-                  <Avatar size="sm">
+                  <Avatar className="size-4">
                     <AvatarImage src={assignee.image ?? undefined} alt="" />
-                    <AvatarFallback>
+                    <AvatarFallback className="text-[8px] leading-none">
                       {assignee.name.slice(0, 1).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                 ) : (
                   <UserRound data-icon="inline-start" />
                 )}
-                {assignee?.name ?? 'Unassigned'}
+                <span className="truncate">{assignee?.name ?? 'Unassigned'}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-48">
@@ -214,6 +218,16 @@ export function TicketProperties({
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
+        </PropertyRow>
+
+        <PropertyRow label="Watchers">
+          <TicketWatchersMenu
+            workspaceId={workspaceId}
+            channelId={channel.id}
+            selected={channel.watchers ?? []}
+            size="sm"
+            className="w-full justify-start"
+          />
         </PropertyRow>
 
         <PropertyRow label="Due date">

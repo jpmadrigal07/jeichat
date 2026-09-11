@@ -13,6 +13,12 @@ export type TicketLabel = {
   color: string;
 };
 
+export type TicketWatcher = {
+  id: string;
+  name: string;
+  image: string | null;
+};
+
 export type DmPeer = {
   id: string;
   name: string;
@@ -38,6 +44,7 @@ export type Channel = {
   updatedAt: string;
   attachments?: ThreadAttachment[];
   labels?: TicketLabel[];
+  watchers?: TicketWatcher[];
 };
 
 export function channelsQueryKey(workspaceId: string) {
@@ -130,6 +137,8 @@ export type UpdateChannelPayload = {
   dueAt?: string | null;
   labelIds?: string[];
   labels?: TicketLabel[];
+  watcherIds?: string[];
+  watchers?: TicketWatcher[];
   isPrivate?: boolean;
 };
 
@@ -138,7 +147,7 @@ export async function updateChannel(
   channelId: string,
   payload: UpdateChannelPayload,
 ): Promise<Channel> {
-  const { labels: _labels, ...body } = payload;
+  const { labels: _labels, watchers: _watchers, ...body } = payload;
   const { data } = await api.patch<Channel>(
     `/workspaces/${workspaceId}/channels/${channelId}`,
     body,

@@ -11,6 +11,7 @@ export * from './workspace-roles';
 export * from './workspace-role-members';
 export * from './role-channel-permissions';
 export * from './labels';
+export * from './channel-watchers';
 export * from './channel-events';
 export * from './notifications';
 export * from './pinned-messages';

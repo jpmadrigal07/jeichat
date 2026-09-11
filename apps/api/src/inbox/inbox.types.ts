@@ -1,4 +1,9 @@
-export const INBOX_NOTIFICATION_TYPES = ['mention', 'assigned', 'reaction'] as const;
+export const INBOX_NOTIFICATION_TYPES = [
+  'mention',
+  'assigned',
+  'watched',
+  'reaction',
+] as const;
 
 export type InboxNotificationType = (typeof INBOX_NOTIFICATION_TYPES)[number];
 

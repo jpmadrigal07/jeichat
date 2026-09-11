@@ -179,6 +179,48 @@ export class InboxService {
     if (inserted) await this.emitInserted([inserted]);
   }
 
+  async notifyWatched(input: {
+    workspaceId: string;
+    channelId: string;
+    actorId: string;
+    watcherIds: string[];
+  }) {
+    const recipientIds = [...new Set(input.watcherIds)].filter(
+      (id) => id !== input.actorId,
+    );
+    if (recipientIds.length === 0) return;
+
+    const members = await this.drizzle.db
+      .select({ userId: workspaceMembers.userId })
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, input.workspaceId),
+          inArray(workspaceMembers.userId, recipientIds),
+        ),
+      );
+    if (members.length === 0) return;
+
+    const now = new Date();
+    const rows = members.map((member) => ({
+      id: crypto.randomUUID(),
+      workspaceId: input.workspaceId,
+      userId: member.userId,
+      actorId: input.actorId,
+      type: 'watched' satisfies InboxNotificationType,
+      channelId: input.channelId,
+      messageId: null,
+      createdAt: now,
+    }));
+
+    const inserted = await this.drizzle.db
+      .insert(notifications)
+      .values(rows)
+      .returning({ id: notifications.id, userId: notifications.userId });
+
+    await this.emitInserted(inserted);
+  }
+
   async notifyReaction(input: {
     workspaceId: string;
     channelId: string;

@@ -12,6 +12,7 @@ import {
   channelLabels,
   channelMembers,
   channelReads,
+  channelWatchers,
   channels,
   labels,
   messages,
@@ -35,6 +36,7 @@ import {
   parseTicketDueAt,
   parseTicketPriority,
   parseTicketStatus,
+  parseWatcherIds,
   suggestChannelKey,
   ticketDisplayId,
   ticketPrefixOf,
@@ -45,6 +47,7 @@ import {
   type TicketEvent,
   type TicketEventLabel,
   type TicketEventType,
+  type TicketEventWatcher,
 } from './ticket-events';
 import { PERMISSIONS } from '../workspaces/permissions';
 import { WorkspacePermissionsService } from '../workspaces/workspace-permissions.service';
@@ -456,6 +459,7 @@ export class ChannelsService {
       assigneeId?: string | null;
       dueAt?: string | null;
       labelIds?: string[];
+      watcherIds?: string[];
       isPrivate?: boolean;
     },
   ) {
@@ -472,14 +476,15 @@ export class ChannelsService {
       data.priority !== undefined ||
       data.assigneeId !== undefined ||
       data.dueAt !== undefined ||
-      data.labelIds !== undefined;
+      data.labelIds !== undefined ||
+      data.watcherIds !== undefined;
 
     if (!isThread && (addAttachmentIds.length || removeAttachmentIds.length)) {
       throw new BadRequestException('Only tickets can have attachments');
     }
     if (!isThread && hasTicketFields) {
       throw new BadRequestException(
-        'Only tickets have status, priority, assignee, due date, and labels',
+        'Only tickets have status, priority, assignee, due date, labels, and watchers',
       );
     }
     if (isThread && data.ticketKey !== undefined) {
@@ -596,6 +601,14 @@ export class ChannelsService {
       }
     }
 
+    const nextWatcherIds =
+      data.watcherIds === undefined
+        ? undefined
+        : parseWatcherIds(data.watcherIds);
+    if (nextWatcherIds?.length) {
+      await this.assertTicketWatchers(workspaceId, nextWatcherIds);
+    }
+
     const addRows = await this.loadClaimableThreadAttachments(
       id,
       userId,
@@ -613,6 +626,7 @@ export class ChannelsService {
             assigneeId: existing.assigneeId,
             dueAt: existing.dueAt,
             labels: existing.labels,
+            watchers: existing.watchers ?? [],
           },
           next: {
             status: patch.status,
@@ -623,6 +637,10 @@ export class ChannelsService {
               nextLabelIds === undefined
                 ? undefined
                 : await this.loadLabelsByIds(workspaceId, nextLabelIds),
+            watchers:
+              nextWatcherIds === undefined
+                ? undefined
+                : await this.loadWatcherBriefs(nextWatcherIds),
           },
         })
       : [];
@@ -716,6 +734,20 @@ export class ChannelsService {
         }
       }
 
+      if (nextWatcherIds !== undefined) {
+        await tx
+          .delete(channelWatchers)
+          .where(eq(channelWatchers.channelId, id));
+        if (nextWatcherIds.length) {
+          await tx.insert(channelWatchers).values(
+            nextWatcherIds.map((userId) => ({
+              channelId: id,
+              userId,
+            })),
+          );
+        }
+      }
+
       if (eventRows.length) {
         await tx.insert(channelEvents).values(eventRows);
       }
@@ -751,6 +783,18 @@ export class ChannelsService {
         channelId: id,
         actorId: userId,
         assigneeId: patch.assigneeId,
+      });
+    }
+
+    if (isThread && nextWatcherIds !== undefined) {
+      const previousWatcherIds = new Set(
+        (existing.watchers ?? []).map((watcher) => watcher.id),
+      );
+      await this.inboxService.notifyWatched({
+        workspaceId,
+        channelId: id,
+        actorId: userId,
+        watcherIds: nextWatcherIds.filter((watcherId) => !previousWatcherIds.has(watcherId)),
       });
     }
 
@@ -1095,6 +1139,22 @@ export class ChannelsService {
     }
   }
 
+  private async assertTicketWatchers(workspaceId: string, watcherIds: string[]) {
+    const found = await this.drizzle.db
+      .select({ userId: workspaceMembers.userId })
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, workspaceId),
+          inArray(workspaceMembers.userId, watcherIds),
+        ),
+      );
+
+    if (found.length !== watcherIds.length) {
+      throw new BadRequestException('Watchers must be workspace members');
+    }
+  }
+
   private async withThreadAttachments<
     T extends { id: string; parentId: string | null },
   >(rows: T[]) {
@@ -1105,11 +1165,15 @@ export class ChannelsService {
     const labeled = await this.loadTicketLabels(
       rows.filter((row) => row.parentId).map((row) => row.id),
     );
+    const watched = await this.loadTicketWatchers(
+      rows.filter((row) => row.parentId).map((row) => row.id),
+    );
 
     return rows.map((row) => ({
       ...row,
       attachments: grouped.get(row.id) ?? [],
       labels: labeled.get(row.id) ?? [],
+      watchers: watched.get(row.id) ?? [],
     }));
   }
 
@@ -1135,6 +1199,34 @@ export class ChannelsService {
     for (const row of rows) {
       const list = grouped.get(row.channelId) ?? [];
       list.push({ id: row.id, name: row.name, color: row.color });
+      grouped.set(row.channelId, list);
+    }
+
+    return grouped;
+  }
+
+  private async loadTicketWatchers(channelIds: string[]) {
+    const grouped = new Map<
+      string,
+      { id: string; name: string; image: string | null }[]
+    >();
+    if (channelIds.length === 0) return grouped;
+
+    const rows = await this.drizzle.db
+      .select({
+        channelId: channelWatchers.channelId,
+        id: user.id,
+        name: user.name,
+        image: user.image,
+      })
+      .from(channelWatchers)
+      .innerJoin(user, eq(channelWatchers.userId, user.id))
+      .where(inArray(channelWatchers.channelId, channelIds))
+      .orderBy(asc(user.name));
+
+    for (const row of rows) {
+      const list = grouped.get(row.channelId) ?? [];
+      list.push({ id: row.id, name: row.name, image: row.image });
       grouped.set(row.channelId, list);
     }
 
@@ -1275,6 +1367,7 @@ export class ChannelsService {
       assigneeId: string | null;
       dueAt: Date | null;
       labels: TicketEventLabel[];
+      watchers: TicketEventWatcher[];
     };
     next: {
       status?: string;
@@ -1282,6 +1375,7 @@ export class ChannelsService {
       assigneeId?: string | null;
       dueAt?: Date | null;
       labels?: TicketEventLabel[];
+      watchers?: TicketEventWatcher[];
     };
   }) {
     const rows: {
@@ -1353,6 +1447,13 @@ export class ChannelsService {
       push('labels_changed', input.existing.labels, input.next.labels);
     }
 
+    if (
+      input.next.watchers !== undefined &&
+      !this.sameWatcherIds(input.existing.watchers, input.next.watchers)
+    ) {
+      push('watchers_changed', input.existing.watchers, input.next.watchers);
+    }
+
     return rows;
   }
 
@@ -1367,6 +1468,29 @@ export class ChannelsService {
     const currentIds = current.map((label) => label.id).toSorted();
     const nextIds = next.map((label) => label.id).toSorted();
     return currentIds.every((id, index) => id === nextIds[index]);
+  }
+
+  private sameWatcherIds(
+    current: TicketEventWatcher[],
+    next: TicketEventWatcher[],
+  ) {
+    if (current.length !== next.length) return false;
+    const currentIds = current.map((watcher) => watcher.id).toSorted();
+    const nextIds = next.map((watcher) => watcher.id).toSorted();
+    return currentIds.every((id, index) => id === nextIds[index]);
+  }
+
+  private async loadWatcherBriefs(watcherIds: string[]) {
+    if (watcherIds.length === 0) return [];
+    const rows = await this.drizzle.db
+      .select({ id: user.id, name: user.name })
+      .from(user)
+      .where(inArray(user.id, watcherIds));
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    return watcherIds.flatMap((id) => {
+      const row = byId.get(id);
+      return row ? [row] : [];
+    });
   }
 
   private async loadAssigneeBrief(assigneeId: string | null) {

@@ -8,6 +8,7 @@ import type {
   TicketEvent,
   TicketEventAssignee,
   TicketEventLabel,
+  TicketEventWatcher,
 } from '../_libs/channel-events';
 
 export type TicketEventCopy = {
@@ -39,6 +40,14 @@ function asLabels(value: unknown): TicketEventLabel[] {
       return [];
     }
     return [{ id: item.id, name: item.name, color: item.color }];
+  });
+}
+
+function asWatchers(value: unknown): TicketEventWatcher[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const watcher = asAssignee(item);
+    return watcher ? [watcher] : [];
   });
 }
 
@@ -138,6 +147,38 @@ export function formatTicketEvent(event: TicketEvent): TicketEventCopy {
         return { actorName, text, verb: text, detail: null };
       }
       return { actorName, text: 'updated labels', verb: 'updated labels', detail: null };
+    }
+    case 'watchers_changed': {
+      const from = asWatchers(event.fromValue);
+      const to = asWatchers(event.toValue);
+      const fromIds = new Set(from.map((watcher) => watcher.id));
+      const toIds = new Set(to.map((watcher) => watcher.id));
+      const added = to
+        .filter((watcher) => !fromIds.has(watcher.id))
+        .map((watcher) => watcher.name);
+      const removed = from
+        .filter((watcher) => !toIds.has(watcher.id))
+        .map((watcher) => watcher.name);
+      const asWatcher = (names: string[]) =>
+        names.length === 1 ? 'as a watcher' : 'as watchers';
+      if (added.length && removed.length) {
+        const text = `added ${joinNames(added)} ${asWatcher(added)} and removed ${joinNames(removed)} ${asWatcher(removed)}`;
+        return { actorName, text, verb: text, detail: null };
+      }
+      if (added.length) {
+        const text = `added ${joinNames(added)} ${asWatcher(added)}`;
+        return { actorName, text, verb: text, detail: null };
+      }
+      if (removed.length) {
+        const text = `removed ${joinNames(removed)} ${asWatcher(removed)}`;
+        return { actorName, text, verb: text, detail: null };
+      }
+      return {
+        actorName,
+        text: 'updated watchers',
+        verb: 'updated watchers',
+        detail: null,
+      };
     }
   }
 }

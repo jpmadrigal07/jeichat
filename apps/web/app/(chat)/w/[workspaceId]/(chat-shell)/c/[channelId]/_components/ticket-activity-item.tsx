@@ -4,6 +4,7 @@ import Link from 'next/link';
 import {
   Calendar,
   CircleDot,
+  Eye,
   Plus,
   SignalMedium,
   Tag,
@@ -44,6 +45,8 @@ function EventIcon({ type }: { type: TicketEvent['type'] }) {
       return <Calendar className={className} />;
     case 'labels_changed':
       return <Tag className={className} />;
+    case 'watchers_changed':
+      return <Eye className={className} />;
   }
 }
 

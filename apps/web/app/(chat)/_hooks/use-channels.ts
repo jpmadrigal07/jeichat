@@ -48,6 +48,7 @@ function applyChannelPatch<T extends Channel>(
     isPrivate:
       vars.isPrivate === undefined ? channel.isPrivate : vars.isPrivate,
     labels: vars.labels === undefined ? channel.labels : vars.labels,
+    watchers: vars.watchers === undefined ? channel.watchers : vars.watchers,
     attachments: (channel.attachments ?? []).filter(
       (attachment) => !remove.has(attachment.id),
     ),
@@ -138,6 +139,7 @@ export function useUpdateChannel(workspaceId: string) {
     mutationFn: ({
       channelId,
       labels: _labels,
+      watchers: _watchers,
       ...payload
     }: UpdateChannelPayload & { channelId: string }) =>
       updateChannel(workspaceId, channelId, payload),

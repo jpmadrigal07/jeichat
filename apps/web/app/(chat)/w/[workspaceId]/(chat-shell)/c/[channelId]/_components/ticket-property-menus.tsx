@@ -2,8 +2,14 @@
 
 import type { DragEvent, FormEvent, MouseEvent, PointerEvent } from 'react';
 import { useState } from 'react';
-import { Check, Tag, UserRound } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Check, Eye, Tag, UserRound } from 'lucide-react';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarGroup,
+  AvatarGroupCount,
+  AvatarImage,
+} from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,8 +28,9 @@ import { useUpdateChannel } from '@chat/_hooks/use-channels';
 import {
   useCreateWorkspaceLabel,
   useWorkspaceLabels,
+  useWorkspaceMembers,
 } from '@chat/_hooks/use-workspaces';
-import type { TicketLabel } from '@chat/_libs/channels';
+import type { TicketLabel, TicketWatcher } from '@chat/_libs/channels';
 import {
   TICKET_PRIORITIES,
   TICKET_PRIORITY_META,
@@ -41,6 +48,8 @@ export type TicketMenuMember = {
   name: string;
   image: string | null;
 };
+
+const MAX_VISIBLE_WATCHERS = 3;
 
 function stopCardGesture(
   event: MouseEvent | PointerEvent | DragEvent,
@@ -379,6 +388,155 @@ export function TicketLabelsMenu({
               Create "{trimmed}"
             </DropdownMenuItem>
           ) : null}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+export function TicketWatchersMenu({
+  workspaceId,
+  channelId,
+  selected,
+  size = 'xs',
+  className,
+}: {
+  workspaceId: string;
+  channelId: string;
+  selected: TicketWatcher[];
+  size?: 'xs' | 'sm';
+  className?: string;
+}) {
+  const [query, setQuery] = useState('');
+  const updateChannel = useUpdateChannel(workspaceId);
+  const { data: members } = useWorkspaceMembers(workspaceId);
+  const selectedIds = new Set(selected.map((watcher) => watcher.id));
+  const trimmed = query.trim().toLowerCase();
+  const options: TicketWatcher[] = [
+    ...selected,
+    ...(members ?? [])
+      .filter((member) => !selectedIds.has(member.userId))
+      .map((member) => ({
+        id: member.userId,
+        name: member.name,
+        image: member.image,
+      })),
+  ];
+  const filtered = options.filter((watcher) =>
+    watcher.name.toLowerCase().includes(trimmed),
+  );
+
+  function save(next: TicketWatcher[]) {
+    updateChannel.mutate({
+      channelId,
+      watcherIds: next.map((watcher) => watcher.id),
+      watchers: next,
+    });
+  }
+
+  function toggle(watcher: TicketWatcher) {
+    save(
+      selectedIds.has(watcher.id)
+        ? selected.filter((item) => item.id !== watcher.id)
+        : [...selected, watcher],
+    );
+  }
+
+  return (
+    <DropdownMenu
+      onOpenChange={(open) => {
+        if (!open) setQuery('');
+      }}
+    >
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size={size}
+          className={cn(
+            'max-w-full overflow-hidden',
+            size === 'xs' && 'h-auto px-1 py-0.5',
+            className,
+          )}
+          aria-label={
+            selected.length > 0
+              ? `Watchers: ${selected.map((watcher) => watcher.name).join(', ')}`
+              : 'Change watchers'
+          }
+          title={
+            selected.length > 1
+              ? selected.map((watcher) => watcher.name).join(', ')
+              : undefined
+          }
+        >
+          {selected.length === 0 ? (
+            <>
+              <Eye data-icon="inline-start" />
+              Watchers
+            </>
+          ) : selected.length === 1 ? (
+            <>
+              <Avatar className="size-4">
+                <AvatarImage src={selected[0]?.image ?? undefined} alt="" />
+                <AvatarFallback className="text-[8px] leading-none">
+                  {personInitials(selected[0]?.name ?? '')}
+                </AvatarFallback>
+              </Avatar>
+              <span className="truncate">{selected[0]?.name}</span>
+            </>
+          ) : (
+            <AvatarGroup>
+              {selected.slice(0, MAX_VISIBLE_WATCHERS).map((watcher) => (
+                <Avatar
+                  key={watcher.id}
+                  className="size-4 [&_svg]:size-2.5"
+                >
+                  <AvatarImage src={watcher.image ?? undefined} alt="" />
+                  <AvatarFallback className="text-[8px] leading-none">
+                    {personInitials(watcher.name)}
+                  </AvatarFallback>
+                </Avatar>
+              ))}
+              {selected.length > MAX_VISIBLE_WATCHERS ? (
+                <AvatarGroupCount className="size-4 text-[8px] leading-none">
+                  +{selected.length - MAX_VISIBLE_WATCHERS}
+                </AvatarGroupCount>
+              ) : null}
+            </AvatarGroup>
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-64">
+        <form className="p-1" onSubmit={(event) => event.preventDefault()}>
+          <Input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => event.stopPropagation()}
+            placeholder="Change or add watchers..."
+            aria-label="Change or add watchers"
+          />
+        </form>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          {filtered.map((watcher) => (
+            <DropdownMenuItem
+              key={watcher.id}
+              onSelect={(event) => {
+                event.preventDefault();
+                toggle(watcher);
+              }}
+            >
+              {selectedIds.has(watcher.id) ? (
+                <Check />
+              ) : (
+                <span className="size-3.5 shrink-0" />
+              )}
+              <Avatar size="sm">
+                <AvatarImage src={watcher.image ?? undefined} alt="" />
+                <AvatarFallback>{personInitials(watcher.name)}</AvatarFallback>
+              </Avatar>
+              {watcher.name}
+            </DropdownMenuItem>
+          ))}
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
