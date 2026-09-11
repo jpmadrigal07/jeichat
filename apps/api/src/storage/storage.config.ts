@@ -7,6 +7,8 @@ export type StorageConfig = {
   accessKeyId: string;
   secretAccessKey: string;
   bucket: string;
+  endpoint: string;
+  region: string;
   publicUrl?: string;
   presignExpiresSeconds: number;
   maxUploadBytes: number;
@@ -30,6 +32,8 @@ export function loadStorageConfig(): StorageConfig {
   const accessKeyId = process.env.R2_ACCESS_KEY_ID?.trim();
   const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY?.trim();
   const bucket = process.env.R2_BUCKET?.trim();
+  const endpoint = process.env.R2_ENDPOINT?.trim();
+  const region = process.env.R2_REGION?.trim();
   const publicUrl = process.env.R2_PUBLIC_URL?.trim() || undefined;
 
   const missing: string[] = [];
@@ -37,6 +41,8 @@ export function loadStorageConfig(): StorageConfig {
   if (!accessKeyId) missing.push('R2_ACCESS_KEY_ID');
   if (!secretAccessKey) missing.push('R2_SECRET_ACCESS_KEY');
   if (!bucket) missing.push('R2_BUCKET');
+  if (!endpoint) missing.push('R2_ENDPOINT');
+  if (!region) missing.push('R2_REGION');
 
   if (missing.length > 0) {
     const message = `R2 storage is not configured. Set ${missing.join(', ')} in .env (see .env.example). Attachment uploads require Cloudflare R2.`;
@@ -49,6 +55,8 @@ export function loadStorageConfig(): StorageConfig {
     accessKeyId: accessKeyId!,
     secretAccessKey: secretAccessKey!,
     bucket: bucket!,
+    endpoint: endpoint!,
+    region: region!,
     publicUrl,
     presignExpiresSeconds: parsePositiveInt(
       process.env.R2_PRESIGN_EXPIRES_SECONDS,

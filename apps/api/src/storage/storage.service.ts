@@ -94,8 +94,8 @@ export class StorageService {
 
   constructor(@Inject(STORAGE_CONFIG) private readonly config: StorageConfig) {
     this.client = new S3Client({
-      region: 'auto',
-      endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
+      region: config.region,
+      endpoint: config.endpoint,
       credentials: {
         accessKeyId: config.accessKeyId,
         secretAccessKey: config.secretAccessKey,

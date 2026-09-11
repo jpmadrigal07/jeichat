@@ -42,6 +42,8 @@ describe('Attachments API (e2e)', () => {
     accessKeyId: 'test-key',
     secretAccessKey: 'test-secret',
     bucket: 'jeichat-attachments-test',
+    endpoint: 'https://test-account.r2.cloudflarestorage.com',
+    region: 'auto',
     presignExpiresSeconds: 600,
     maxUploadBytes: 26_214_400,
   };

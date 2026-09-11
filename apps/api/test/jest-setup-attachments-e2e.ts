@@ -2,6 +2,8 @@ process.env.R2_ACCOUNT_ID ??= 'test-account-id';
 process.env.R2_ACCESS_KEY_ID ??= 'test-access-key';
 process.env.R2_SECRET_ACCESS_KEY ??= 'test-secret-key';
 process.env.R2_BUCKET ??= 'jeichat-attachments-test';
+process.env.R2_ENDPOINT ??= 'https://test-account-id.r2.cloudflarestorage.com';
+process.env.R2_REGION ??= 'auto';
 process.env.R2_MAX_UPLOAD_BYTES ??= String(26_214_400);
 
 /** Switched per test via setE2eSessionUserId(). */
