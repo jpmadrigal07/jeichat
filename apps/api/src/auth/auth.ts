@@ -5,6 +5,7 @@ import { betterAuth } from 'better-auth';
 import Sqlite from 'better-sqlite3';
 import type { Pool } from 'pg';
 import { getSharedPgPool } from '../database/shared-pg-pool';
+import { resolveAuthCookieDomain } from './auth-cookie-domain';
 import { createUpstashSecondaryStorage } from './redis-secondary-storage';
 
 /**
@@ -62,6 +63,7 @@ function resolveDatabase(): Pool | InstanceType<typeof Sqlite> {
 }
 
 const secondaryStorage = createUpstashSecondaryStorage();
+const cookieDomain = resolveAuthCookieDomain();
 
 export const auth = betterAuth({
   secret: resolveSecret(),
@@ -72,6 +74,16 @@ export const auth = betterAuth({
     .filter(Boolean),
   database: resolveDatabase(),
   ...(secondaryStorage ? { secondaryStorage } : {}),
+  ...(cookieDomain
+    ? {
+        advanced: {
+          crossSubDomainCookies: {
+            enabled: true,
+            domain: cookieDomain,
+          },
+        },
+      }
+    : {}),
   emailAndPassword: {
     enabled: true,
   },
