@@ -22,8 +22,10 @@ import { useCreateWorkspace } from '../_hooks/use-workspaces';
 
 export function CreateWorkspaceDialog({
   children,
+  tooltip = 'Create workspace',
 }: {
   children: React.ReactNode;
+  tooltip?: string | null;
 }) {
   const createWorkspace = useCreateWorkspace();
   const router = useRouter();
@@ -48,14 +50,18 @@ export function CreateWorkspaceDialog({
     );
   }
 
+  const trigger = <DialogTrigger asChild>{children}</DialogTrigger>;
+
   return (
     <Dialog>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <DialogTrigger asChild>{children}</DialogTrigger>
-        </TooltipTrigger>
-        <TooltipContent side="right">Create workspace</TooltipContent>
-      </Tooltip>
+      {tooltip ? (
+        <Tooltip>
+          <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+          <TooltipContent side="right">{tooltip}</TooltipContent>
+        </Tooltip>
+      ) : (
+        trigger
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Create a workspace</DialogTitle>

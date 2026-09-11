@@ -12,7 +12,9 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useInactiveWorkspaceUnreadTotals } from '../_hooks/use-inactive-workspace-unread-totals';
 import { formatUnreadCount } from '../_helpers/format-unread-count';
+import { canCreateWorkspace } from '../_helpers/workspace-creation';
 import type { Workspace } from '../_libs/workspaces';
+import { CreateWorkspaceDialog } from './create-workspace-dialog';
 
 type User = {
   id: string;
@@ -33,7 +35,7 @@ function getInitials(name: string): string {
 export function WorkspaceSwitcher({
   workspaces,
   activeWorkspaceId,
-  user: _user,
+  user,
 }: {
   workspaces: Workspace[];
   activeWorkspaceId?: string;
@@ -90,21 +92,17 @@ export function WorkspaceSwitcher({
         );
       })}
 
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="inline-flex">
-            <button
-              type="button"
-              disabled
-              className="flex h-12 w-12 cursor-not-allowed items-center justify-center rounded-2xl border-2 border-dashed border-muted-foreground/25 text-muted-foreground opacity-50"
-            >
-              <Plus className="h-5 w-5" />
-              <span className="sr-only">Create workspace</span>
-            </button>
-          </span>
-        </TooltipTrigger>
-        <TooltipContent side="right">Create workspace</TooltipContent>
-      </Tooltip>
+      {canCreateWorkspace(user.email) ? (
+        <CreateWorkspaceDialog>
+          <button
+            type="button"
+            className="flex h-12 w-12 items-center justify-center rounded-2xl border-2 border-dashed border-muted-foreground/40 text-muted-foreground transition-colors hover:rounded-xl hover:border-muted-foreground hover:text-foreground"
+          >
+            <Plus className="h-5 w-5" />
+            <span className="sr-only">Create workspace</span>
+          </button>
+        </CreateWorkspaceDialog>
+      ) : null}
     </div>
   );
 }

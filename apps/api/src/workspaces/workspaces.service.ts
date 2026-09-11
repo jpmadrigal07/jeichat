@@ -16,6 +16,7 @@ import {
   labels,
   channelLabels,
 } from '../database/schema';
+import { canCreateWorkspace } from './workspace-creation';
 import { WorkspaceRolesService } from './workspace-roles.service';
 import {
   DEFAULT_WORKSPACE_LABELS,
@@ -33,6 +34,17 @@ export class WorkspacesService {
   ) {}
 
   async create(name: string, icon: string | null, userId: string) {
+    const [actor] = await this.drizzle.db
+      .select({ email: user.email })
+      .from(user)
+      .where(eq(user.id, userId));
+
+    if (!canCreateWorkspace(actor?.email)) {
+      throw new ForbiddenException(
+        'You are not allowed to create a workspace',
+      );
+    }
+
     const id = crypto.randomUUID();
     const channelId = crypto.randomUUID();
     const memberId = crypto.randomUUID();
