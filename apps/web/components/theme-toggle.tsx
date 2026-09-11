@@ -26,7 +26,7 @@ export function ThemeToggle() {
         type="single"
         variant="outline"
         spacing={0}
-        value={theme ?? 'system'}
+        value={theme ?? 'dark'}
         onValueChange={(value) => {
           if (value) setTheme(value);
         }}
