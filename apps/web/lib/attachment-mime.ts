@@ -15,6 +15,8 @@ export const ATTACHMENT_MIME_ALLOWLIST: Record<string, string> = {
   'audio/wav': 'wav',
   'application/pdf': 'pdf',
   'text/plain': 'txt',
+  'text/markdown': 'md',
+  'text/x-markdown': 'md',
   'application/zip': 'zip',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
     'docx',
@@ -59,12 +61,12 @@ export function formatBytes(bytes: number): string {
 }
 
 export function extensionForFile(file: File): string | null {
-  const byMime = ATTACHMENT_MIME_ALLOWLIST[file.type.toLowerCase()];
-  if (byMime) return byMime;
   const dot = file.name.lastIndexOf('.');
-  if (dot === -1) return null;
-  const ext = file.name.slice(dot + 1).toLowerCase();
-  return Object.values(ATTACHMENT_MIME_ALLOWLIST).includes(ext) ? ext : null;
+  if (dot !== -1) {
+    const ext = file.name.slice(dot + 1).toLowerCase();
+    if (Object.values(ATTACHMENT_MIME_ALLOWLIST).includes(ext)) return ext;
+  }
+  return ATTACHMENT_MIME_ALLOWLIST[file.type.toLowerCase()] ?? null;
 }
 
 export function isImageContentType(contentType: string): boolean {
@@ -141,11 +143,13 @@ export function validateFiles(
 }
 
 export function mimeTypeForFile(file: File): string {
-  if (file.type) return file.type;
   const ext = extensionForFile(file);
-  if (!ext) return 'application/octet-stream';
-  const entry = Object.entries(ATTACHMENT_MIME_ALLOWLIST).find(
-    ([, e]) => e === ext,
-  );
-  return entry?.[0] ?? 'application/octet-stream';
+  if (ext) {
+    const entry = Object.entries(ATTACHMENT_MIME_ALLOWLIST).find(
+      ([, e]) => e === ext,
+    );
+    if (entry) return entry[0];
+  }
+  if (file.type) return file.type;
+  return 'application/octet-stream';
 }

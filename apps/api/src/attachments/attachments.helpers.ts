@@ -18,6 +18,8 @@ export const ATTACHMENT_MIME_ALLOWLIST: Record<string, string> = {
   // documents
   'application/pdf': 'pdf',
   'text/plain': 'txt',
+  'text/markdown': 'md',
+  'text/x-markdown': 'md',
   'application/zip': 'zip',
   // office
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
