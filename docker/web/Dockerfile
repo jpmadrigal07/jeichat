@@ -43,9 +43,12 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Baked into the client bundle at build time — not read from runtime env.
+# Do not default FILES_URL to empty: that inlines "" and attachment <img> src
+# becomes a relative /attachments/:id on the web host (404). Omit it to fall
+# back to NEXT_PUBLIC_API_URL.
 ARG NEXT_PUBLIC_API_URL=http://localhost:3001
 ARG NEXT_PUBLIC_API_CREDENTIALS=true
-ARG NEXT_PUBLIC_FILES_URL=
+ARG NEXT_PUBLIC_FILES_URL
 ARG NEXT_PUBLIC_WORKSPACE_CREATOR_EMAILS=
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_API_CREDENTIALS=${NEXT_PUBLIC_API_CREDENTIALS}
