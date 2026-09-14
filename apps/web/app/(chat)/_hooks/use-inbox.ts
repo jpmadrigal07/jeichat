@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSocket } from '@/lib/socket';
+import { playInboxNotificationSound } from '../_helpers/inbox-notification-sound';
 import {
   fetchInbox,
   fetchInboxUnreadCount,
@@ -95,6 +96,13 @@ export function useInboxSocket(workspaceId: string) {
 
     const handleNotification = (notification: InboxNotification) => {
       if (notification.workspaceId !== workspaceId) return;
+
+      const inbox = queryClient.getQueryData<InboxListResponse>(
+        inboxQueryKey(workspaceId),
+      );
+      if (inbox?.items.some((item) => item.id === notification.id)) return;
+
+      playInboxNotificationSound();
       queryClient.setQueryData<{ unreadCount: number }>(
         inboxUnreadQueryKey(workspaceId),
         (current) => ({ unreadCount: (current?.unreadCount ?? 0) + 1 }),
@@ -103,9 +111,6 @@ export function useInboxSocket(workspaceId: string) {
         inboxQueryKey(workspaceId),
         (current) => {
           if (!current) return current;
-          if (current.items.some((item) => item.id === notification.id)) {
-            return current;
-          }
           return {
             unreadCount: current.unreadCount + 1,
             items: [notification, ...current.items],

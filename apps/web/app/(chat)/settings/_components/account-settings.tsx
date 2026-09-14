@@ -10,6 +10,7 @@ import {
   ProfileIdentityFields,
   SignOutButton,
 } from './account-settings-fields';
+import { InboxNotificationSoundToggle } from './inbox-notification-sound-toggle';
 
 type User = {
   id: string;
@@ -54,6 +55,10 @@ export function AccountSettings({ user }: { user: User }) {
           <Separator />
 
           <ThemeToggle />
+
+          <Separator />
+
+          <InboxNotificationSoundToggle />
 
           <Separator />
 

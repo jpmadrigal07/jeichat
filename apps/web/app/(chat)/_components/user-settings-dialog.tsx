@@ -20,6 +20,7 @@ import {
   SignOutButton,
   type ProfileUser,
 } from '../settings/_components/account-settings-fields';
+import { InboxNotificationSoundToggle } from '../settings/_components/inbox-notification-sound-toggle';
 
 export const PROFILE_SETTINGS_PARAM = 'settings';
 export type ProfileSettingsTab = 'account' | 'appearance';
@@ -145,10 +146,12 @@ function UserSettingsDialog({
                 <div>
                   <h2 className="text-lg font-semibold">Appearance</h2>
                   <p className="text-sm text-muted-foreground">
-                    Choose how JeiChat looks on this device.
+                    Choose how JeiChat looks and sounds on this device.
                   </p>
                 </div>
                 <ThemeToggle />
+                <Separator />
+                <InboxNotificationSoundToggle />
               </>
             )}
           </div>

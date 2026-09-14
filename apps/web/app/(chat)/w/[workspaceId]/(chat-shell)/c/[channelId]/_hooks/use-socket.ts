@@ -3,6 +3,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getSocket } from '@/lib/socket';
+import { playInboxNotificationSound } from '@chat/_helpers/inbox-notification-sound';
 import {
   addMessageToCache,
   updateMessageInCache,
@@ -45,8 +46,10 @@ export function useSocket(
     }
 
     const handleNewMessage = (message: Message) => {
-      if (message.channelId === channelIdRef.current) {
-        addMessageToCache(queryClient, channelIdRef.current, message);
+      if (message.channelId !== channelIdRef.current) return;
+      addMessageToCache(queryClient, channelIdRef.current, message);
+      if (message.senderId !== currentUserIdRef.current) {
+        playInboxNotificationSound();
       }
     };
 
