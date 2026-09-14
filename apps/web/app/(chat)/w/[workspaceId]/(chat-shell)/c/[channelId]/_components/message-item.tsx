@@ -54,8 +54,21 @@ type MessageItemProps = {
 };
 
 function formatTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return new Date(dateStr).toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function formatFullDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleString([], {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 function MessageHoverAction({
@@ -154,9 +167,16 @@ export function MessageItem({
           <span className="text-sm font-semibold truncate">
             {message.sender?.name ?? 'Unknown'}
           </span>
-          <span className="text-xs text-muted-foreground shrink-0">
-            {formatTime(message.createdAt)}
-          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-xs text-muted-foreground shrink-0 cursor-default">
+                {formatTime(message.createdAt)}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              {formatFullDate(message.createdAt)}
+            </TooltipContent>
+          </Tooltip>
           {isEdited && (
             <span className="text-xs text-muted-foreground">(edited)</span>
           )}

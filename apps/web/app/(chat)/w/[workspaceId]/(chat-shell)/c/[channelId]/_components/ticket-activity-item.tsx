@@ -11,6 +11,11 @@ import {
   Tag,
   UserRound,
 } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useChannels } from '@chat/_hooks/use-channels';
 import { isTicketArchived } from '@chat/_helpers/ticket-fields';
 import { channelPageHref } from '@chat/_libs/channels';
@@ -28,6 +33,17 @@ type TicketActivityItemProps = {
 
 function formatTime(dateStr: string): string {
   return new Date(dateStr).toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function formatFullDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleString([], {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
   });
@@ -105,7 +121,16 @@ export function TicketActivityItem({
           copy.text
         )}
       </p>
-      <span className="shrink-0">{formatTime(event.createdAt)}</span>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="shrink-0 cursor-default">
+            {formatTime(event.createdAt)}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          {formatFullDate(event.createdAt)}
+        </TooltipContent>
+      </Tooltip>
     </div>
   );
 }
