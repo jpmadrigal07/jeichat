@@ -247,12 +247,13 @@ function TicketListSkeleton({ layout }: { layout: TicketLayout }) {
   }
 
   return (
-    <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-      <div className="flex h-full min-h-0 min-w-0 items-stretch gap-2 overflow-x-auto overflow-y-hidden p-3">
+    <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div className="absolute inset-0 overflow-x-auto overflow-y-hidden">
+        <div className="flex h-full min-h-0 items-stretch gap-2 p-3">
         {TICKET_STATUSES.map((status) => (
           <div
             key={status}
-            className="flex min-h-0 w-60 shrink-0 flex-col overflow-hidden rounded-md bg-muted/40"
+            className="flex h-full min-h-0 w-60 shrink-0 flex-col overflow-hidden rounded-md bg-muted/40"
           >
             <div className="flex items-center gap-1.5 px-2 py-1.5">
               <Skeleton className="size-3.5 rounded-full" />
@@ -264,6 +265,7 @@ function TicketListSkeleton({ layout }: { layout: TicketLayout }) {
             </div>
           </div>
         ))}
+        </div>
       </div>
     </div>
   );
@@ -339,8 +341,9 @@ function TicketBoardView({
   }
 
   return (
-    <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-      <div className="flex h-full min-h-0 min-w-0 items-stretch gap-2 overflow-x-auto overflow-y-hidden p-3">
+    <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div className="absolute inset-0 overflow-x-auto overflow-y-hidden">
+        <div className="flex h-full min-h-0 items-stretch gap-2 p-3">
         {statuses.map((status) => (
           <TicketBoardColumn
             key={status}
@@ -356,6 +359,7 @@ function TicketBoardView({
             onMove={moveTicket}
           />
         ))}
+        </div>
       </div>
     </div>
   );
@@ -402,7 +406,7 @@ function TicketBoardColumn({
   }
 
   return (
-    <div className="group/column flex min-h-0 w-60 shrink-0 flex-col overflow-hidden rounded-md bg-muted/40">
+    <div className="group/column flex h-full min-h-0 w-60 shrink-0 flex-col overflow-hidden rounded-md bg-muted/40">
       <div className="flex shrink-0 items-center gap-1.5 px-2 py-1.5">
         <StatusIcon
           className={cn(
