@@ -220,6 +220,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`user:${userId}`).emit('inbox_notification', notification);
   }
 
+  emitMessageNotification(userId: string, notification: unknown) {
+    this.server.to(`user:${userId}`).emit('message_notification', notification);
+  }
+
   emitWorkspaceMembership(
     userId: string,
     payload: { workspaceId: string; action: 'added' | 'removed' },

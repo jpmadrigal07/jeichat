@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { getSocket } from '@/lib/socket';
+import { showMessageNotificationToast } from '../_components/message-notification-toast';
+import { playInboxNotificationSound } from '../_helpers/inbox-notification-sound';
 import { channelsQueryKey, fetchChannels } from '../_libs/channels';
-import { incrementUnreadCount } from './use-unread-counts';
-import type { Message } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_libs/messages';
+import type { MessageNotification } from '../_libs/message-notifications';
 import type { Workspace } from '../_libs/workspaces';
+import { incrementUnreadCount } from './use-unread-counts';
 
 type UseGlobalUnreadSocketOptions = {
   workspaces: Workspace[];
@@ -50,14 +52,6 @@ export function useGlobalUnreadSocket({
     [channelEntries],
   );
 
-  const channelToWorkspace = useMemo(
-    () =>
-      new Map(
-        channelEntries.map((entry) => [entry.channelId, entry.workspaceId]),
-      ),
-    [channelEntries],
-  );
-
   useEffect(() => {
     if (channelIds.length === 0) return;
 
@@ -91,23 +85,27 @@ export function useGlobalUnreadSocket({
 
   useEffect(() => {
     const socket = getSocket();
+    if (!socket.connected) socket.connect();
 
-    const handleNewMessage = (message: Message) => {
-      if (message.senderId === userId) return;
-      if (message.channelId === activeChannelIdRef.current) return;
+    const handleMessageNotification = (notification: MessageNotification) => {
+      if (notification.message.senderId === userId) return;
+      if (notification.channel.id === activeChannelIdRef.current) return;
 
-      const workspaceId = channelToWorkspace.get(message.channelId);
-      if (!workspaceId) return;
-
-      incrementUnreadCount(queryClient, workspaceId, message.channelId);
+      incrementUnreadCount(
+        queryClient,
+        notification.workspaceId,
+        notification.channel.id,
+      );
+      playInboxNotificationSound();
+      showMessageNotificationToast(notification);
     };
 
-    socket.on('new_message', handleNewMessage);
+    socket.on('message_notification', handleMessageNotification);
 
     return () => {
-      socket.off('new_message', handleNewMessage);
+      socket.off('message_notification', handleMessageNotification);
     };
-  }, [channelToWorkspace, queryClient, userId]);
+  }, [queryClient, userId]);
 
   useEffect(() => {
     return () => {

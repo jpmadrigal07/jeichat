@@ -7,16 +7,27 @@ import {
 import { and, asc, count, desc, eq, gt, inArray, lt, or, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { DrizzleService } from '../database/drizzle.service';
-import { attachments, messages, messageReactions, pinnedMessages } from '../database/schema';
+import {
+  attachments,
+  channelMembers,
+  channelWatchers,
+  channels,
+  messages,
+  messageReactions,
+  pinnedMessages,
+  workspaceMembers,
+} from '../database/schema';
 import { user } from '../database/schema/auth';
 import { ChatGateway } from '../gateway/chat.gateway';
 import { InboxService } from '../inbox/inbox.service';
+import { mentionedUserIds } from '../inbox/mentions';
 import { StorageService } from '../storage/storage.service';
 import {
   ATTACHMENT_PURPOSE,
   attachmentKindLimitMessage,
   MAX_ATTACHMENTS_PER_MESSAGE,
 } from '../attachments/attachments.helpers';
+import { messageNotificationRecipientIds } from './message-notification-recipients';
 import {
   normalizeReactionEmoji,
   type MessageReactionSummary,
@@ -278,15 +289,18 @@ export class MessagesService {
 
     const message = await this.findOneWithAttachments(messageId, senderId);
     this.chatGateway.emitNewMessage(channelId, message);
-    if (content.trim()) {
-      await this.inboxService.notifyMentions({
-        workspaceId: channel.workspaceId,
-        channelId,
-        messageId,
-        actorId: senderId,
-        content,
-      });
-    }
+    await Promise.all([
+      this.notifyMessageRecipients(channel, senderId, message, content),
+      content.trim()
+        ? this.inboxService.notifyMentions({
+            workspaceId: channel.workspaceId,
+            channelId,
+            messageId,
+            actorId: senderId,
+            content,
+          })
+        : Promise.resolve(),
+    ]);
     return message;
   }
 
@@ -789,5 +803,123 @@ export class MessagesService {
         reactions: reactionsGrouped.get(row.messageId) ?? [],
       },
     }));
+  }
+
+  private async notifyMessageRecipients(
+    channel: typeof channels.$inferSelect,
+    senderId: string,
+    message: unknown,
+    content: string,
+  ) {
+    const recipientIds = await this.listMessageNotificationRecipientIds(
+      channel,
+      senderId,
+      content,
+    );
+    if (recipientIds.length === 0) return;
+
+    let parent: {
+      id: string;
+      name: string;
+      ticketKey: string | null;
+    } | null = null;
+
+    if (channel.parentId) {
+      const [parentRow] = await this.drizzle.db
+        .select({
+          id: channels.id,
+          name: channels.name,
+          ticketKey: channels.ticketKey,
+        })
+        .from(channels)
+        .where(eq(channels.id, channel.parentId));
+      parent = parentRow ?? null;
+    }
+
+    const payload = {
+      workspaceId: channel.workspaceId,
+      channel: {
+        id: channel.id,
+        name: channel.name,
+        parentId: channel.parentId,
+        ticketNumber: channel.ticketNumber,
+        ticketKey: channel.ticketKey,
+        channelType: channel.channelType,
+      },
+      parent,
+      message,
+    };
+
+    for (const userId of recipientIds) {
+      this.chatGateway.emitMessageNotification(userId, payload);
+    }
+  }
+
+  private async listMessageNotificationRecipientIds(
+    channel: typeof channels.$inferSelect,
+    senderId: string,
+    content: string,
+  ) {
+    const mentionedIds = await this.listMentionedUserIds(
+      channel.workspaceId,
+      senderId,
+      content,
+    );
+
+    if (channel.parentId) {
+      const watchers = await this.drizzle.db
+        .select({ userId: channelWatchers.userId })
+        .from(channelWatchers)
+        .where(eq(channelWatchers.channelId, channel.id));
+
+      return messageNotificationRecipientIds({
+        isTicket: true,
+        senderId,
+        assigneeId: channel.assigneeId,
+        watcherIds: watchers.map((row) => row.userId),
+        memberIds: [],
+        mentionedUserIds: mentionedIds,
+      });
+    }
+
+    const memberRows =
+      channel.isPrivate || channel.channelType === 'dm'
+        ? await this.drizzle.db
+            .select({ userId: channelMembers.userId })
+            .from(channelMembers)
+            .where(eq(channelMembers.channelId, channel.id))
+        : await this.drizzle.db
+            .select({ userId: workspaceMembers.userId })
+            .from(workspaceMembers)
+            .where(eq(workspaceMembers.workspaceId, channel.workspaceId));
+
+    return messageNotificationRecipientIds({
+      isTicket: false,
+      senderId,
+      assigneeId: null,
+      watcherIds: [],
+      memberIds: memberRows.map((row) => row.userId),
+      mentionedUserIds: mentionedIds,
+    });
+  }
+
+  private async listMentionedUserIds(
+    workspaceId: string,
+    senderId: string,
+    content: string,
+  ) {
+    if (!content.trim()) return [];
+
+    const members = await this.drizzle.db
+      .select({
+        userId: workspaceMembers.userId,
+        name: user.name,
+        email: user.email,
+      })
+      .from(workspaceMembers)
+      .innerJoin(user, eq(workspaceMembers.userId, user.id))
+      .where(eq(workspaceMembers.workspaceId, workspaceId));
+
+    return mentionedUserIds(content, members, senderId);
   }
 }

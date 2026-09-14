@@ -27,6 +27,10 @@ import {
   attachmentKindLimitMessage,
   MAX_THREAD_ATTACHMENTS,
 } from '../attachments/attachments.helpers';
+import { isTicketMessageParticipant } from '../messages/message-notification-recipients';
+import { PERMISSIONS } from '../workspaces/permissions';
+import { WorkspacePermissionsService } from '../workspaces/workspace-permissions.service';
+import { WorkspacesService } from '../workspaces/workspaces.service';
 import {
   DEFAULT_TICKET_PRIORITY,
   DEFAULT_TICKET_STATUS,
@@ -49,9 +53,6 @@ import {
   type TicketEventType,
   type TicketEventWatcher,
 } from './ticket-events';
-import { PERMISSIONS } from '../workspaces/permissions';
-import { WorkspacePermissionsService } from '../workspaces/workspace-permissions.service';
-import { WorkspacesService } from '../workspaces/workspaces.service';
 
 const parentChannels = alias(channels, 'parent_channels');
 
@@ -808,8 +809,21 @@ export class ChannelsService {
       workspaceId,
       userId,
     );
+    const ticketIds = workspaceChannels
+      .filter((channel) => channel.parentId)
+      .map((channel) => channel.id);
+    const watchersByTicket = await this.loadTicketWatchers(ticketIds);
 
-    const channelIds = workspaceChannels.map((channel) => channel.id);
+    const channelIds = workspaceChannels
+      .filter((channel) => {
+        if (!channel.parentId) return true;
+        return isTicketMessageParticipant(
+          userId,
+          channel.assigneeId,
+          (watchersByTicket.get(channel.id) ?? []).map((watcher) => watcher.id),
+        );
+      })
+      .map((channel) => channel.id);
     if (channelIds.length === 0) return {};
 
     const rows = await this.drizzle.db
