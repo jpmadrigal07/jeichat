@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, count, eq, gt, inArray, isNull, max, ne, or } from 'drizzle-orm';
+import { and, asc, count, eq, gt, inArray, isNotNull, isNull, max, ne, or } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { DrizzleService } from '../database/drizzle.service';
 import {
@@ -323,7 +323,12 @@ export class ChannelsService {
     return enriched;
   }
 
-  async listThreads(workspaceId: string, parentId: string, userId: string) {
+  async listThreads(
+    workspaceId: string,
+    parentId: string,
+    userId: string,
+    archived = false,
+  ) {
     const parent = await this.findOne(workspaceId, parentId, userId);
     if (parent.parentId) {
       throw new BadRequestException('Cannot list tickets of a ticket');
@@ -339,6 +344,9 @@ export class ChannelsService {
         and(
           eq(channels.workspaceId, workspaceId),
           eq(channels.parentId, parentId),
+          archived
+            ? isNotNull(channels.archivedAt)
+            : isNull(channels.archivedAt),
         ),
       );
 
@@ -462,6 +470,7 @@ export class ChannelsService {
       labelIds?: string[];
       watcherIds?: string[];
       isPrivate?: boolean;
+      archived?: boolean;
     },
   ) {
     const existing = await this.findOne(workspaceId, id, userId);
@@ -478,14 +487,15 @@ export class ChannelsService {
       data.assigneeId !== undefined ||
       data.dueAt !== undefined ||
       data.labelIds !== undefined ||
-      data.watcherIds !== undefined;
+      data.watcherIds !== undefined ||
+      data.archived !== undefined;
 
     if (!isThread && (addAttachmentIds.length || removeAttachmentIds.length)) {
       throw new BadRequestException('Only tickets can have attachments');
     }
     if (!isThread && hasTicketFields) {
       throw new BadRequestException(
-        'Only tickets have status, priority, assignee, due date, labels, and watchers',
+        'Only tickets have status, priority, assignee, due date, labels, watchers, and archive',
       );
     }
     if (isThread && data.ticketKey !== undefined) {
@@ -513,6 +523,7 @@ export class ChannelsService {
       priority?: string;
       assigneeId?: string | null;
       dueAt?: Date | null;
+      archivedAt?: Date | null;
       updatedAt: Date;
     } = { updatedAt: new Date() };
 
@@ -584,6 +595,12 @@ export class ChannelsService {
       patch.dueAt =
         data.dueAt === null ? null : parseTicketDueAt(data.dueAt);
     }
+    if (data.archived !== undefined) {
+      const currentlyArchived = existing.archivedAt !== null;
+      if (data.archived !== currentlyArchived) {
+        patch.archivedAt = data.archived ? patch.updatedAt : null;
+      }
+    }
 
     const nextLabelIds =
       data.labelIds === undefined ? undefined : parseLabelIds(data.labelIds);
@@ -628,6 +645,7 @@ export class ChannelsService {
             dueAt: existing.dueAt,
             labels: existing.labels,
             watchers: existing.watchers ?? [],
+            archived: existing.archivedAt !== null,
           },
           next: {
             status: patch.status,
@@ -642,6 +660,10 @@ export class ChannelsService {
               nextWatcherIds === undefined
                 ? undefined
                 : await this.loadWatcherBriefs(nextWatcherIds),
+            archived:
+              patch.archivedAt === undefined
+                ? undefined
+                : patch.archivedAt !== null,
           },
         })
       : [];
@@ -810,13 +832,14 @@ export class ChannelsService {
       userId,
     );
     const ticketIds = workspaceChannels
-      .filter((channel) => channel.parentId)
+      .filter((channel) => channel.parentId && !channel.archivedAt)
       .map((channel) => channel.id);
     const watchersByTicket = await this.loadTicketWatchers(ticketIds);
 
     const channelIds = workspaceChannels
       .filter((channel) => {
         if (!channel.parentId) return true;
+        if (channel.archivedAt) return false;
         return isTicketMessageParticipant(
           userId,
           channel.assigneeId,
@@ -1382,6 +1405,7 @@ export class ChannelsService {
       dueAt: Date | null;
       labels: TicketEventLabel[];
       watchers: TicketEventWatcher[];
+      archived: boolean;
     };
     next: {
       status?: string;
@@ -1390,6 +1414,7 @@ export class ChannelsService {
       dueAt?: Date | null;
       labels?: TicketEventLabel[];
       watchers?: TicketEventWatcher[];
+      archived?: boolean;
     };
   }) {
     const rows: {
@@ -1466,6 +1491,13 @@ export class ChannelsService {
       !this.sameWatcherIds(input.existing.watchers, input.next.watchers)
     ) {
       push('watchers_changed', input.existing.watchers, input.next.watchers);
+    }
+
+    if (
+      input.next.archived !== undefined &&
+      input.next.archived !== input.existing.archived
+    ) {
+      push('archived_changed', input.existing.archived, input.next.archived);
     }
 
     return rows;

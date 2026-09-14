@@ -2,7 +2,8 @@
 
 import type { DragEvent, FormEvent, MouseEvent, PointerEvent } from 'react';
 import { useState } from 'react';
-import { Check, Eye, Tag, UserRound } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Archive, Check, Eye, MoreHorizontal, RotateCcw, Tag, UserRound } from 'lucide-react';
 import {
   Avatar,
   AvatarFallback,
@@ -30,12 +31,17 @@ import {
   useWorkspaceLabels,
   useWorkspaceMembers,
 } from '@chat/_hooks/use-workspaces';
-import type { TicketLabel, TicketWatcher } from '@chat/_libs/channels';
+import {
+  channelPageHref,
+  type TicketLabel,
+  type TicketWatcher,
+} from '@chat/_libs/channels';
 import {
   TICKET_PRIORITIES,
   TICKET_PRIORITY_META,
   TICKET_STATUSES,
   TICKET_STATUS_META,
+  isTicketArchived,
   labelColorClass,
   nextLabelColor,
   personInitials,
@@ -537,6 +543,74 @@ export function TicketWatchersMenu({
               {watcher.name}
             </DropdownMenuItem>
           ))}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+export function TicketArchiveMenu({
+  workspaceId,
+  channelId,
+  parentChannelId,
+  archivedAt,
+  size = 'icon-sm',
+  className,
+  stopCardGestures = false,
+}: {
+  workspaceId: string;
+  channelId: string;
+  parentChannelId?: string | null;
+  archivedAt?: string | Date | null;
+  size?: 'icon-sm' | 'icon-xs';
+  className?: string;
+  stopCardGestures?: boolean;
+}) {
+  const router = useRouter();
+  const updateChannel = useUpdateChannel(workspaceId);
+  const archived = isTicketArchived({ archivedAt });
+  const gestureProps = stopCardGestures
+    ? {
+        draggable: false as const,
+        onClick: stopCardGesture,
+        onPointerDown: stopCardGesture,
+        onDragStart: preventCardDrag,
+      }
+    : {};
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size={size}
+          className={className}
+          aria-label="Ticket actions"
+          {...gestureProps}
+        >
+          <MoreHorizontal />
+          <span className="sr-only">Ticket actions</span>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-40">
+        <DropdownMenuGroup>
+          <DropdownMenuItem
+            onSelect={() => {
+              const nextArchived = !archived;
+              updateChannel.mutate({
+                channelId,
+                archived: nextArchived,
+              });
+              if (nextArchived && parentChannelId) {
+                router.replace(
+                  channelPageHref(workspaceId, parentChannelId),
+                );
+              }
+            }}
+          >
+            {archived ? <RotateCcw /> : <Archive />}
+            {archived ? 'Restore ticket' : 'Archive ticket'}
+          </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>

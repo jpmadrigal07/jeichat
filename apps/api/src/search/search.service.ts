@@ -45,6 +45,7 @@ export class SearchService {
         id: channels.id,
         name: channels.name,
         parentId: channels.parentId,
+        archivedAt: channels.archivedAt,
       })
       .from(channels)
       .where(eq(channels.workspaceId, workspaceId));
@@ -57,7 +58,7 @@ export class SearchService {
       );
 
     let channelIds = workspaceChannels
-      .filter((channel) => viewableIds.has(channel.id))
+      .filter((channel) => viewableIds.has(channel.id) && !channel.archivedAt)
       .map((channel) => channel.id);
 
     if (parsed.in) {
@@ -65,6 +66,7 @@ export class SearchService {
       const matched = workspaceChannels.filter(
         (channel) =>
           viewableIds.has(channel.id) &&
+          !channel.archivedAt &&
           channel.name.toLowerCase().includes(needle),
       );
       channelIds = matched.map((channel) => channel.id);

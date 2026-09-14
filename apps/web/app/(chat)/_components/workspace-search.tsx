@@ -169,10 +169,12 @@ export function WorkspaceSearch({ workspaceId }: { workspaceId: string }) {
   const suggestionChannels =
     parsed.incomplete === 'in'
       ? (channels ?? [])
-          .filter((channel) =>
-            channelDisplayName(channel)
-              .toLowerCase()
-              .includes(parsed.incompleteQuery.toLowerCase()),
+          .filter(
+            (channel) =>
+              !channel.parentId &&
+              channelDisplayName(channel)
+                .toLowerCase()
+                .includes(parsed.incompleteQuery.toLowerCase()),
           )
           .slice(0, 8)
       : [];

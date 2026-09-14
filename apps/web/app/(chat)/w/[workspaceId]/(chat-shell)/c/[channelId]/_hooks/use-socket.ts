@@ -21,6 +21,11 @@ import {
   isParentChannelEventType,
   type TicketEvent,
 } from '../_libs/channel-events';
+import {
+  archivedChannelThreadsQueryKey,
+  channelThreadsQueryKey,
+  channelsQueryKey,
+} from '@chat/_libs/channels';
 
 type TypingUser = { userId: string; userName: string };
 
@@ -109,6 +114,23 @@ export function useSocket(
 
     const handleChannelEvent = (event: TicketEvent) => {
       const current = channelIdRef.current;
+      if (event.type === 'archived_changed' && event.parentId) {
+        queryClient.invalidateQueries({
+          queryKey: channelsQueryKey(workspaceIdRef.current),
+        });
+        queryClient.invalidateQueries({
+          queryKey: channelThreadsQueryKey(
+            workspaceIdRef.current,
+            event.parentId,
+          ),
+        });
+        queryClient.invalidateQueries({
+          queryKey: archivedChannelThreadsQueryKey(
+            workspaceIdRef.current,
+            event.parentId,
+          ),
+        });
+      }
       if (event.channelId === current) {
         addChannelEventToCache(
           queryClient,

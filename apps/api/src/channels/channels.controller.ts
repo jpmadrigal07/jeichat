@@ -6,6 +6,7 @@ import {
   Delete,
   Param,
   Body,
+  Query,
 } from '@nestjs/common';
 import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
 import type { auth } from '../auth/auth';
@@ -89,12 +90,14 @@ export class ChannelsController {
   listThreads(
     @Param('workspaceId') workspaceId: string,
     @Param('id') id: string,
+    @Query('archived') archived: string | undefined,
     @Session() session: UserSession<typeof auth>,
   ) {
     return this.channelsService.listThreads(
       workspaceId,
       id,
       session.user.id,
+      archived === 'true',
     );
   }
 
@@ -243,6 +246,7 @@ export class ChannelsController {
       labelIds?: string[];
       watcherIds?: string[];
       isPrivate?: boolean;
+      archived?: boolean;
     },
     @Session() session: UserSession<typeof auth>,
   ) {

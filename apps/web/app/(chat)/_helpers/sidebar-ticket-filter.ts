@@ -1,6 +1,7 @@
 import type { Channel } from '../_libs/channels';
 import {
   TICKET_STATUSES,
+  isTicketArchived,
   ticketStatusOf,
   type TicketStatus,
 } from './ticket-fields';
@@ -148,11 +149,11 @@ export function filterSidebarTickets(
   userId: string,
   activeChannelId?: string,
 ) {
-  if (!hasActiveSidebarTicketFilter(filter)) return tickets;
-
   const statusSet = filter.statuses ? new Set(filter.statuses) : null;
 
   return tickets.filter((ticket) => {
+    if (isTicketArchived(ticket)) return false;
+    if (!hasActiveSidebarTicketFilter(filter)) return true;
     if (ticket.id === activeChannelId) return true;
     if (filter.assignedToMe && ticket.assigneeId !== userId) return false;
     if (statusSet && !statusSet.has(ticketStatusOf(ticket.status))) {

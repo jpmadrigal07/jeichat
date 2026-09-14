@@ -1,5 +1,6 @@
 import {
   TICKET_PRIORITIES,
+  isTicketArchived,
   ticketPriorityOf,
   ticketStatusOf,
   type TicketPriority,
@@ -221,12 +222,18 @@ export function ticketMatchesFilters(
 }
 
 export function isAssignedOpenTicket(
-  ticket: { parentId: string | null; assigneeId: string | null; status: string | null },
+  ticket: {
+    parentId: string | null;
+    assigneeId: string | null;
+    status: string | null;
+    archivedAt?: string | Date | null;
+  },
   userId: string,
 ) {
   return (
     Boolean(ticket.parentId) &&
     ticket.assigneeId === userId &&
-    isOpenStatus(ticketStatusOf(ticket.status))
+    isOpenStatus(ticketStatusOf(ticket.status)) &&
+    !isTicketArchived(ticket)
   );
 }

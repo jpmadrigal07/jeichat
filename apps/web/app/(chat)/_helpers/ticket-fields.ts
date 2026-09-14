@@ -167,6 +167,12 @@ export function ticketDisplayId(prefix: string, ticketNumber: number): string {
   return `${prefix}-${ticketNumber}`;
 }
 
+export function isTicketArchived(ticket: {
+  archivedAt?: string | Date | null;
+}) {
+  return Boolean(ticket.archivedAt);
+}
+
 export function personInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   const first = parts[0];

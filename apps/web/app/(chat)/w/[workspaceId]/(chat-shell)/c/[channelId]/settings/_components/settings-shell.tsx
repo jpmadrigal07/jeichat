@@ -2,17 +2,19 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowLeft, Info, Shield, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, Archive, Info, Shield, Trash2, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useChannels } from '@chat/_hooks/use-channels';
+import { isDmChannel } from '@chat/_helpers/channel-display';
 
 type NavItem = {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   destructive?: boolean;
+  visible?: boolean;
 };
 
 export function ChannelSettingsShell({
@@ -43,6 +45,13 @@ export function ChannelSettingsShell({
       href: `/w/${workspaceId}/c/${channelId}/settings/members`,
       label: 'Members',
       icon: Users,
+      visible: !channel?.parentId,
+    },
+    {
+      href: `/w/${workspaceId}/c/${channelId}/settings/archived`,
+      label: 'Archived tickets',
+      icon: Archive,
+      visible: !channel?.parentId && !isDmChannel(channel),
     },
     {
       href: `/w/${workspaceId}/c/${channelId}/settings/delete`,
@@ -76,9 +85,7 @@ export function ChannelSettingsShell({
         <aside className="w-56 shrink-0 border-r p-3">
           <nav className="flex flex-col gap-1">
             {navItems
-              .filter((item) =>
-                item.label === 'Members' ? !channel?.parentId : true,
-              )
+              .filter((item) => item.visible !== false)
               .map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
@@ -104,7 +111,7 @@ export function ChannelSettingsShell({
           </nav>
         </aside>
 
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="min-w-0 flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>
   );

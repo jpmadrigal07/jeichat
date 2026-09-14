@@ -10,6 +10,8 @@ import {
   deleteChannel,
   channelsQueryKey,
   channelThreadsQueryKey,
+  archivedChannelThreadsQueryKey,
+  fetchArchivedChannelThreads,
   type Channel,
   type ChannelThread,
   type UpdateChannelPayload,
@@ -19,12 +21,13 @@ import { channelEventsQueryKey } from '../w/[workspaceId]/(chat-shell)/c/[channe
 function isChannelThreadsQuery(
   queryKey: readonly unknown[],
   workspaceId: string,
+  kind: 'threads' | 'archived-threads' = 'threads',
 ) {
   return (
     queryKey[0] === 'workspaces' &&
     queryKey[1] === workspaceId &&
     queryKey[2] === 'channels' &&
-    queryKey[4] === 'threads'
+    queryKey[4] === kind
   );
 }
 
@@ -45,6 +48,12 @@ function applyChannelPatch<T extends Channel>(
     assigneeId:
       vars.assigneeId === undefined ? channel.assigneeId : vars.assigneeId,
     dueAt: vars.dueAt === undefined ? channel.dueAt : vars.dueAt,
+    archivedAt:
+      vars.archived === undefined
+        ? channel.archivedAt
+        : vars.archived
+          ? (channel.archivedAt ?? new Date().toISOString())
+          : null,
     isPrivate:
       vars.isPrivate === undefined ? channel.isPrivate : vars.isPrivate,
     labels: vars.labels === undefined ? channel.labels : vars.labels,
@@ -152,7 +161,8 @@ export function useUpdateChannel(workspaceId: string) {
       );
       const previousThreads = queryClient.getQueriesData<ChannelThread[]>({
         predicate: (query) =>
-          isChannelThreadsQuery(query.queryKey, workspaceId),
+          isChannelThreadsQuery(query.queryKey, workspaceId) ||
+          isChannelThreadsQuery(query.queryKey, workspaceId, 'archived-threads'),
       });
       queryClient.setQueryData<Channel[]>(
         channelsQueryKey(workspaceId),
@@ -168,12 +178,34 @@ export function useUpdateChannel(workspaceId: string) {
           predicate: (query) =>
             isChannelThreadsQuery(query.queryKey, workspaceId),
         },
-        (old) =>
-          old?.map((thread) =>
+        (old) => {
+          if (!old) return old;
+          if (vars.archived === true) {
+            return old.filter((thread) => thread.id !== vars.channelId);
+          }
+          return old.map((thread) =>
             thread.id === vars.channelId
               ? applyChannelPatch(thread, vars)
               : thread,
-          ),
+          );
+        },
+      );
+      queryClient.setQueriesData<ChannelThread[]>(
+        {
+          predicate: (query) =>
+            isChannelThreadsQuery(query.queryKey, workspaceId, 'archived-threads'),
+        },
+        (old) => {
+          if (!old) return old;
+          if (vars.archived === false) {
+            return old.filter((thread) => thread.id !== vars.channelId);
+          }
+          return old.map((thread) =>
+            thread.id === vars.channelId
+              ? applyChannelPatch(thread, vars)
+              : thread,
+          );
+        },
       );
       return { previous, previousThreads };
     },
@@ -211,6 +243,12 @@ export function useUpdateChannel(workspaceId: string) {
           queryKey: channelThreadsQueryKey(workspaceId, updated.parentId),
         });
         queryClient.invalidateQueries({
+          queryKey: archivedChannelThreadsQueryKey(
+            workspaceId,
+            updated.parentId,
+          ),
+        });
+        queryClient.invalidateQueries({
           queryKey: channelEventsQueryKey(workspaceId, updated.parentId),
         });
       }
@@ -230,5 +268,18 @@ export function useDeleteChannel(workspaceId: string) {
         queryKey: channelsQueryKey(workspaceId),
       });
     },
+  });
+}
+
+export function useArchivedChannelThreads(
+  workspaceId: string,
+  channelId: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: archivedChannelThreadsQueryKey(workspaceId, channelId),
+    queryFn: ({ signal }) =>
+      fetchArchivedChannelThreads(workspaceId, channelId, { signal }),
+    enabled: !!workspaceId && !!channelId && enabled,
   });
 }

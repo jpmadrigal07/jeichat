@@ -28,6 +28,7 @@ export const channels = pgTable(
       onDelete: 'set null',
     }),
     dueAt: timestamp('due_at', { withTimezone: true }),
+    archivedAt: timestamp('archived_at', { withTimezone: true }),
     ticketNumber: integer('ticket_number'),
     ticketKey: text('ticket_key'),
     channelType: text('channel_type').notNull().default('channel'),
@@ -43,6 +44,10 @@ export const channels = pgTable(
   (table) => [
     index('channels_workspace_id_idx').on(table.workspaceId),
     index('channels_parent_id_idx').on(table.parentId),
+    index('channels_parent_id_archived_at_idx').on(
+      table.parentId,
+      table.archivedAt,
+    ),
     uniqueIndex('channels_workspace_id_name_unq')
       .on(table.workspaceId, table.name)
       .where(

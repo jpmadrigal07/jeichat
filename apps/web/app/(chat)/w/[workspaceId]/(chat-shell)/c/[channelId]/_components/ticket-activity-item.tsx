@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import {
+  Archive,
   Calendar,
   CircleDot,
   Eye,
@@ -10,6 +11,8 @@ import {
   Tag,
   UserRound,
 } from 'lucide-react';
+import { useChannels } from '@chat/_hooks/use-channels';
+import { isTicketArchived } from '@chat/_helpers/ticket-fields';
 import { channelPageHref } from '@chat/_libs/channels';
 import {
   isParentChannelEventType,
@@ -47,6 +50,8 @@ function EventIcon({ type }: { type: TicketEvent['type'] }) {
       return <Tag className={className} />;
     case 'watchers_changed':
       return <Eye className={className} />;
+    case 'archived_changed':
+      return <Archive className={className} />;
   }
 }
 
@@ -57,6 +62,18 @@ export function TicketActivityItem({
 }: TicketActivityItemProps) {
   const copy = formatTicketEvent(event);
   const ticket = event.ticket;
+  const { data: channels } = useChannels(workspaceId);
+  const ticketArchived = Boolean(
+    ticket &&
+      isTicketArchived(
+        channels?.find((item) => item.id === ticket.id) ?? {},
+      ),
+  );
+  const showTicketLink =
+    Boolean(ticket) &&
+    showTicket &&
+    isParentChannelEventType(event.type) &&
+    !ticketArchived;
 
   return (
     <div className="flex items-center gap-3 px-4 py-1.5 text-xs text-muted-foreground">
@@ -68,13 +85,19 @@ export function TicketActivityItem({
         {ticket && showTicket && isParentChannelEventType(event.type) ? (
           <>
             {copy.verb}{' '}
-            <Link
-              href={channelPageHref(workspaceId, ticket.id)}
-              title={ticket.name}
-              className="font-medium text-primary underline-offset-2 hover:underline"
-            >
-              #{ticket.displayId}
-            </Link>{' '}
+            {showTicketLink ? (
+              <Link
+                href={channelPageHref(workspaceId, ticket.id)}
+                title={ticket.name}
+                className="font-medium text-primary underline-offset-2 hover:underline"
+              >
+                #{ticket.displayId}
+              </Link>
+            ) : (
+              <span className="font-medium text-foreground/80">
+                #{ticket.displayId}
+              </span>
+            )}{' '}
             {ticket.name}
             {copy.detail ? ` ${copy.detail}` : null}
           </>

@@ -39,6 +39,7 @@ import {
   channelDisplayName,
   isDmChannel,
 } from '@chat/_helpers/channel-display';
+import { TicketArchiveMenu } from './ticket-property-menus';
 
 type ChannelViewMode = 'messages' | 'threads';
 
@@ -111,6 +112,14 @@ export function ChannelHeader({
         </div>
       )}
       <div className="ml-auto flex shrink-0 items-center gap-1">
+        {isThread && channel ? (
+          <TicketArchiveMenu
+            workspaceId={workspaceId}
+            channelId={channel.id}
+            parentChannelId={channel.parentId}
+            archivedAt={channel.archivedAt}
+          />
+        ) : null}
         {!isThread && channel && !isDm ? (
           <Suspense
             fallback={

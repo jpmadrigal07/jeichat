@@ -8,6 +8,7 @@ export const TICKET_EVENT_TYPES = [
   'due_changed',
   'labels_changed',
   'watchers_changed',
+  'archived_changed',
 ] as const;
 
 export const PARENT_CHANNEL_EVENT_TYPES = [
@@ -15,6 +16,7 @@ export const PARENT_CHANNEL_EVENT_TYPES = [
   'status_changed',
   'priority_changed',
   'assignee_changed',
+  'archived_changed',
 ] as const;
 
 export type TicketEventType = (typeof TICKET_EVENT_TYPES)[number];

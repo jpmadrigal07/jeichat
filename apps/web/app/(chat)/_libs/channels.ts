@@ -35,6 +35,7 @@ export type Channel = {
   priority: string | null;
   assigneeId: string | null;
   dueAt: string | null;
+  archivedAt?: string | null;
   ticketNumber: number | null;
   ticketKey: string | null;
   channelType: 'channel' | 'dm';
@@ -140,6 +141,7 @@ export type UpdateChannelPayload = {
   watcherIds?: string[];
   watchers?: TicketWatcher[];
   isPrivate?: boolean;
+  archived?: boolean;
 };
 
 export async function updateChannel(
@@ -194,6 +196,13 @@ export function channelThreadsQueryKey(
   return [...channelsQueryKey(workspaceId), channelId, 'threads'] as const;
 }
 
+export function archivedChannelThreadsQueryKey(
+  workspaceId: string,
+  channelId: string,
+) {
+  return [...channelsQueryKey(workspaceId), channelId, 'archived-threads'] as const;
+}
+
 export async function fetchChannelThreads(
   workspaceId: string,
   channelId: string,
@@ -202,6 +211,18 @@ export async function fetchChannelThreads(
   const { data } = await api.get<ChannelThread[]>(
     `/workspaces/${workspaceId}/channels/${channelId}/threads`,
     { signal: ctx?.signal },
+  );
+  return data;
+}
+
+export async function fetchArchivedChannelThreads(
+  workspaceId: string,
+  channelId: string,
+  ctx?: { signal?: AbortSignal },
+): Promise<ChannelThread[]> {
+  const { data } = await api.get<ChannelThread[]>(
+    `/workspaces/${workspaceId}/channels/${channelId}/threads`,
+    { params: { archived: true }, signal: ctx?.signal },
   );
   return data;
 }

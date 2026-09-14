@@ -180,5 +180,14 @@ export function formatTicketEvent(event: TicketEvent): TicketEventCopy {
         detail: null,
       };
     }
+    case 'archived_changed': {
+      const archived = event.toValue === true;
+      return {
+        actorName,
+        text: archived ? 'archived this ticket' : 'restored this ticket',
+        verb: archived ? 'archived' : 'restored',
+        detail: null,
+      };
+    }
   }
 }

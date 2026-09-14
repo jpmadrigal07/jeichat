@@ -30,6 +30,11 @@ const migrations = [
     table: 'channel_watchers',
     file: '../src/database/drizzle/0020_ticket_watchers.sql',
   },
+  {
+    name: '0021_ticket_archived_at',
+    column: { table: 'channels', name: 'archived_at' },
+    file: '../src/database/drizzle/0021_ticket_archived_at.sql',
+  },
 ] as const;
 
 try {

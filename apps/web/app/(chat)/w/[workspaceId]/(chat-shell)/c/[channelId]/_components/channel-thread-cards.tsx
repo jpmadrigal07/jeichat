@@ -61,6 +61,7 @@ import {
 import { createThreadHref } from '@chat/_components/create-thread-dialog';
 import { TicketFilterBar } from './ticket-filter-bar';
 import {
+  TicketArchiveMenu,
   TicketAssigneeIconMenu,
   TicketLabelsMenu,
   TicketPriorityIconMenu,
@@ -79,6 +80,7 @@ import {
 } from '../_helpers/format-thread-activity';
 import {
   TICKET_STATUSES,
+  isTicketArchived,
   ticketDisplayId,
   ticketPrefixOf,
   ticketPriorityOf,
@@ -143,6 +145,7 @@ function ChannelThreadCardsInner({
   const ticketPrefix = ticketPrefixOf(parentChannel ?? { name: '' });
   const numbers = ticketNumberById(threads ?? []);
   const visibleThreads = (threads ?? []).filter((thread) => {
+    if (isTicketArchived(thread)) return false;
     const displayId = ticketDisplayId(
       ticketPrefix,
       numbers.get(thread.id) ?? 0,
@@ -496,7 +499,7 @@ function TicketBoardCard({
     <Link
       href={channelPageHref(workspaceId, thread.id)}
       draggable
-      className="min-w-0 active:cursor-grabbing"
+      className="group/card min-w-0 active:cursor-grabbing"
       onDragStart={(event) => {
         if (
           event.target instanceof Element &&
@@ -520,12 +523,22 @@ function TicketBoardCard({
                 <Badge variant="destructive">{unreadLabel}</Badge>
               ) : null}
             </div>
-            <TicketAssigneeIconMenu
-              workspaceId={workspaceId}
-              channelId={thread.id}
-              assigneeId={thread.assigneeId}
-              members={members}
-            />
+            <div className="flex shrink-0 items-center">
+              <TicketArchiveMenu
+                workspaceId={workspaceId}
+                channelId={thread.id}
+                archivedAt={thread.archivedAt}
+                size="icon-xs"
+                stopCardGestures
+                className="relative z-10 md:opacity-0 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 aria-expanded:opacity-100"
+              />
+              <TicketAssigneeIconMenu
+                workspaceId={workspaceId}
+                channelId={thread.id}
+                assigneeId={thread.assigneeId}
+                members={members}
+              />
+            </div>
           </div>
           <CardTitle className="flex items-start gap-1.5 font-normal leading-snug">
             <TicketStatusIconMenu
@@ -585,6 +598,9 @@ function TicketListView({
             <TableHead className="hidden w-40 text-right lg:table-cell">
               Activity
             </TableHead>
+            <TableHead className="w-10">
+              <span className="sr-only">Actions</span>
+            </TableHead>
           </TableRow>
         </TableHeader>
         {groupTicketsByStatus(threads).map((group) => (
@@ -625,7 +641,7 @@ function TicketListStatusGroup({
     >
       <TableBody>
         <TableRow className="hover:bg-transparent">
-          <TableCell colSpan={5} className="p-0">
+          <TableCell colSpan={6} className="p-0">
             <CollapsibleTrigger asChild>
               <Button
                 variant="ghost"
@@ -681,7 +697,7 @@ function TicketListRow({
   const dueDate = thread.dueAt ? new Date(thread.dueAt) : undefined;
 
   return (
-    <TableRow className="relative">
+    <TableRow className="group/row relative">
       <TableCell className="max-w-0">
         <Link href={href} className="absolute inset-0" tabIndex={-1}>
           <span className="sr-only">{thread.name}</span>
@@ -734,6 +750,16 @@ function TicketListRow({
         {formatMessageCount(thread.messageCount)}
         {' · '}
         {formatThreadActivity(thread.lastMessageAt ?? thread.createdAt)}
+      </TableCell>
+      <TableCell className="w-10 text-right">
+        <TicketArchiveMenu
+          workspaceId={workspaceId}
+          channelId={thread.id}
+          archivedAt={thread.archivedAt}
+          size="icon-xs"
+          stopCardGestures
+          className="relative z-10 md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 aria-expanded:opacity-100"
+        />
       </TableCell>
     </TableRow>
   );

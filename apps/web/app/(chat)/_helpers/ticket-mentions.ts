@@ -6,7 +6,7 @@ import {
   type MentionableMember,
   type MentionRange,
 } from './mentions';
-import { ticketDisplayId, ticketPrefixOf } from './ticket-fields';
+import { isTicketArchived, ticketDisplayId, ticketPrefixOf } from './ticket-fields';
 
 export type TaggableTicket = {
   id: string;
@@ -60,6 +60,7 @@ export function taggableTicketsForChannel(
   return channels
     .flatMap((item) => {
       if (item.parentId !== parent.id) return [];
+      if (isTicketArchived(item)) return [];
       if (item.id === channel.id) return [];
       if (!item.ticketNumber || item.ticketNumber <= 0) return [];
       return [

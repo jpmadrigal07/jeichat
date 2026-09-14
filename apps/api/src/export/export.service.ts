@@ -6,7 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, eq, gte, inArray, lte, or } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNull, lte, or } from 'drizzle-orm';
 import type { Response } from 'express';
 import { ZipFile } from 'yazl';
 import { ATTACHMENT_PURPOSE } from '../attachments/attachments.helpers';
@@ -182,7 +182,10 @@ export class ExportService {
 
     const exportChannelScope = channel.parentId
       ? eq(channels.id, channelId)
-      : or(eq(channels.id, channelId), eq(channels.parentId, channelId));
+      : or(
+          eq(channels.id, channelId),
+          and(eq(channels.parentId, channelId), isNull(channels.archivedAt)),
+        );
 
     const exportChannels = await this.drizzle.db
       .select({

@@ -1,6 +1,7 @@
 import type { Channel } from '../_libs/channels';
 import {
   TICKET_STATUSES,
+  isTicketArchived,
   ticketStatusOf,
   type TicketStatus,
 } from './ticket-fields';
@@ -12,6 +13,7 @@ export function groupChannelsByParent(channels: Channel[]) {
 
   for (const channel of channels) {
     if (channel.parentId) {
+      if (isTicketArchived(channel)) continue;
       const threads = threadsByParent.get(channel.parentId) ?? [];
       threads.push(channel);
       threadsByParent.set(channel.parentId, threads);

@@ -22,10 +22,7 @@ import { cn } from '@/lib/utils';
 import { useUpdateChannel } from '@chat/_hooks/use-channels';
 import type { Channel } from '@chat/_libs/channels';
 import type { MentionableMember } from '@chat/_helpers/mentions';
-import {
-  ticketDisplayId,
-  ticketPrefixOf,
-} from '@chat/_helpers/ticket-fields';
+import { ticketDisplayId, ticketPrefixOf } from '@chat/_helpers/ticket-fields';
 import type {
   TaggableChannel,
   TaggableMessage,
