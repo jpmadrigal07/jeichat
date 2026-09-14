@@ -156,7 +156,9 @@ function CreateThreadDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Create a ticket</DialogTitle>
+          <DialogTitle>
+            Create a ticket in #{parentChannel?.name ?? 'channel'}
+          </DialogTitle>
           <DialogDescription>
             Give it a title, optional description, and files.
           </DialogDescription>
