@@ -34,14 +34,13 @@ export const CREATE_STATUS_PARAM = 'create-status';
 export function createThreadHref(
   channelId: string,
   options?: {
-    view?: string;
     layout?: string;
     status?: string;
     search?: Pick<URLSearchParams, 'toString'>;
   },
 ) {
   const params = new URLSearchParams(options?.search?.toString() ?? '');
-  if (options?.view) params.set('view', options.view);
+  params.delete('view');
   if (options?.layout === 'list') params.set('layout', 'list');
   else if (options?.layout === 'card') params.delete('layout');
   params.set(CREATE_THREAD_PARAM, channelId);

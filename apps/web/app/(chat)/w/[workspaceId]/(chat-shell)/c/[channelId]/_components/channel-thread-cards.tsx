@@ -189,7 +189,6 @@ function ChannelThreadCardsInner({
             <Button asChild>
               <Link
                 href={createThreadHref(channelId, {
-                  view: 'threads',
                   layout,
                   search: searchParams,
                 })}
@@ -386,7 +385,6 @@ function TicketBoardColumn({
   const StatusIcon = TICKET_STATUS_META[status].icon;
   const statusLabel = TICKET_STATUS_META[status].label;
   const createHref = createThreadHref(channelId, {
-    view: 'threads',
     status,
     search: searchParams,
   });

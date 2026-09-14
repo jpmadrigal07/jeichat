@@ -233,20 +233,22 @@ export function channelPageHref(workspaceId: string, channelId: string) {
 
 export type TicketLayout = 'card' | 'list';
 
-export function parseTicketLayout(value?: string | string[]): TicketLayout {
-  const raw = Array.isArray(value) ? value[0] : value;
-  return raw === 'list' ? 'list' : 'card';
-}
-
-export function channelThreadsViewHref(
+export function channelBoardHref(
   workspaceId: string,
   channelId: string,
   layout: TicketLayout = 'card',
   currentSearch?: Pick<URLSearchParams, 'toString'>,
 ) {
   const params = new URLSearchParams(currentSearch?.toString() ?? '');
-  params.set('view', 'threads');
+  params.delete('view');
   if (layout === 'list') params.set('layout', 'list');
   else params.delete('layout');
-  return `${channelPageHref(workspaceId, channelId)}?${params.toString()}`;
+  const query = params.toString();
+  const path = `${channelPageHref(workspaceId, channelId)}/board`;
+  return query ? `${path}?${query}` : path;
+}
+
+export function parseTicketLayout(value?: string | string[]): TicketLayout {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return raw === 'list' ? 'list' : 'card';
 }

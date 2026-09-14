@@ -23,8 +23,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import {
+  channelBoardHref,
   channelPageHref,
-  channelThreadsViewHref,
   type Channel,
   type TicketLayout,
 } from '@chat/_libs/channels';
@@ -192,7 +192,7 @@ function ChannelHeaderTicketActions({
         </ToggleGroupItem>
         <ToggleGroupItem value="threads" asChild>
           <Link
-            href={channelThreadsViewHref(
+            href={channelBoardHref(
               workspaceId,
               channelId,
               layout,
@@ -210,9 +210,7 @@ function ChannelHeaderTicketActions({
             <Link
               href={createThreadHref(
                 channelId,
-                view === 'threads'
-                  ? { view: 'threads', layout, search }
-                  : undefined,
+                view === 'threads' ? { layout, search } : undefined,
               )}
             >
               <MessageSquarePlus />

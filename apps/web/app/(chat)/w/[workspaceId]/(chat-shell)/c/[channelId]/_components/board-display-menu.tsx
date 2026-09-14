@@ -26,7 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
-import { channelThreadsViewHref, type TicketLayout } from '@chat/_libs/channels';
+import { channelBoardHref, type TicketLayout } from '@chat/_libs/channels';
 
 const COLUMN_OPTIONS = [
   { value: 'status', label: 'Status' },
@@ -110,7 +110,7 @@ export function BoardDisplayMenu({
           onValueChange={(value) => {
             if (value !== 'card' && value !== 'list') return;
             router.replace(
-              channelThreadsViewHref(
+              channelBoardHref(
                 workspaceId,
                 channelId,
                 value,
