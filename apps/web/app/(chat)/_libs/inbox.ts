@@ -4,6 +4,7 @@ export type InboxNotificationType =
   | 'mention'
   | 'assigned'
   | 'watched'
+  | 'comment'
   | 'reaction';
 
 export type InboxNotification = {

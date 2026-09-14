@@ -115,6 +115,7 @@ describe('Attachments API (e2e)', () => {
           useValue: {
             notifyMentions: jest.fn().mockResolvedValue(undefined),
             notifyReaction: jest.fn().mockResolvedValue(undefined),
+            notifyTicketComments: jest.fn().mockResolvedValue(undefined),
           },
         },
       ],

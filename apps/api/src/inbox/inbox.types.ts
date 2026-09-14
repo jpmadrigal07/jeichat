@@ -2,6 +2,7 @@ export const INBOX_NOTIFICATION_TYPES = [
   'mention',
   'assigned',
   'watched',
+  'comment',
   'reaction',
 ] as const;
 

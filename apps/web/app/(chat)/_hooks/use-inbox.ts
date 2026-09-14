@@ -102,7 +102,9 @@ export function useInboxSocket(workspaceId: string) {
       );
       if (inbox?.items.some((item) => item.id === notification.id)) return;
 
-      playInboxNotificationSound();
+      if (notification.type !== 'comment') {
+        playInboxNotificationSound();
+      }
       queryClient.setQueryData<{ unreadCount: number }>(
         inboxUnreadQueryKey(workspaceId),
         (current) => ({ unreadCount: (current?.unreadCount ?? 0) + 1 }),

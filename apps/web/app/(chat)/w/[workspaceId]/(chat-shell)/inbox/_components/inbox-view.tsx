@@ -80,7 +80,8 @@ export function InboxView({
             </EmptyMedia>
             <EmptyTitle>You&apos;re all caught up</EmptyTitle>
             <EmptyDescription>
-              Mentions, reactions, and assignments will show up here.
+              Mentions, reactions, assignments, and watched tickets will show
+              up here.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

@@ -1,6 +1,7 @@
 import {
   isTicketMessageParticipant,
   messageNotificationRecipientIds,
+  ticketCommentInboxRecipientIds,
   uniqueRecipientIds,
 } from './message-notification-recipients';
 
@@ -65,5 +66,16 @@ describe('message notification recipients', () => {
     expect(isTicketMessageParticipant('bob', 'bob', ['cara'])).toBe(true);
     expect(isTicketMessageParticipant('cara', 'bob', ['cara'])).toBe(true);
     expect(isTicketMessageParticipant('dan', 'bob', ['cara'])).toBe(false);
+  });
+
+  it('writes ticket comment inbox items for assignee and watchers except mentions', () => {
+    expect(
+      ticketCommentInboxRecipientIds({
+        senderId: 'alice',
+        assigneeId: 'bob',
+        watcherIds: ['alice', 'cara', 'bob'],
+        mentionedUserIds: ['dan', 'cara'],
+      }),
+    ).toEqual(['bob']);
   });
 });

@@ -39,3 +39,16 @@ export function isTicketMessageParticipant(
 ) {
   return assigneeId === userId || watcherIds.includes(userId);
 }
+
+export function ticketCommentInboxRecipientIds(input: {
+  senderId: string;
+  assigneeId: string | null;
+  watcherIds: string[];
+  mentionedUserIds?: string[];
+}): string[] {
+  const mentioned = new Set(input.mentionedUserIds ?? []);
+  return uniqueRecipientIds(input.senderId, [
+    input.assigneeId,
+    ...input.watcherIds,
+  ]).filter((id) => !mentioned.has(id));
+}

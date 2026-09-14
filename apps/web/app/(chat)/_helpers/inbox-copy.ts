@@ -29,6 +29,9 @@ export function inboxEventLabel(notification: InboxNotification) {
   if (notification.type === 'watched') {
     return `${notification.actor.name} added you as a watcher on ${target}`;
   }
+  if (notification.type === 'comment') {
+    return `${notification.actor.name} commented on ${target}`;
+  }
   if (notification.type === 'reaction') {
     const emoji = notification.emoji ?? '👍';
     return `${notification.actor.name} reacted ${emoji} to your message in ${target}`;

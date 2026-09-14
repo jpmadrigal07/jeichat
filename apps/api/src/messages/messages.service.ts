@@ -27,7 +27,10 @@ import {
   attachmentKindLimitMessage,
   MAX_ATTACHMENTS_PER_MESSAGE,
 } from '../attachments/attachments.helpers';
-import { messageNotificationRecipientIds } from './message-notification-recipients';
+import {
+  messageNotificationRecipientIds,
+  ticketCommentInboxRecipientIds,
+} from './message-notification-recipients';
 import {
   normalizeReactionEmoji,
   type MessageReactionSummary,
@@ -808,15 +811,15 @@ export class MessagesService {
   private async notifyMessageRecipients(
     channel: typeof channels.$inferSelect,
     senderId: string,
-    message: unknown,
+    message: { id: string },
     content: string,
   ) {
-    const recipientIds = await this.listMessageNotificationRecipientIds(
-      channel,
-      senderId,
-      content,
-    );
-    if (recipientIds.length === 0) return;
+    const { toastRecipientIds, commentInboxRecipientIds } =
+      await this.listMessageNotificationRecipients(channel, senderId, content);
+
+    if (toastRecipientIds.length === 0 && commentInboxRecipientIds.length === 0) {
+      return;
+    }
 
     let parent: {
       id: string;
@@ -824,7 +827,7 @@ export class MessagesService {
       ticketKey: string | null;
     } | null = null;
 
-    if (channel.parentId) {
+    if (channel.parentId && toastRecipientIds.length > 0) {
       const [parentRow] = await this.drizzle.db
         .select({
           id: channels.id,
@@ -836,26 +839,38 @@ export class MessagesService {
       parent = parentRow ?? null;
     }
 
-    const payload = {
-      workspaceId: channel.workspaceId,
-      channel: {
-        id: channel.id,
-        name: channel.name,
-        parentId: channel.parentId,
-        ticketNumber: channel.ticketNumber,
-        ticketKey: channel.ticketKey,
-        channelType: channel.channelType,
-      },
-      parent,
-      message,
-    };
+    if (toastRecipientIds.length > 0) {
+      const payload = {
+        workspaceId: channel.workspaceId,
+        channel: {
+          id: channel.id,
+          name: channel.name,
+          parentId: channel.parentId,
+          ticketNumber: channel.ticketNumber,
+          ticketKey: channel.ticketKey,
+          channelType: channel.channelType,
+        },
+        parent,
+        message,
+      };
 
-    for (const userId of recipientIds) {
-      this.chatGateway.emitMessageNotification(userId, payload);
+      for (const userId of toastRecipientIds) {
+        this.chatGateway.emitMessageNotification(userId, payload);
+      }
+    }
+
+    if (commentInboxRecipientIds.length > 0) {
+      await this.inboxService.notifyTicketComments({
+        workspaceId: channel.workspaceId,
+        channelId: channel.id,
+        messageId: message.id,
+        actorId: senderId,
+        recipientIds: commentInboxRecipientIds,
+      });
     }
   }
 
-  private async listMessageNotificationRecipientIds(
+  private async listMessageNotificationRecipients(
     channel: typeof channels.$inferSelect,
     senderId: string,
     content: string,
@@ -871,15 +886,24 @@ export class MessagesService {
         .select({ userId: channelWatchers.userId })
         .from(channelWatchers)
         .where(eq(channelWatchers.channelId, channel.id));
+      const watcherIds = watchers.map((row) => row.userId);
 
-      return messageNotificationRecipientIds({
-        isTicket: true,
-        senderId,
-        assigneeId: channel.assigneeId,
-        watcherIds: watchers.map((row) => row.userId),
-        memberIds: [],
-        mentionedUserIds: mentionedIds,
-      });
+      return {
+        toastRecipientIds: messageNotificationRecipientIds({
+          isTicket: true,
+          senderId,
+          assigneeId: channel.assigneeId,
+          watcherIds,
+          memberIds: [],
+          mentionedUserIds: mentionedIds,
+        }),
+        commentInboxRecipientIds: ticketCommentInboxRecipientIds({
+          senderId,
+          assigneeId: channel.assigneeId,
+          watcherIds,
+          mentionedUserIds: mentionedIds,
+        }),
+      };
     }
 
     const memberRows =
@@ -893,14 +917,17 @@ export class MessagesService {
             .from(workspaceMembers)
             .where(eq(workspaceMembers.workspaceId, channel.workspaceId));
 
-    return messageNotificationRecipientIds({
-      isTicket: false,
-      senderId,
-      assigneeId: null,
-      watcherIds: [],
-      memberIds: memberRows.map((row) => row.userId),
-      mentionedUserIds: mentionedIds,
-    });
+    return {
+      toastRecipientIds: messageNotificationRecipientIds({
+        isTicket: false,
+        senderId,
+        assigneeId: null,
+        watcherIds: [],
+        memberIds: memberRows.map((row) => row.userId),
+        mentionedUserIds: mentionedIds,
+      }),
+      commentInboxRecipientIds: [],
+    };
   }
 
   private async listMentionedUserIds(
