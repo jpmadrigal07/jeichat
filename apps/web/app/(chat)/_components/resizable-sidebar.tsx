@@ -98,7 +98,10 @@ export function ResizableSidebar({
 
   return (
     <div
-      className={cn('relative flex shrink-0 flex-col', className)}
+      className={cn(
+        'relative flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden',
+        className,
+      )}
       style={{ width }}
     >
       {children}

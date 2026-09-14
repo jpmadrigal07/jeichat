@@ -135,8 +135,8 @@ export function ChannelSidebar({ user }: { user: User }) {
         </DropdownMenu>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="flex flex-col gap-3 px-2 py-2">
+      <ScrollArea className="min-h-0 min-w-0 flex-1 overflow-hidden [&_[data-slot=scroll-area-viewport]>div]:block! [&_[data-slot=scroll-area-viewport]>div]:min-w-0! [&_[data-slot=scroll-area-viewport]>div]:w-full!">
+        <div className="flex min-w-0 flex-col gap-3 px-2 py-2">
           <ChannelNavLink
             href={`/w/${workspaceId}/inbox`}
             name="Inbox"
@@ -153,7 +153,7 @@ export function ChannelSidebar({ user }: { user: User }) {
               ))}
             </div>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="flex min-w-0 flex-col gap-3">
               <MyIssuesNav
                 workspaceId={workspaceId}
                 tickets={myIssues}
@@ -162,7 +162,7 @@ export function ChannelSidebar({ user }: { user: User }) {
                 unreadCounts={unreadCounts}
               />
 
-              <div className="flex flex-col gap-0.5">
+              <div className="flex min-w-0 flex-col gap-0.5">
                 <div className="flex items-center justify-between px-1 mb-0.5">
                   <span className="px-1 text-xs font-medium text-muted-foreground">
                     Channels
@@ -190,10 +190,10 @@ export function ChannelSidebar({ user }: { user: User }) {
                   );
                   const isActive = channel.id === params.channelId;
                   return (
-                    <div key={channel.id} className="flex flex-col gap-0.5">
+                    <div key={channel.id} className="flex min-w-0 flex-col gap-0.5">
                       <div
                         className={cn(
-                          'flex items-center rounded-md',
+                          'flex min-w-0 items-center overflow-hidden rounded-md',
                           isActive
                             ? 'bg-secondary text-secondary-foreground'
                             : 'hover:bg-muted hover:text-foreground dark:hover:bg-muted/50',
@@ -208,48 +208,50 @@ export function ChannelSidebar({ user }: { user: User }) {
                           unreadCount={unreadCounts?.[channel.id] ?? 0}
                           className="min-w-0 flex-1 hover:bg-transparent dark:hover:bg-transparent"
                         />
-                        <ChannelTicketFilterMenu
-                          filter={channelFilter}
-                          onChange={(next) =>
-                            setChannelFilter(channel.id, next)
-                          }
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="hover:bg-transparent dark:hover:bg-transparent"
-                          asChild
-                        >
-                          <Link href={createThreadHref(channel.id)}>
-                            <Plus />
-                            <span className="sr-only">Create ticket</span>
-                          </Link>
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="hover:bg-transparent dark:hover:bg-transparent"
-                            >
-                              <MoreHorizontal />
-                              <span className="sr-only">Channel options</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-56">
-                            <DropdownMenuItem asChild>
-                              <Link
-                                href={`/w/${workspaceId}/c/${channel.id}/settings`}
+                        <div className="flex shrink-0 items-center">
+                          <ChannelTicketFilterMenu
+                            filter={channelFilter}
+                            onChange={(next) =>
+                              setChannelFilter(channel.id, next)
+                            }
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="hover:bg-transparent dark:hover:bg-transparent"
+                            asChild
+                          >
+                            <Link href={createThreadHref(channel.id)}>
+                              <Plus />
+                              <span className="sr-only">Create ticket</span>
+                            </Link>
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="hover:bg-transparent dark:hover:bg-transparent"
                               >
-                                <Settings />
-                                Channel Settings
-                              </Link>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                                <MoreHorizontal />
+                                <span className="sr-only">Channel options</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                              <DropdownMenuItem asChild>
+                                <Link
+                                  href={`/w/${workspaceId}/c/${channel.id}/settings`}
+                                >
+                                  <Settings />
+                                  Channel Settings
+                                </Link>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
                       {threads.length > 0 ? (
-                        <div className="ml-4 flex flex-col gap-0.5 border-l pl-1">
+                        <div className="ml-4 flex min-w-0 flex-col gap-0.5 border-l pl-1">
                           {groupTicketsByStatus(threads).map((group) => (
                             <TicketStatusGroup
                               key={group.status}
@@ -382,13 +384,13 @@ function MyIssuesNav({
   return (
     <Collapsible
       defaultOpen={tickets.length > 0 || hasActiveTicket}
-      className="group/my-issues flex flex-col gap-0.5"
+      className="group/my-issues flex min-w-0 flex-col gap-0.5"
     >
       <CollapsibleTrigger asChild>
         <Button
           variant="ghost"
           size="sm"
-          className="w-full min-w-0 justify-start px-2 font-normal text-muted-foreground"
+          className="w-full min-w-0 max-w-full shrink justify-start overflow-hidden px-2 font-normal text-muted-foreground"
         >
           <ChevronRight
             data-icon="inline-start"
@@ -400,7 +402,7 @@ function MyIssuesNav({
           </Badge>
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="ml-4 flex flex-col gap-0.5 border-l pl-1">
+      <CollapsibleContent className="ml-4 flex min-w-0 flex-col gap-0.5 border-l pl-1">
         {tickets.length === 0 ? (
           <p className="px-2 py-1 text-xs text-muted-foreground">
             No open tickets assigned to you
@@ -442,13 +444,13 @@ function TicketStatusGroup({
   return (
     <Collapsible
       defaultOpen={isTicketStatusOpenByDefault(status, hasActiveTicket)}
-      className="group/status flex flex-col gap-0.5"
+      className="group/status flex min-w-0 flex-col gap-0.5"
     >
       <CollapsibleTrigger asChild>
         <Button
           variant="ghost"
           size="sm"
-          className="w-full min-w-0 justify-start px-2 font-normal text-muted-foreground"
+          className="w-full min-w-0 max-w-full shrink justify-start overflow-hidden px-2 font-normal text-muted-foreground"
         >
           <ChevronRight
             data-icon="inline-start"
@@ -461,7 +463,7 @@ function TicketStatusGroup({
           </Badge>
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="ml-4 flex flex-col gap-0.5 border-l pl-1">
+      <CollapsibleContent className="ml-4 flex min-w-0 flex-col gap-0.5 border-l pl-1">
         {tickets.map((ticket) => (
           <ChannelNavLink
             key={ticket.id}
@@ -495,11 +497,11 @@ function DirectMessagesNav({
   return (
     <Collapsible
       defaultOpen={dms.length > 0 || hasActiveDm}
-      className="group/dms flex flex-col gap-0.5"
+      className="group/dms flex min-w-0 flex-col gap-0.5"
     >
       <div
         className={cn(
-          'flex min-w-0 items-center rounded-md',
+          'flex min-w-0 items-center overflow-hidden rounded-md',
           hasActiveDm
             ? 'bg-secondary text-secondary-foreground'
             : 'hover:bg-muted hover:text-foreground dark:hover:bg-muted/50',
@@ -509,7 +511,7 @@ function DirectMessagesNav({
           <Button
             variant="ghost"
             size="sm"
-            className="min-w-0 flex-1 justify-start px-1 font-normal text-muted-foreground hover:bg-transparent hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-foreground dark:hover:bg-transparent dark:aria-expanded:bg-transparent"
+            className="min-w-0 flex-1 justify-start overflow-hidden px-1 font-normal text-muted-foreground hover:bg-transparent hover:text-foreground aria-expanded:bg-transparent aria-expanded:text-foreground dark:hover:bg-transparent dark:aria-expanded:bg-transparent"
           >
             <ChevronRight
               data-icon="inline-start"
@@ -530,7 +532,7 @@ function DirectMessagesNav({
           </Button>
         </CreateDmDialog>
       </div>
-      <CollapsibleContent className="flex flex-col gap-0.5 pl-5">
+      <CollapsibleContent className="flex min-w-0 flex-col gap-0.5 pl-5">
         {dms.length === 0 ? (
           <p className="px-1 py-0.5 text-[0.6875rem] text-muted-foreground">
             Message a teammate
@@ -581,7 +583,7 @@ function DmNavLink({
       variant={isActive ? 'secondary' : 'ghost'}
       size="sm"
       className={cn(
-        'h-6 min-w-0 w-full justify-start gap-1 px-1',
+        'h-6 min-w-0 w-full max-w-full shrink justify-start gap-1 overflow-hidden px-1',
         hasUnread
           ? 'font-semibold text-foreground'
           : isActive
@@ -604,7 +606,9 @@ function DmNavLink({
             {personInitials(name)}
           </span>
         )}
-        <span className="truncate text-[0.6875rem] leading-none">{name}</span>
+        <span className="min-w-0 flex-1 truncate text-[0.6875rem] leading-none">
+          {name}
+        </span>
         {unreadLabel ? (
           <Badge
             variant="destructive"
@@ -648,7 +652,7 @@ function ChannelNavLink({
       variant={isActive && showActiveBackground ? 'secondary' : 'ghost'}
       size="lg"
       className={cn(
-        'min-w-0 justify-start gap-1.5 px-2',
+        'min-w-0 max-w-full shrink justify-start gap-1.5 overflow-hidden px-2',
         hasUnread
           ? 'font-semibold text-foreground'
           : isActive
@@ -673,7 +677,7 @@ function ChannelNavLink({
         ) : Icon ? (
           <Icon className={iconClass} />
         ) : null}
-        <span className="truncate">{name}</span>
+        <span className="min-w-0 flex-1 truncate">{name}</span>
         {unreadLabel ? (
           <Badge
             variant="destructive"
