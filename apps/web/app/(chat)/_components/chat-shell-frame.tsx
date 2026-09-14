@@ -13,7 +13,9 @@ export async function ChatShellFrame({
     <div className="flex h-screen overflow-hidden">
       <WorkspaceSidebar user={session!.data!.user} />
       <ChannelSidebar user={session!.data!.user} />
-      <main className="flex min-w-0 flex-1 flex-col">{children}</main>
+      <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {children}
+      </main>
     </div>
   );
 }

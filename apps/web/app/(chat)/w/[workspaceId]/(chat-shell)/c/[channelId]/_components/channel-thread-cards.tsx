@@ -166,7 +166,7 @@ function ChannelThreadCardsInner({
       : TICKET_STATUSES;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <TicketFilterBar
         workspaceId={workspaceId}
         channelId={channelId}
@@ -247,22 +247,24 @@ function TicketListSkeleton({ layout }: { layout: TicketLayout }) {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 gap-2 overflow-x-auto p-3">
-      {TICKET_STATUSES.map((status) => (
-        <div
-          key={status}
-          className="flex w-60 shrink-0 flex-col rounded-md bg-muted/40"
-        >
-          <div className="flex items-center gap-1.5 px-2 py-1.5">
-            <Skeleton className="size-3.5 rounded-full" />
-            <Skeleton className="h-3 w-16" />
+    <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div className="flex h-full min-h-0 min-w-0 items-stretch gap-2 overflow-x-auto overflow-y-hidden p-3">
+        {TICKET_STATUSES.map((status) => (
+          <div
+            key={status}
+            className="flex min-h-0 w-60 shrink-0 flex-col overflow-hidden rounded-md bg-muted/40"
+          >
+            <div className="flex items-center gap-1.5 px-2 py-1.5">
+              <Skeleton className="size-3.5 rounded-full" />
+              <Skeleton className="h-3 w-16" />
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col gap-1.5 px-1.5 pt-1.5 pb-1.5">
+              <Skeleton className="h-20 w-full rounded-md" />
+              <Skeleton className="h-20 w-full rounded-md" />
+            </div>
           </div>
-          <div className="flex flex-1 flex-col gap-1.5 px-1.5 pt-1.5 pb-1.5">
-            <Skeleton className="h-20 w-full rounded-md" />
-            <Skeleton className="h-20 w-full rounded-md" />
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
@@ -337,22 +339,24 @@ function TicketBoardView({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 gap-2 overflow-x-auto p-3">
-      {statuses.map((status) => (
-        <TicketBoardColumn
-          key={status}
-          workspaceId={workspaceId}
-          channelId={channelId}
-          ticketPrefix={ticketPrefix}
-          numbers={numbers}
-          status={status}
-          tickets={ticketsByStatus.get(status) ?? []}
-          unreadCounts={unreadCounts}
-          members={members}
-          searchParams={searchParams}
-          onMove={moveTicket}
-        />
-      ))}
+    <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div className="flex h-full min-h-0 min-w-0 items-stretch gap-2 overflow-x-auto overflow-y-hidden p-3">
+        {statuses.map((status) => (
+          <TicketBoardColumn
+            key={status}
+            workspaceId={workspaceId}
+            channelId={channelId}
+            ticketPrefix={ticketPrefix}
+            numbers={numbers}
+            status={status}
+            tickets={ticketsByStatus.get(status) ?? []}
+            unreadCounts={unreadCounts}
+            members={members}
+            searchParams={searchParams}
+            onMove={moveTicket}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -398,8 +402,8 @@ function TicketBoardColumn({
   }
 
   return (
-    <div className="group/column flex h-full w-60 shrink-0 flex-col rounded-md bg-muted/40">
-      <div className="flex items-center gap-1.5 px-2 py-1.5">
+    <div className="group/column flex min-h-0 w-60 shrink-0 flex-col overflow-hidden rounded-md bg-muted/40">
+      <div className="flex shrink-0 items-center gap-1.5 px-2 py-1.5">
         <StatusIcon
           className={cn(
             'shrink-0',
@@ -424,7 +428,7 @@ function TicketBoardColumn({
       </div>
       <div
         ref={columnRef}
-        className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto px-1.5 pt-1.5 pb-1.5 ring-1 ring-transparent data-drop:bg-muted data-drop:ring-ring"
+        className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto overscroll-contain px-1.5 pt-1.5 pb-1.5 ring-1 ring-transparent data-drop:bg-muted data-drop:ring-ring"
         onDragOver={(event) => {
           event.preventDefault();
           event.dataTransfer.dropEffect = 'move';
@@ -583,7 +587,7 @@ function TicketListView({
   membersById: Map<string, { name: string; image: string | null }>;
 }) {
   return (
-    <ScrollArea className="flex-1">
+    <ScrollArea className="min-h-0 flex-1 overflow-hidden">
       <Table>
         <TableHeader>
           <TableRow>
