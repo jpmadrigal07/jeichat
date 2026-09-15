@@ -113,12 +113,22 @@ export function ChannelHeader({
       )}
       <div className="ml-auto flex shrink-0 items-center gap-1">
         {isThread && channel ? (
-          <TicketArchiveMenu
-            workspaceId={workspaceId}
-            channelId={channel.id}
-            parentChannelId={channel.parentId}
-            archivedAt={channel.archivedAt}
-          />
+          <>
+            {parentChannel ? (
+              <Button variant="outline" size="sm" asChild>
+                <Link href={channelBoardHref(workspaceId, parentChannel.id)}>
+                  <Columns3 data-icon="inline-start" />
+                  Board
+                </Link>
+              </Button>
+            ) : null}
+            <TicketArchiveMenu
+              workspaceId={workspaceId}
+              channelId={channel.id}
+              parentChannelId={channel.parentId}
+              archivedAt={channel.archivedAt}
+            />
+          </>
         ) : null}
         {!isThread && channel && !isDm ? (
           <Suspense
