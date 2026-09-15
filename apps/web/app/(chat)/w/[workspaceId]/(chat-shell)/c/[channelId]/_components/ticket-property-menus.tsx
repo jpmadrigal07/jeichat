@@ -604,9 +604,9 @@ export function TicketArchiveMenu({
         <TooltipTrigger asChild>
           <Button
             type="button"
-            variant="outline"
-            size="icon-sm"
-            className={className}
+            variant="ghost"
+            size="icon"
+            className={cn('h-8 w-8', className)}
             disabled={updateChannel.isPending}
             aria-label={label}
             onClick={toggleArchived}
