@@ -13,7 +13,6 @@ import {
 } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +23,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useUpdateChannel } from '@chat/_hooks/use-channels';
 import {
@@ -595,18 +600,23 @@ export function TicketArchiveMenu({
 
   if (variant === 'button') {
     return (
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className={className}
-        disabled={updateChannel.isPending}
-        aria-label={label}
-        onClick={toggleArchived}
-      >
-        <Icon data-icon="inline-start" />
-        {label}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            className={className}
+            disabled={updateChannel.isPending}
+            aria-label={label}
+            onClick={toggleArchived}
+          >
+            <Icon />
+            <span className="sr-only">{label}</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
     );
   }
 

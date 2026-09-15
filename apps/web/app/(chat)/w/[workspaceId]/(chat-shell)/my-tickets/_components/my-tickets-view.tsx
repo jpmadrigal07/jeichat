@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Ticket } from 'lucide-react';
+import { StickyNotes } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -71,7 +71,7 @@ export function MyTicketsView({
         <Empty className="flex-1 border-0">
           <EmptyHeader>
             <EmptyMedia variant="icon">
-              <Ticket />
+              <StickyNotes />
             </EmptyMedia>
             <EmptyTitle>No tickets assigned to you</EmptyTitle>
             <EmptyDescription>

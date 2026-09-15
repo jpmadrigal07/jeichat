@@ -14,7 +14,7 @@ import {
   ListFilter,
   UserRound,
   MessagesSquare,
-  MessageSquare,
+  StickyNotes,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -162,7 +162,7 @@ export function ChannelSidebar({ user }: { user: User }) {
             <ChannelNavLink
               href={`/w/${workspaceId}/my-tickets`}
               name="My tickets"
-              icon={MessageSquare}
+              icon={StickyNotes}
               isActive={pathname === `/w/${workspaceId}/my-tickets`}
               unreadCount={myTicketsUnread}
               className="w-full"
