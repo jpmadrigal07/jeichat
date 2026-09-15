@@ -6,9 +6,54 @@ import { Redis } from '@upstash/redis';
  * Better Auth uses secondary storage for session-related keys and rate limiting so
  * those reads/writes can stay off Postgres; durable rows remain in Neon.
  *
+ * Set AUTH_SECONDARY_STORAGE=memory for tests so sessions never touch Upstash
+ * and do not require a Postgres `session` table.
+ *
  * @see https://www.better-auth.com/docs/concepts/database#secondary-storage
  */
-export function createUpstashSecondaryStorage() {
+
+type SecondaryStorage = {
+  get: (key: string) => Promise<unknown>;
+  set: (key: string, value: string, ttl?: number) => Promise<void>;
+  delete: (key: string) => Promise<void>;
+};
+
+type MemoryEntry = {
+  value: string;
+  expiresAt: number | null;
+};
+
+export function createMemorySecondaryStorage(): SecondaryStorage {
+  const store = new Map<string, MemoryEntry>();
+
+  return {
+    async get(key: string): Promise<unknown> {
+      const entry = store.get(key);
+      if (!entry) return null;
+      if (entry.expiresAt != null && Date.now() >= entry.expiresAt) {
+        store.delete(key);
+        return null;
+      }
+      return entry.value;
+    },
+    async set(key: string, value: string, ttl?: number): Promise<void> {
+      store.set(key, {
+        value,
+        expiresAt:
+          ttl !== undefined ? Date.now() + ttl * 1000 : null,
+      });
+    },
+    async delete(key: string): Promise<void> {
+      store.delete(key);
+    },
+  };
+}
+
+export function createUpstashSecondaryStorage(): SecondaryStorage | undefined {
+  if (process.env.AUTH_SECONDARY_STORAGE?.trim() === 'memory') {
+    return createMemorySecondaryStorage();
+  }
+
   const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
   const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
 
@@ -37,7 +82,6 @@ export function createUpstashSecondaryStorage() {
         return null;
       }
     },
-
     async set(key: string, value: string, ttl?: number): Promise<void> {
       try {
         const stringValue =
@@ -52,7 +96,6 @@ export function createUpstashSecondaryStorage() {
         throw error;
       }
     },
-
     async delete(key: string): Promise<void> {
       try {
         await redis.del(key);

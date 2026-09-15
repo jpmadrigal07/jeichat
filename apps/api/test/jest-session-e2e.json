@@ -1,0 +1,13 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": ".session-e2e-spec.ts$",
+  "testTimeout": 35000,
+  "maxWorkers": 1,
+  "globalSetup": "<rootDir>/session-e2e.global-setup.ts",
+  "globalTeardown": "<rootDir>/session-e2e.global-teardown.ts",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  }
+}
