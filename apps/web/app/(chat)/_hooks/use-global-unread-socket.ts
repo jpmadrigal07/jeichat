@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { getSocket } from '@/lib/socket';
 import { showMessageNotificationToast } from '../_components/message-notification-toast';
-import { showDesktopMessageNotification } from '../_helpers/desktop-notifications';
+import {
+  isAppInForeground,
+  showDesktopMessageNotification,
+} from '../_helpers/desktop-notifications';
 import { playInboxNotificationSound } from '../_helpers/inbox-notification-sound';
 import { channelsQueryKey, fetchChannels } from '../_libs/channels';
 import type { MessageNotification } from '../_libs/message-notifications';
@@ -24,7 +26,6 @@ export function useGlobalUnreadSocket({
   userId,
 }: UseGlobalUnreadSocketOptions) {
   const queryClient = useQueryClient();
-  const router = useRouter();
   const activeChannelIdRef = useRef(activeChannelId);
   activeChannelIdRef.current = activeChannelId;
   const joinedChannelsRef = useRef(new Set<string>());
@@ -92,23 +93,29 @@ export function useGlobalUnreadSocket({
 
     const handleMessageNotification = (notification: MessageNotification) => {
       if (notification.message.senderId === userId) return;
-      if (notification.channel.id === activeChannelIdRef.current) return;
 
-      incrementUnreadCount(
-        queryClient,
-        notification.workspaceId,
-        notification.channel.id,
-      );
+      const viewingThisChannel =
+        notification.channel.id === activeChannelIdRef.current;
+      const inForeground = isAppInForeground();
 
-      if (document.hasFocus()) {
+      // Only suppress alerts when you are actually looking at this channel.
+      if (viewingThisChannel && inForeground) return;
+
+      if (!viewingThisChannel) {
+        incrementUnreadCount(
+          queryClient,
+          notification.workspaceId,
+          notification.channel.id,
+        );
+      }
+
+      if (inForeground) {
         playInboxNotificationSound();
         showMessageNotificationToast(notification);
         return;
       }
 
-      void showDesktopMessageNotification(notification, (href) => {
-        router.push(href);
-      });
+      void showDesktopMessageNotification(notification);
     };
 
     socket.on('message_notification', handleMessageNotification);
@@ -116,7 +123,7 @@ export function useGlobalUnreadSocket({
     return () => {
       socket.off('message_notification', handleMessageNotification);
     };
-  }, [queryClient, router, userId]);
+  }, [queryClient, userId]);
 
   useEffect(() => {
     return () => {
