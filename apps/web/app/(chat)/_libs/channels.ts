@@ -17,6 +17,7 @@ export type TicketWatcher = {
   id: string;
   name: string;
   image: string | null;
+  isBot?: boolean;
 };
 
 export type DmPeer = {

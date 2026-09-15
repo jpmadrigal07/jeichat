@@ -27,6 +27,7 @@ import {
   FieldLabel,
 } from '@/components/ui/field';
 import { PresenceAvatar } from '@chat/_components/presence-avatar';
+import { BotBadge } from '@chat/_components/bot-badge';
 import { useChannels, useUpdateChannel } from '@chat/_hooks/use-channels';
 import {
   useAddChannelMember,
@@ -135,7 +136,10 @@ export function ChannelMembersPanel({
                     showOffline
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{member.name}</p>
+                    <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+                      <span className="truncate">{member.name}</span>
+                      {member.isBot ? <BotBadge /> : null}
+                    </p>
                     <p className="truncate text-xs text-muted-foreground">
                       {member.email}
                     </p>
@@ -257,6 +261,7 @@ function AddChannelMemberDialog({
                   showOffline
                 />
                 <span className="min-w-0 flex-1 truncate">{member.name}</span>
+                {member.isBot ? <BotBadge /> : null}
               </button>
             ))}
           </div>

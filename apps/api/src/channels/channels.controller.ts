@@ -9,6 +9,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
+import { Actor, BotAllowed, type RequestActor } from '../auth/actor';
 import type { auth } from '../auth/auth';
 import { ChannelsService } from './channels.service';
 import { WorkspaceRolesService } from '../workspaces/workspace-roles.service';
@@ -21,6 +22,7 @@ export class ChannelsController {
   ) {}
 
   @Post()
+  @BotAllowed()
   create(
     @Param('workspaceId') workspaceId: string,
     @Body()
@@ -31,11 +33,11 @@ export class ChannelsController {
       isPrivate?: boolean;
       memberIds?: string[];
     },
-    @Session() session: UserSession<typeof auth>,
+    @Actor() actor: RequestActor,
   ) {
     return this.channelsService.create(
       workspaceId,
-      session.user.id,
+      actor.userId,
       body.name,
       body.description ?? null,
       body.ticketKey,
@@ -45,11 +47,12 @@ export class ChannelsController {
   }
 
   @Get()
+  @BotAllowed()
   findAll(
     @Param('workspaceId') workspaceId: string,
-    @Session() session: UserSession<typeof auth>,
+    @Actor() actor: RequestActor,
   ) {
-    return this.channelsService.findAll(workspaceId, session.user.id);
+    return this.channelsService.findAll(workspaceId, actor.userId);
   }
 
   @Get('unread-counts')
@@ -74,49 +77,49 @@ export class ChannelsController {
   }
 
   @Get(':id/events')
+  @BotAllowed()
   listEvents(
     @Param('workspaceId') workspaceId: string,
     @Param('id') id: string,
-    @Session() session: UserSession<typeof auth>,
+    @Actor() actor: RequestActor,
   ) {
-    return this.channelsService.listEvents(
-      workspaceId,
-      id,
-      session.user.id,
-    );
+    return this.channelsService.listEvents(workspaceId, id, actor.userId);
   }
 
   @Get(':id/threads')
+  @BotAllowed()
   listThreads(
     @Param('workspaceId') workspaceId: string,
     @Param('id') id: string,
     @Query('archived') archived: string | undefined,
-    @Session() session: UserSession<typeof auth>,
+    @Actor() actor: RequestActor,
   ) {
     return this.channelsService.listThreads(
       workspaceId,
       id,
-      session.user.id,
+      actor.userId,
       archived === 'true',
     );
   }
 
   @Post(':id/threads')
+  @BotAllowed()
   createThread(
     @Param('workspaceId') workspaceId: string,
     @Param('id') id: string,
-    @Body() body: {
+    @Body()
+    body: {
       name: string;
       description?: string;
       attachmentIds?: string[];
       status?: string;
     },
-    @Session() session: UserSession<typeof auth>,
+    @Actor() actor: RequestActor,
   ) {
     return this.channelsService.createThread(
       workspaceId,
       id,
-      session.user.id,
+      actor.userId,
       body.name ?? '',
       body.description ?? null,
       body.attachmentIds ?? [],
@@ -177,58 +180,59 @@ export class ChannelsController {
   }
 
   @Get(':id/members')
+  @BotAllowed()
   listMembers(
     @Param('workspaceId') workspaceId: string,
     @Param('id') id: string,
-    @Session() session: UserSession<typeof auth>,
+    @Actor() actor: RequestActor,
   ) {
-    return this.channelsService.listMembers(
-      workspaceId,
-      id,
-      session.user.id,
-    );
+    return this.channelsService.listMembers(workspaceId, id, actor.userId);
   }
 
   @Post(':id/members')
+  @BotAllowed()
   addMember(
     @Param('workspaceId') workspaceId: string,
     @Param('id') id: string,
     @Body() body: { userId: string },
-    @Session() session: UserSession<typeof auth>,
+    @Actor() actor: RequestActor,
   ) {
     return this.channelsService.addMember(
       workspaceId,
       id,
-      session.user.id,
+      actor.userId,
       body.userId,
     );
   }
 
   @Delete(':id/members/:userId')
+  @BotAllowed()
   removeMember(
     @Param('workspaceId') workspaceId: string,
     @Param('id') id: string,
     @Param('userId') userId: string,
-    @Session() session: UserSession<typeof auth>,
+    @Actor() actor: RequestActor,
   ) {
     return this.channelsService.removeMember(
       workspaceId,
       id,
-      session.user.id,
+      actor.userId,
       userId,
     );
   }
 
   @Get(':id')
+  @BotAllowed()
   findOne(
     @Param('workspaceId') workspaceId: string,
     @Param('id') id: string,
-    @Session() session: UserSession<typeof auth>,
+    @Actor() actor: RequestActor,
   ) {
-    return this.channelsService.findOne(workspaceId, id, session.user.id);
+    return this.channelsService.findOne(workspaceId, id, actor.userId);
   }
 
   @Patch(':id')
+  @BotAllowed()
   update(
     @Param('workspaceId') workspaceId: string,
     @Param('id') id: string,
@@ -248,17 +252,18 @@ export class ChannelsController {
       isPrivate?: boolean;
       archived?: boolean;
     },
-    @Session() session: UserSession<typeof auth>,
+    @Actor() actor: RequestActor,
   ) {
-    return this.channelsService.update(workspaceId, id, session.user.id, body);
+    return this.channelsService.update(workspaceId, id, actor.userId, body);
   }
 
   @Delete(':id')
+  @BotAllowed()
   remove(
     @Param('workspaceId') workspaceId: string,
     @Param('id') id: string,
-    @Session() session: UserSession<typeof auth>,
+    @Actor() actor: RequestActor,
   ) {
-    return this.channelsService.remove(workspaceId, id, session.user.id);
+    return this.channelsService.remove(workspaceId, id, actor.userId);
   }
 }

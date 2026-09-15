@@ -22,6 +22,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
+import { BotBadge } from '@chat/_components/bot-badge';
 import { PermissionToggle } from '@chat/_components/permission-toggle';
 import {
   ALL_PERMISSIONS,
@@ -211,6 +212,13 @@ function RoleEditor({
         <h3 className="mb-2 text-sm font-medium">
           Members — {role.members.length}
         </h3>
+        {role.members.some((member) => member.isBot) &&
+        role.name !== 'Bot' ? (
+          <p className="mb-3 text-xs text-muted-foreground">
+            Assigning extra roles to a bot replaces implicit everyone grants.
+            Keep view and send on at least one of its roles.
+          </p>
+        ) : null}
         {isOwner && availableMembers.length > 0 ? (
           <div className="mb-3 flex flex-wrap gap-2">
             {availableMembers.map((member) => (
@@ -224,6 +232,7 @@ function RoleEditor({
               >
                 <Plus className="size-3" />
                 {member.name}
+                {member.isBot ? <BotBadge /> : null}
               </Button>
             ))}
           </div>
@@ -241,7 +250,10 @@ function RoleEditor({
                   </AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{member.name}</p>
+                  <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+                    <span className="truncate">{member.name}</span>
+                    {member.isBot ? <BotBadge /> : null}
+                  </p>
                   <p className="truncate text-xs text-muted-foreground">
                     {member.email}
                   </p>

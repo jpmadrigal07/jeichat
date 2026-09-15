@@ -10,6 +10,7 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 import { DrizzleService } from '../database/drizzle.service';
 import {
   channels,
+  bots,
   roleChannelPermissions,
   user,
   workspaceMembers,
@@ -19,10 +20,13 @@ import {
 import {
   ALL_PERMISSIONS,
   DEFAULT_ADMIN_ROLE_NAME,
+  DEFAULT_BOT_ROLE_NAME,
   parsePermissions,
+  PERMISSIONS,
   type Permission,
 } from './permissions';
 import { WorkspacesService } from './workspaces.service';
+import { ChatGateway } from '../gateway/chat.gateway';
 
 function serializePermissions(permissions: Permission[]): string {
   return JSON.stringify(permissions);
@@ -50,6 +54,8 @@ export class WorkspaceRolesService {
     private readonly drizzle: DrizzleService,
     @Inject(forwardRef(() => WorkspacesService))
     private readonly workspacesService: WorkspacesService,
+    @Inject(forwardRef(() => ChatGateway))
+    private readonly chatGateway: ChatGateway,
   ) {}
 
   async ensureDefaultAdministratorRole(
@@ -88,6 +94,49 @@ export class WorkspaceRolesService {
     await this.ensureRoleMember(roleId, creatorUserId);
 
     return roleId;
+  }
+
+  async ensureDefaultBotRole(workspaceId: string) {
+    const [existing] = await this.drizzle.db
+      .select()
+      .from(workspaceRoles)
+      .where(
+        and(
+          eq(workspaceRoles.workspaceId, workspaceId),
+          eq(workspaceRoles.name, DEFAULT_BOT_ROLE_NAME),
+        ),
+      )
+      .limit(1);
+
+    if (existing) return existing.id;
+
+    const maxPosition = await this.drizzle.db
+      .select({
+        position: sql<number>`coalesce(max(${workspaceRoles.position}), 0)::int`,
+      })
+      .from(workspaceRoles)
+      .where(eq(workspaceRoles.workspaceId, workspaceId));
+
+    const roleId = crypto.randomUUID();
+    await this.drizzle.db.insert(workspaceRoles).values({
+      id: roleId,
+      workspaceId,
+      name: DEFAULT_BOT_ROLE_NAME,
+      color: '#99aab5',
+      permissions: serializePermissions([
+        PERMISSIONS.VIEW_CHANNEL,
+        PERMISSIONS.SEND_MESSAGES,
+      ]),
+      isAdministrator: false,
+      isDefault: false,
+      position: (maxPosition[0]?.position ?? 0) + 1,
+    });
+
+    return roleId;
+  }
+
+  async ensureRoleMemberPublic(roleId: string, userId: string) {
+    await this.ensureRoleMember(roleId, userId);
   }
 
   async findAll(workspaceId: string, userId: string) {
@@ -164,9 +213,11 @@ export class WorkspaceRolesService {
         name: user.name,
         email: user.email,
         image: user.image,
+        isBot: sql<boolean>`(${bots.userId} is not null)`,
       })
       .from(workspaceRoleMembers)
       .innerJoin(user, eq(workspaceRoleMembers.userId, user.id))
+      .leftJoin(bots, eq(bots.userId, user.id))
       .where(eq(workspaceRoleMembers.roleId, roleId));
 
     const channelPermissions = await this.drizzle.db
@@ -188,7 +239,10 @@ export class WorkspaceRolesService {
 
     return {
       ...formatRole(role, members.length),
-      members,
+      members: members.map((member) => ({
+        ...member,
+        isBot: member.isBot === true,
+      })),
       channelPermissions: channelPermissions.map((row) => ({
         id: row.id,
         channelId: row.channelId,
@@ -271,9 +325,7 @@ export class WorkspaceRolesService {
     if (!channel) throw new NotFoundException('Channel not found');
 
     if (channel.parentId) {
-      throw new BadRequestException(
-        'Cannot assign roles to a ticket',
-      );
+      throw new BadRequestException('Cannot assign roles to a ticket');
     }
 
     const [existing] = await this.drizzle.db
@@ -308,6 +360,7 @@ export class WorkspaceRolesService {
       })
       .returning();
 
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
     return {
       id: role.id,
       name: role.name,
@@ -347,6 +400,7 @@ export class WorkspaceRolesService {
     if (result.length === 0) {
       throw new NotFoundException('Role is not assigned to this channel');
     }
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
   }
 
   async create(
@@ -436,6 +490,7 @@ export class WorkspaceRolesService {
       .where(eq(workspaceRoles.id, roleId))
       .returning();
 
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
     return formatRole(updated);
   }
 
@@ -452,6 +507,7 @@ export class WorkspaceRolesService {
     await this.drizzle.db
       .delete(workspaceRoles)
       .where(eq(workspaceRoles.id, roleId));
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
   }
 
   async addMember(
@@ -485,6 +541,7 @@ export class WorkspaceRolesService {
       })
       .returning();
 
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
     return member;
   }
 
@@ -523,6 +580,7 @@ export class WorkspaceRolesService {
     if (result.length === 0) {
       throw new NotFoundException('Member not found in role');
     }
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
   }
 
   async setChannelPermissions(
@@ -577,6 +635,7 @@ export class WorkspaceRolesService {
         .where(eq(roleChannelPermissions.id, existing.id))
         .returning();
 
+      void this.chatGateway.resyncBotChannelRooms(workspaceId);
       return {
         id: updated.id,
         channelId: updated.channelId,
@@ -597,6 +656,7 @@ export class WorkspaceRolesService {
       })
       .returning();
 
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
     return {
       id: created.id,
       channelId: created.channelId,

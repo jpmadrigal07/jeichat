@@ -159,6 +159,18 @@ export function connectSocket(cookieHeader: string): Socket {
   });
 }
 
+export function connectBotSocket(token: string): Socket {
+  const meta = loadSessionE2eMeta();
+  return io(meta.baseUrl, {
+    transports: ['websocket'],
+    autoConnect: true,
+    auth: { token },
+    extraHeaders: {
+      Origin: meta.origin,
+    },
+  });
+}
+
 export function connectSocketWithoutCookie(): Socket {
   const meta = loadSessionE2eMeta();
   return io(meta.baseUrl, {

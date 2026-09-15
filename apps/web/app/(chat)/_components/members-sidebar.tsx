@@ -11,6 +11,7 @@ import { useMembersSidebarOpen } from '../_hooks/use-members-sidebar';
 import { useCreateOrGetDm } from '../_hooks/use-channels';
 import type { WorkspaceMember } from '../_libs/workspaces';
 import { PresenceAvatar } from './presence-avatar';
+import { BotBadge } from './bot-badge';
 
 function sortByName(a: WorkspaceMember, b: WorkspaceMember) {
   return a.name.localeCompare(b.name);
@@ -46,6 +47,7 @@ function MemberRow({
         showOffline
       />
       <span className="truncate text-sm">{member.name}</span>
+      {member.isBot ? <BotBadge /> : null}
     </Button>
   );
 }
@@ -75,7 +77,7 @@ function MemberSection({
           key={member.id}
           member={member}
           online={online}
-          disabled={disabled}
+          disabled={disabled || Boolean(member.isBot)}
           onSelect={() => onSelectMember(member)}
         />
       ))}
@@ -96,7 +98,7 @@ export function MembersSidebar({ currentUserId }: { currentUserId: string }) {
   if (!workspaceId || !open) return null;
 
   function startDm(member: WorkspaceMember) {
-    if (member.userId === currentUserId) return;
+    if (member.userId === currentUserId || member.isBot) return;
     createDm.mutate(member.userId, {
       onSuccess: (channel) => {
         router.push(`/w/${workspaceId}/c/${channel.id}`);

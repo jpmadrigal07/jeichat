@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowLeft, Info, Shield, Tag, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, Bot, Info, Shield, Tag, Trash2, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -44,6 +44,12 @@ export function SettingsShell({
       href: `/w/${workspaceId}/settings/roles`,
       label: 'Roles',
       icon: Shield,
+    },
+    {
+      href: `/w/${workspaceId}/settings/bots`,
+      label: 'Bots',
+      icon: Bot,
+      ownerOnly: true,
     },
     {
       href: `/w/${workspaceId}/settings/labels`,
