@@ -40,6 +40,7 @@ import { useInboxSocket, useInboxUnreadCount } from '../_hooks/use-inbox';
 import { useWorkspaces } from '../_hooks/use-workspaces';
 import { formatUnreadCount } from '../_helpers/format-unread-count';
 import {
+  SIDEBAR_TICKETS_PER_STATUS,
   groupChannelsByParent,
   groupTicketsByStatus,
   isTicketStatusOpenByDefault,
@@ -63,7 +64,7 @@ import {
   type SidebarTicketFilter,
 } from '../_helpers/sidebar-ticket-filter';
 import { useSidebarTicketFilters } from '../_hooks/use-sidebar-ticket-filter';
-import type { Channel } from '../_libs/channels';
+import { channelBoardHref, type Channel } from '../_libs/channels';
 import { CreateChannelDialog } from './create-channel-dialog';
 import { CreateDmDialog } from './create-dm-dialog';
 import {
@@ -256,6 +257,7 @@ export function ChannelSidebar({ user }: { user: User }) {
                             <TicketStatusGroup
                               key={group.status}
                               workspaceId={workspaceId}
+                              channelId={channel.id}
                               status={group.status}
                               tickets={group.tickets}
                               activeChannelId={params.channelId}
@@ -426,12 +428,14 @@ function MyIssuesNav({
 
 function TicketStatusGroup({
   workspaceId,
+  channelId,
   status,
   tickets,
   activeChannelId,
   unreadCounts,
 }: {
   workspaceId: string;
+  channelId: string;
   status: TicketStatus;
   tickets: Channel[];
   activeChannelId: string | undefined;
@@ -440,6 +444,8 @@ function TicketStatusGroup({
   const meta = TICKET_STATUS_META[status];
   const StatusIcon = meta.icon;
   const hasActiveTicket = tickets.some((ticket) => ticket.id === activeChannelId);
+  const visibleTickets = tickets.slice(0, SIDEBAR_TICKETS_PER_STATUS);
+  const hasMoreTickets = tickets.length > SIDEBAR_TICKETS_PER_STATUS;
 
   return (
     <Collapsible
@@ -464,7 +470,7 @@ function TicketStatusGroup({
         </Button>
       </CollapsibleTrigger>
       <CollapsibleContent className="ml-4 flex min-w-0 flex-col gap-0.5 border-l pl-1">
-        {tickets.map((ticket) => (
+        {visibleTickets.map((ticket) => (
           <ChannelNavLink
             key={ticket.id}
             href={`/w/${workspaceId}/c/${ticket.id}`}
@@ -474,6 +480,16 @@ function TicketStatusGroup({
             className="w-full"
           />
         ))}
+        {hasMoreTickets ? (
+          <Button
+            variant="ghost"
+            size="lg"
+            className="min-w-0 w-full max-w-full shrink justify-start overflow-hidden px-2 font-normal text-muted-foreground"
+            asChild
+          >
+            <Link href={channelBoardHref(workspaceId, channelId)}>See more</Link>
+          </Button>
+        ) : null}
       </CollapsibleContent>
     </Collapsible>
   );

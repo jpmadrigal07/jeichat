@@ -40,6 +40,8 @@ export function groupChannelsByParent(channels: Channel[]) {
   return { topLevel, dms, threadsByParent };
 }
 
+export const SIDEBAR_TICKETS_PER_STATUS = 9;
+
 export function groupTicketsByStatus<T extends Channel>(tickets: T[]) {
   return TICKET_STATUSES.flatMap((status) => {
     const items = tickets.filter(
