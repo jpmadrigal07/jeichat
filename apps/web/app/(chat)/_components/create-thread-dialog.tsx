@@ -15,12 +15,25 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   ATTACHMENT_ACCEPT_ATTR,
   countAttachmentKinds,
   MAX_DOCUMENT_ATTACHMENTS,
   MAX_IMAGE_ATTACHMENTS,
 } from '@/lib/attachment-mime';
-import { MAX_TICKET_DESCRIPTION_LENGTH } from '../_helpers/ticket-fields';
+import {
+  MAX_TICKET_DESCRIPTION_LENGTH,
+  TICKET_STATUSES,
+  TICKET_STATUS_META,
+  ticketStatusOf,
+} from '../_helpers/ticket-fields';
 import { useChannels, useCreateThread } from '../_hooks/use-channels';
 import { useWorkspaceMembers } from '../_hooks/use-workspaces';
 import { taggableTicketsForChannel, taggableChannels } from '../_helpers/ticket-mentions';
@@ -107,11 +120,13 @@ function CreateThreadDialog({
   const createThread = useCreateThread(workspaceId);
   const { data: channels } = useChannels(workspaceId);
   const { data: members } = useWorkspaceMembers(workspaceId);
+  const initialStatus = ticketStatusOf(status);
   const parentChannel = channels?.find((channel) => channel.id === channelId);
   const tickets = taggableTicketsForChannel(channels ?? [], parentChannel);
   const hashChannels = taggableChannels(channels ?? []);
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const statusInputRef = useRef<HTMLInputElement>(null);
   const uploads = useAttachmentUploads(channelId ?? '');
   const uploadCounts = countAttachmentKinds(
     uploads.items.map((item) => item.file),
@@ -141,7 +156,7 @@ function CreateThreadDialog({
         name,
         description,
         attachmentIds: uploads.readyServerIds,
-        status: status ?? undefined,
+        status: ticketStatusOf(formData.get('status') as string | null),
       },
       {
         onSuccess: (thread) => {
@@ -164,7 +179,7 @@ function CreateThreadDialog({
           </DialogDescription>
         </DialogHeader>
         <form
-          key={channelId ?? 'closed'}
+          key={`${channelId ?? 'closed'}-${initialStatus}`}
           onSubmit={handleSubmit}
           className="flex flex-col gap-4"
         >
@@ -177,6 +192,40 @@ function CreateThreadDialog({
               required
               autoFocus
             />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="thread-status">Status</Label>
+            <input
+              ref={statusInputRef}
+              type="hidden"
+              name="status"
+              defaultValue={initialStatus}
+            />
+            <Select
+              defaultValue={initialStatus}
+              onValueChange={(value) => {
+                if (statusInputRef.current) statusInputRef.current.value = value;
+              }}
+            >
+              <SelectTrigger id="thread-status" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start" position="popper">
+                <SelectGroup>
+                  {TICKET_STATUSES.map((value) => {
+                    const Icon = TICKET_STATUS_META[value].icon;
+                    return (
+                      <SelectItem key={value} value={value}>
+                        <Icon
+                          className={TICKET_STATUS_META[value].iconClassName}
+                        />
+                        {TICKET_STATUS_META[value].label}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="thread-description">Description</Label>
