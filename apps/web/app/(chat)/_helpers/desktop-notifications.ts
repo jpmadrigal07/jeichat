@@ -3,7 +3,7 @@ import {
   messageNotificationSnippet,
   messageNotificationTargetLabel,
 } from './message-notification-copy';
-import { getPwaInstallState, registerPwaServiceWorker } from '@/lib/pwa';
+import { isPwaInstalled, registerPwaServiceWorker } from '@/lib/pwa';
 import { playInboxNotificationSound } from './inbox-notification-sound';
 import { isIosDevice } from './notification-platform';
 import {
@@ -153,7 +153,7 @@ export function canPromptBrowserNotificationPermission() {
   if (!notificationSupported()) return false;
   if (!getDesktopNotificationsEnabled()) return false;
   if (getDesktopNotificationPermission() !== 'default') return false;
-  if (isIosDevice() && !getPwaInstallState().installed) return false;
+  if (isIosDevice() && !isPwaInstalled()) return false;
   return true;
 }
 

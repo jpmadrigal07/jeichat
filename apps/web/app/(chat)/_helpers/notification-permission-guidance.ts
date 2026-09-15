@@ -1,4 +1,4 @@
-import { getPwaInstallState, subscribePwaInstall } from '@/lib/pwa';
+import { isPwaInstalled, subscribePwaInstall } from '@/lib/pwa';
 import {
   getDesktopNotificationPermission,
   getDesktopNotificationsEnabled,
@@ -50,7 +50,7 @@ const HELP: Record<
 const guidanceListeners = new Set<() => void>();
 
 function isInstalledApp() {
-  return getPwaInstallState().installed;
+  return isPwaInstalled();
 }
 
 export function getNotificationPermissionHelpKind(): NotificationPermissionHelpKind | null {
