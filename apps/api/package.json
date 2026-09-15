@@ -46,6 +46,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.3",
+    "web-push": "^3.6.7",
     "yazl": "^3.3.1"
   },
   "devDependencies": {
@@ -61,6 +62,7 @@
     "@types/node": "^24.0.0",
     "@types/pg": "^8.20.0",
     "@types/supertest": "^7.0.0",
+    "@types/web-push": "^3.6.4",
     "@types/yazl": "^3.3.1",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.18.0",

@@ -35,6 +35,11 @@ const migrations = [
     column: { table: 'channels', name: 'archived_at' },
     file: '../src/database/drizzle/0021_ticket_archived_at.sql',
   },
+  {
+    name: '0022_push_subscriptions',
+    table: 'push_subscriptions',
+    file: '../src/database/drizzle/0022_push_subscriptions.sql',
+  },
 ] as const;
 
 try {

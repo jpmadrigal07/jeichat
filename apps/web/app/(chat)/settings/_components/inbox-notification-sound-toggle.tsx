@@ -24,8 +24,8 @@ export function InboxNotificationSoundToggle() {
           Notification sound
         </FieldLabel>
         <FieldDescription>
-          Play a sound for inbox items and for new messages in the channel you
-          are viewing.
+          Play JeiChat's notification sound for inbox items, new messages, and
+          desktop alerts.
         </FieldDescription>
       </FieldContent>
     </Field>

@@ -11,6 +11,7 @@ import { ThemeProvider } from 'next-themes';
 import { Toaster, toast } from 'react-hot-toast';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { isApiError } from '@/lib/api-error';
+import { PwaHost } from '@/app/_components/pwa-host';
 
 const ReactQueryDevtools = lazy(() =>
   import('@tanstack/react-query-devtools').then((d) => ({
@@ -73,6 +74,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         disableTransitionOnChange
       >
         <TooltipProvider>
+          <PwaHost />
           {children}
         </TooltipProvider>
         <Toaster position="bottom-right" />

@@ -20,6 +20,8 @@ import {
 import { user } from '../database/schema/auth';
 import { ChatGateway } from '../gateway/chat.gateway';
 import { InboxService } from '../inbox/inbox.service';
+import { PushService } from '../push/push.service';
+import { toPushNotificationPayload } from '../push/push-payload';
 import { mentionedUserIds } from '../inbox/mentions';
 import { StorageService } from '../storage/storage.service';
 import {
@@ -77,6 +79,7 @@ export class MessagesService {
     private readonly chatGateway: ChatGateway,
     private readonly storage: StorageService,
     private readonly inboxService: InboxService,
+    private readonly pushService: PushService,
   ) {}
 
   private async verifyChannelAccess(
@@ -811,7 +814,12 @@ export class MessagesService {
   private async notifyMessageRecipients(
     channel: typeof channels.$inferSelect,
     senderId: string,
-    message: { id: string },
+    message: {
+      id: string;
+      content: string;
+      sender?: { name: string | null; image: string | null } | null;
+      attachments?: { filename: string }[];
+    },
     content: string,
   ) {
     const { toastRecipientIds, commentInboxRecipientIds } =
@@ -857,6 +865,10 @@ export class MessagesService {
       for (const userId of toastRecipientIds) {
         this.chatGateway.emitMessageNotification(userId, payload);
       }
+      void this.pushService.notifyUsers(
+        toastRecipientIds,
+        toPushNotificationPayload(payload),
+      );
     }
 
     if (commentInboxRecipientIds.length > 0) {

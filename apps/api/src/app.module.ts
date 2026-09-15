@@ -17,6 +17,7 @@ import { AttachmentsModule } from './attachments/attachments.module';
 import { InboxModule } from './inbox/inbox.module';
 import { UsersModule } from './users/users.module';
 import { SearchModule } from './search/search.module';
+import { PushModule } from './push/push.module';
 
 // Load .env from repo root (works from apps/api/dist or apps/api/src) or cwd
 const envFilePath =
@@ -45,6 +46,7 @@ const envFilePath =
     InboxModule,
     UsersModule,
     SearchModule,
+    PushModule,
   ],
   controllers: [AppController],
   providers: [AppService],

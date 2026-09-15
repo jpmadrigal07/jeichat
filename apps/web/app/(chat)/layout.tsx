@@ -1,6 +1,7 @@
 import { getServerSession } from '@/lib/auth-server';
 import { redirect } from 'next/navigation';
 import { DocumentTitle } from './_components/document-title';
+import { PushNotificationsHost } from './_components/push-notifications-host';
 
 export default async function ChatLayout({
   children,
@@ -16,6 +17,7 @@ export default async function ChatLayout({
   return (
     <>
       <DocumentTitle />
+      <PushNotificationsHost />
       {children}
     </>
   );

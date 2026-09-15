@@ -19,6 +19,15 @@ const geistMono = localFont({
 export const metadata: Metadata = {
   title: "JeiChat",
   description: "Team chat for workspaces, channels, and tickets.",
+  applicationName: "JeiChat",
+  appleWebApp: {
+    capable: true,
+    title: "JeiChat",
+    statusBarStyle: "black-translucent",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default async function RootLayout({

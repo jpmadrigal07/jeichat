@@ -1,10 +1,12 @@
 const STORAGE_KEY = 'jeichat:inbox-notification-sound:v1';
+const SOUND_URL = '/sounds/notification.wav';
 const DEFAULT_ENABLED = true;
 const COOLDOWN_MS = 1000;
 
 const listeners = new Set<() => void>();
 
 let audioContext: AudioContext | null = null;
+let notificationAudio: HTMLAudioElement | null = null;
 let lastPlayedAt = 0;
 let unlockBound = false;
 
@@ -43,6 +45,16 @@ function getAudioContext(): AudioContext | null {
   return audioContext;
 }
 
+function getNotificationAudio() {
+  if (typeof window === 'undefined') return null;
+  if (notificationAudio) return notificationAudio;
+
+  notificationAudio = new Audio(SOUND_URL);
+  notificationAudio.preload = 'auto';
+  notificationAudio.volume = 1;
+  return notificationAudio;
+}
+
 async function resumeAudioContext() {
   const context = getAudioContext();
   if (!context) return null;
@@ -62,6 +74,9 @@ function bindUnlockListeners() {
 
   const unlock = () => {
     void resumeAudioContext();
+    const audio = getNotificationAudio();
+    if (!audio) return;
+    audio.load();
   };
 
   window.addEventListener('pointerdown', unlock, { once: true, passive: true });
@@ -78,11 +93,11 @@ function playTone(
   const oscillator = context.createOscillator();
   const gain = context.createGain();
 
-  oscillator.type = 'sine';
+  oscillator.type = 'triangle';
   oscillator.frequency.setValueAtTime(frequency, start);
 
   gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.exponentialRampToValueAtTime(volume, start + 0.012);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.01);
   gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
 
   oscillator.connect(gain);
@@ -93,8 +108,22 @@ function playTone(
 
 function playChime(context: AudioContext) {
   const start = context.currentTime;
-  playTone(context, 880, start, 0.12, 0.08);
-  playTone(context, 1174.66, start + 0.09, 0.2, 0.1);
+  playTone(context, 784, start, 0.16, 0.42);
+  playTone(context, 1174.66, start + 0.09, 0.22, 0.55);
+  playTone(context, 1567.98, start + 0.16, 0.18, 0.32);
+}
+
+async function playSoundFile() {
+  const audio = getNotificationAudio();
+  if (!audio) return false;
+
+  try {
+    audio.currentTime = 0;
+    await audio.play();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 bindUnlockListeners();
@@ -132,8 +161,13 @@ export function playInboxNotificationSound() {
   if (now - lastPlayedAt < COOLDOWN_MS) return;
   lastPlayedAt = now;
 
-  void resumeAudioContext().then((context) => {
-    if (!context || context.state !== 'running') return;
-    playChime(context);
+  void playSoundFile().then((played) => {
+    if (played) return;
+    void resumeAudioContext().then((context) => {
+      if (!context || context.state !== 'running') return;
+      playChime(context);
+    });
   });
 }
+
+export const NOTIFICATION_SOUND_URL = SOUND_URL;

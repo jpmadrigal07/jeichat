@@ -20,6 +20,7 @@ import {
   SignOutButton,
   type ProfileUser,
 } from '../settings/_components/account-settings-fields';
+import { DesktopNotificationsToggle } from '../settings/_components/desktop-notifications-toggle';
 import { InboxNotificationSoundToggle } from '../settings/_components/inbox-notification-sound-toggle';
 
 export const PROFILE_SETTINGS_PARAM = 'settings';
@@ -150,6 +151,8 @@ function UserSettingsDialog({
                   </p>
                 </div>
                 <ThemeToggle />
+                <Separator />
+                <DesktopNotificationsToggle />
                 <Separator />
                 <InboxNotificationSoundToggle />
               </>
