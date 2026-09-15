@@ -19,7 +19,12 @@ export class MessagesController {
   @Post()
   create(
     @Param('channelId') channelId: string,
-    @Body() body: { content: string; attachmentIds?: string[] },
+    @Body()
+    body: {
+      content: string;
+      attachmentIds?: string[];
+      replyToId?: string | null;
+    },
     @Session() session: UserSession<typeof auth>,
   ) {
     return this.messagesService.create(
@@ -27,6 +32,7 @@ export class MessagesController {
       session.user.id,
       body.content ?? '',
       body.attachmentIds ?? [],
+      body.replyToId,
     );
   }
 

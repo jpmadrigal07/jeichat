@@ -53,11 +53,22 @@ export type MessageAttachmentPublic = {
   sizeBytes: number;
 };
 
+export type MessageReplyToPublic = {
+  id: string;
+  content: string;
+  senderId: string;
+  sender: {
+    name: string | null;
+    image: string | null;
+  } | null;
+};
+
 type MessageListRow = {
   id: string;
   channelId: string;
   senderId: string;
   content: string;
+  replyToId: string | null;
   createdAt: Date;
   updatedAt: Date;
   sender: {
@@ -186,6 +197,59 @@ export class MessagesService {
     return grouped;
   }
 
+  private async loadReplyToByIds(
+    replyToIds: Array<string | null | undefined>,
+  ): Promise<Map<string, MessageReplyToPublic>> {
+    const unique = [
+      ...new Set(
+        replyToIds.filter((id): id is string => typeof id === 'string' && id.length > 0),
+      ),
+    ];
+    const mapped = new Map<string, MessageReplyToPublic>();
+    if (!unique.length) return mapped;
+
+    const rows = await this.drizzle.db
+      .select({
+        id: messages.id,
+        content: messages.content,
+        senderId: messages.senderId,
+        sender: {
+          name: user.name,
+          image: user.image,
+        },
+      })
+      .from(messages)
+      .leftJoin(user, eq(messages.senderId, user.id))
+      .where(inArray(messages.id, unique));
+
+    for (const row of rows) {
+      mapped.set(row.id, row);
+    }
+
+    return mapped;
+  }
+
+  private async resolveReplyToId(
+    channelId: string,
+    replyToId: string | null | undefined,
+  ): Promise<string | null> {
+    if (!replyToId) return null;
+
+    const [target] = await this.drizzle.db
+      .select({
+        id: messages.id,
+        channelId: messages.channelId,
+      })
+      .from(messages)
+      .where(eq(messages.id, replyToId));
+
+    if (!target || target.channelId !== channelId) {
+      throw new BadRequestException('Reply target not found in this channel');
+    }
+
+    return target.id;
+  }
+
   private async findOneWithAttachments(messageId: string, viewerUserId?: string) {
     const [row] = await this.drizzle.db
       .select({
@@ -193,6 +257,7 @@ export class MessagesService {
         channelId: messages.channelId,
         senderId: messages.senderId,
         content: messages.content,
+        replyToId: messages.replyToId,
         createdAt: messages.createdAt,
         updatedAt: messages.updatedAt,
         sender: {
@@ -206,16 +271,12 @@ export class MessagesService {
 
     if (!row) throw new NotFoundException('Message not found');
 
-    const grouped = await this.loadAttachmentsByMessageIds([messageId]);
-    const reactions = await this.loadReactionsByMessageIds(
-      [messageId],
+    const [enriched] = await this.enrichMessageRows(
+      [row],
       viewerUserId ?? row.senderId,
     );
-    return {
-      ...row,
-      attachments: grouped.get(messageId) ?? [],
-      reactions: reactions.get(messageId) ?? [],
-    };
+    if (!enriched) throw new NotFoundException('Message not found');
+    return enriched;
   }
 
   async create(
@@ -223,6 +284,7 @@ export class MessagesService {
     senderId: string,
     content: string,
     attachmentIds: string[] = [],
+    replyToId?: string | null,
   ) {
     const channel = await this.verifyChannelAccess(
       channelId,
@@ -276,12 +338,15 @@ export class MessagesService {
       }
     }
 
+    const resolvedReplyToId = await this.resolveReplyToId(channelId, replyToId);
+
     await this.drizzle.db.transaction(async (tx) => {
       await tx.insert(messages).values({
         id: messageId,
         channelId,
         senderId,
         content,
+        replyToId: resolvedReplyToId,
         createdAt: now,
         updatedAt: now,
       });
@@ -467,6 +532,7 @@ export class MessagesService {
         channelId: messages.channelId,
         senderId: messages.senderId,
         content: messages.content,
+        replyToId: messages.replyToId,
         createdAt: messages.createdAt,
         updatedAt: messages.updatedAt,
         sender: {
@@ -501,10 +567,14 @@ export class MessagesService {
       rows.map((row) => row.id),
       userId,
     );
+    const replyToById = await this.loadReplyToByIds(
+      rows.map((row) => row.replyToId),
+    );
     return rows.map((row) => ({
       ...row,
       attachments: grouped.get(row.id) ?? [],
       reactions: reactionsGrouped.get(row.id) ?? [],
+      replyTo: row.replyToId ? (replyToById.get(row.replyToId) ?? null) : null,
     }));
   }
 
@@ -766,6 +836,7 @@ export class MessagesService {
         messageChannelId: messages.channelId,
         senderId: messages.senderId,
         content: messages.content,
+        replyToId: messages.replyToId,
         createdAt: messages.createdAt,
         updatedAt: messages.updatedAt,
         senderName: user.name,
@@ -785,6 +856,9 @@ export class MessagesService {
       rows.map((row) => row.messageId),
       viewerUserId,
     );
+    const replyToById = await this.loadReplyToByIds(
+      rows.map((row) => row.replyToId),
+    );
 
     return rows.map((row) => ({
       id: row.id,
@@ -800,6 +874,7 @@ export class MessagesService {
         channelId: row.messageChannelId,
         senderId: row.senderId,
         content: row.content,
+        replyToId: row.replyToId,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
         sender: row.senderName
@@ -807,6 +882,9 @@ export class MessagesService {
           : null,
         attachments: grouped.get(row.messageId) ?? [],
         reactions: reactionsGrouped.get(row.messageId) ?? [],
+        replyTo: row.replyToId
+          ? (replyToById.get(row.replyToId) ?? null)
+          : null,
       },
     }));
   }

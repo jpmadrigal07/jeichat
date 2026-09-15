@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
-import { Pencil, Pin, PinOff, Trash2, X, Check } from 'lucide-react';
+import { Pencil, Pin, PinOff, Reply, Trash2, X, Check } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -22,7 +22,8 @@ import { PresenceAvatar } from '@chat/_components/presence-avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import type { Message } from '../_libs/messages';
+import type { Message, MessageReplyTo } from '../_libs/messages';
+import { messageReplySnippet } from '../_helpers/message-reply';
 import { MessageAttachments } from './message-attachments';
 import { MessageMarkdown } from './message-markdown';
 import { MessageReactions } from './message-reactions';
@@ -46,6 +47,8 @@ type MessageItemProps = {
   onPin: (messageId: string) => void;
   onUnpin: (messageId: string) => void;
   onToggleReaction: (messageId: string, emoji: string) => void;
+  onReply: (messageId: string) => void;
+  onJumpToReply: (messageId: string) => void;
   reactionPending?: boolean;
   members: MentionableMember[];
   tickets: TaggableTicket[];
@@ -69,6 +72,44 @@ function formatFullDate(dateStr: string): string {
     hour: 'numeric',
     minute: '2-digit',
   });
+}
+
+function MessageReplyPreview({
+  replyToId,
+  replyTo,
+  onJumpToReply,
+}: {
+  replyToId: string | null;
+  replyTo: MessageReplyTo | null;
+  onJumpToReply: (messageId: string) => void;
+}) {
+  if (!replyToId) return null;
+  if (!replyTo) {
+    return (
+      <p className="mb-1 text-xs italic text-muted-foreground">
+        Original message was deleted
+      </p>
+    );
+  }
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      className="mb-1 h-auto w-full justify-start gap-2 px-2 py-1"
+      onClick={() => onJumpToReply(replyTo.id)}
+    >
+      <span className="h-8 w-0.5 shrink-0 rounded-full bg-muted-foreground/50" />
+      <span className="min-w-0 flex-1 text-left">
+        <span className="block truncate text-xs font-semibold">
+          {replyTo.sender?.name ?? 'Unknown'}
+        </span>
+        <span className="block truncate text-xs text-muted-foreground">
+          {messageReplySnippet(replyTo.content)}
+        </span>
+      </span>
+    </Button>
+  );
 }
 
 function MessageHoverAction({
@@ -119,6 +160,8 @@ export function MessageItem({
   onPin,
   onUnpin,
   onToggleReaction,
+  onReply,
+  onJumpToReply,
   reactionPending = false,
   members,
   tickets,
@@ -127,7 +170,7 @@ export function MessageItem({
 }: MessageItemProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isEdited = message.updatedAt !== message.createdAt;
-  const showActions = (isOwn || canManageMessages) && !isEditing;
+  const showActions = !isEditing;
 
   function handleSaveEdit() {
     const value = textareaRef.current?.value.trim();
@@ -210,6 +253,11 @@ export function MessageItem({
           </div>
         ) : (
           <>
+            <MessageReplyPreview
+              replyToId={message.replyToId}
+              replyTo={message.replyTo}
+              onJumpToReply={onJumpToReply}
+            />
             {message.content ? (
               <MessageMarkdown
                 content={message.content}
@@ -239,6 +287,12 @@ export function MessageItem({
             'group-focus-within:pointer-events-auto group-focus-within:opacity-100',
           )}
         >
+          <MessageHoverAction
+            label="Reply"
+            onClick={() => onReply(message.id)}
+          >
+            <Reply />
+          </MessageHoverAction>
           {canManageMessages ? (
             <MessageHoverAction
               label={isPinned ? 'Unpin message' : 'Pin message'}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useCallback, useEffect, useState } from 'react';
-import { SendHorizonal } from 'lucide-react';
+import { SendHorizonal, X } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { chatMessageFooterClass } from '@chat/_helpers/chat-footer-classes';
@@ -18,9 +18,19 @@ import {
   wrapAsMarkdownLink,
   wrapSelection,
 } from '../_helpers/markdown-shortcuts';
+import { messageReplySnippet } from '../_helpers/message-reply';
 import { AttachmentPickerButton } from './attachment-picker-button';
 import { AttachmentPreviewTray } from './attachment-preview-tray';
 import type { PendingAttachment } from '../_hooks/use-attachment-uploads';
+
+export type ComposerReplyTo = {
+  id: string;
+  content: string;
+  sender: {
+    name: string;
+    image: string | null;
+  } | null;
+};
 
 type MessageInputProps = {
   channelName: string | undefined;
@@ -30,6 +40,8 @@ type MessageInputProps = {
   tickets: TaggableTicket[];
   channels: TaggableChannel[];
   mentionMessages: TaggableMessage[];
+  replyTo: ComposerReplyTo | null;
+  onCancelReply: () => void;
   onSend: (content: string, attachmentIds: string[]) => void;
   onTyping: () => void;
   sendDisabled?: boolean;
@@ -57,6 +69,8 @@ export function MessageInput({
   tickets,
   channels,
   mentionMessages,
+  replyTo,
+  onCancelReply,
   onSend,
   onTyping,
   sendDisabled,
@@ -85,7 +99,7 @@ export function MessageInput({
 
   useEffect(() => {
     focusTextarea(textareaRef.current);
-  }, [channelName]);
+  }, [channelName, replyTo?.id]);
 
   useEffect(() => {
     if (wasSendDisabledRef.current && !sendDisabled) {
@@ -109,6 +123,12 @@ export function MessageInput({
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (picker.handlePickerKeyDown(e)) return;
+
+    if (e.key === 'Escape' && replyTo) {
+      e.preventDefault();
+      onCancelReply();
+      return;
+    }
 
     if ((e.metaKey || e.ctrlKey) && !e.altKey) {
       const shortcut = markdownShortcutForKey(e.key);
@@ -182,6 +202,30 @@ export function MessageInput({
           onMention={picker.applyMention}
           onHashItem={picker.applyHashItem}
         />
+        {replyTo ? (
+          <div className="mb-2 flex items-start justify-between gap-2 border-b border-border/60 pb-2">
+            <div className="min-w-0">
+              <p className="text-xs font-medium">
+                Replying to {replyTo.sender?.name ?? 'a message'}
+              </p>
+              <p className="truncate text-xs text-muted-foreground">
+                {replyTo.content
+                  ? messageReplySnippet(replyTo.content)
+                  : 'Original message'}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0"
+              onClick={onCancelReply}
+            >
+              <X />
+              <span className="sr-only">Cancel reply</span>
+            </Button>
+          </div>
+        ) : null}
         <AttachmentPreviewTray
           items={uploads.items}
           onRemove={uploads.remove}

@@ -30,6 +30,8 @@ type MessageListProps = {
   onPin: (messageId: string) => void;
   onUnpin: (messageId: string) => void;
   onToggleReaction: (messageId: string, emoji: string) => void;
+  onReply: (messageId: string) => void;
+  onJumpToReply: (messageId: string) => void;
   pendingReactionMessageId?: string;
   pinnedMessageIds: ReadonlySet<string>;
   canManageMessages: boolean;
@@ -113,6 +115,8 @@ export function MessageList({
   onPin,
   onUnpin,
   onToggleReaction,
+  onReply,
+  onJumpToReply,
   pendingReactionMessageId,
   pinnedMessageIds,
   canManageMessages,
@@ -234,6 +238,24 @@ export function MessageList({
     },
     [items, virtualizer],
   );
+
+  function handleJumpToReply(messageId: string) {
+    if (highlightMessageId === messageId) {
+      const index = items.findIndex(
+        (item) => item.type === 'message' && item.message.id === messageId,
+      );
+      if (index >= 0) {
+        stickToBottomRef.current = false;
+        isInitialPinRef.current = false;
+        isAutoScrollingRef.current = true;
+        virtualizer.scrollToIndex(index, { align: 'center' });
+        requestAnimationFrame(() => {
+          isAutoScrollingRef.current = false;
+        });
+      }
+    }
+    onJumpToReply(messageId);
+  }
 
   useEffect(() => {
     const messageId = editingMessageId ?? prevEditingMessageIdRef.current;
@@ -533,6 +555,8 @@ export function MessageList({
                 onPin={onPin}
                 onUnpin={onUnpin}
                 onToggleReaction={onToggleReaction}
+                onReply={onReply}
+                onJumpToReply={handleJumpToReply}
                 reactionPending={pendingReactionMessageId === item.message.id}
                 members={members}
                 tickets={tickets}

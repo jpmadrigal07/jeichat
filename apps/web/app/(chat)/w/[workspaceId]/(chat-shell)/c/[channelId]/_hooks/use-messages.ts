@@ -72,11 +72,22 @@ export function useSendMessage(channelId: string) {
 
   return useMutation({
     mutationFn: (
-      input: string | { content: string; attachmentIds?: string[] },
+      input:
+        | string
+        | {
+            content: string;
+            attachmentIds?: string[];
+            replyToId?: string | null;
+          },
     ) =>
       typeof input === 'string'
         ? sendMessage(channelId, input)
-        : sendMessage(channelId, input.content, input.attachmentIds ?? []),
+        : sendMessage(
+            channelId,
+            input.content,
+            input.attachmentIds ?? [],
+            input.replyToId,
+          ),
     onSuccess: (newMessage) => {
       addMessageToCache(queryClient, channelId, newMessage);
     },
@@ -141,7 +152,13 @@ export function removeMessageFromCache(
         ...old,
         pages: old.pages.map((page) => ({
           ...page,
-          data: page.data.filter((m) => m.id !== messageId),
+          data: page.data
+            .filter((m) => m.id !== messageId)
+            .map((m) =>
+              m.replyToId === messageId || m.replyTo?.id === messageId
+                ? { ...m, replyToId: null, replyTo: null }
+                : m,
+            ),
         })),
       };
     },

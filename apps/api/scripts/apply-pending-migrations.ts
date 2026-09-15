@@ -40,6 +40,11 @@ const migrations = [
     table: 'push_subscriptions',
     file: '../src/database/drizzle/0022_push_subscriptions.sql',
   },
+  {
+    name: '0023_message_reply_to',
+    column: { table: 'messages', name: 'reply_to_id' },
+    file: '../src/database/drizzle/0023_message_reply_to.sql',
+  },
 ] as const;
 
 try {

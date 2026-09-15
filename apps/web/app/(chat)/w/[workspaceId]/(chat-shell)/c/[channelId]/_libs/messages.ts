@@ -21,6 +21,16 @@ export type MessageReactionsPayload = {
   reactions: MessageReaction[];
 };
 
+export type MessageReplyTo = {
+  id: string;
+  content: string;
+  senderId: string;
+  sender: {
+    name: string;
+    image: string | null;
+  } | null;
+};
+
 export type Message = {
   id: string;
   channelId: string;
@@ -34,6 +44,8 @@ export type Message = {
   } | null;
   attachments: MessageAttachment[];
   reactions: MessageReaction[];
+  replyToId: string | null;
+  replyTo: MessageReplyTo | null;
 };
 
 export type MessagesResponse = {
@@ -57,6 +69,7 @@ export type MessagesInfiniteData = {
 export const MESSAGES_PAGE_SIZE = 50;
 
 export const MESSAGE_HIGHLIGHT_PARAM = 'message';
+export const MESSAGE_REPLY_PARAM = 'reply';
 
 export function messagesQueryKey(
   channelId: string,
@@ -160,10 +173,11 @@ export async function sendMessage(
   channelId: string,
   content: string,
   attachmentIds: string[] = [],
+  replyToId?: string | null,
 ): Promise<Message> {
   const { data } = await api.post<Message>(
     `/channels/${channelId}/messages`,
-    { content, attachmentIds },
+    { content, attachmentIds, replyToId: replyToId || undefined },
   );
   return data;
 }

@@ -18,7 +18,7 @@ import {
   useUnpinMessage,
 } from './_hooks/use-pins';
 import { useToggleMessageReaction } from './_hooks/use-reactions';
-import { flattenMessagePages, MESSAGE_HIGHLIGHT_PARAM, messagesQueryKey } from './_libs/messages';
+import { flattenMessagePages, MESSAGE_HIGHLIGHT_PARAM, MESSAGE_REPLY_PARAM, messagesQueryKey } from './_libs/messages';
 import { useSocket } from './_hooks/use-socket';
 import { useChannelEvents } from './_hooks/use-channel-events';
 import { mergeTicketTimeline } from './_helpers/merge-ticket-timeline';
@@ -149,6 +149,14 @@ export function ChannelView({
     () => flattenMessagePages(data?.pages),
     [data?.pages],
   );
+  const replyMessageId = searchParams.get(MESSAGE_REPLY_PARAM);
+  const replyTo = replyMessageId
+    ? (messages.find((message) => message.id === replyMessageId) ?? {
+        id: replyMessageId,
+        content: '',
+        sender: null,
+      })
+    : null;
   const mentionMessages = useMemo(
     () => taggableMessages(messages, channel?.name),
     [channel?.name, messages],
@@ -170,23 +178,57 @@ export function ChannelView({
     [typingUsers],
   );
 
-  function jumpToLatest() {
-    void queryClient.invalidateQueries({
-      queryKey: messagesQueryKey(channelId),
-    });
+  function replaceSearch(
+    mutate: (params: URLSearchParams) => void,
+  ) {
     const params = new URLSearchParams(searchParams.toString());
-    params.delete(MESSAGE_HIGHLIGHT_PARAM);
+    mutate(params);
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
 
+  function jumpToLatest() {
+    void queryClient.invalidateQueries({
+      queryKey: messagesQueryKey(channelId),
+    });
+    replaceSearch((params) => {
+      params.delete(MESSAGE_HIGHLIGHT_PARAM);
+    });
+  }
+
+  function startReply(messageId: string) {
+    replaceSearch((params) => {
+      params.set(MESSAGE_REPLY_PARAM, messageId);
+    });
+  }
+
+  function cancelReply() {
+    replaceSearch((params) => {
+      params.delete(MESSAGE_REPLY_PARAM);
+    });
+  }
+
+  function jumpToReply(messageId: string) {
+    replaceSearch((params) => {
+      params.set(MESSAGE_HIGHLIGHT_PARAM, messageId);
+    });
+  }
+
   function handleSend(content: string, attachmentIds: string[]) {
     sendMutation.mutate(
-      { content, attachmentIds },
+      { content, attachmentIds, replyToId: replyMessageId },
       {
         onSuccess: () => {
           uploads.reset();
-          if (highlightMessageId) jumpToLatest();
+          replaceSearch((params) => {
+            params.delete(MESSAGE_REPLY_PARAM);
+            if (highlightMessageId) params.delete(MESSAGE_HIGHLIGHT_PARAM);
+          });
+          if (highlightMessageId) {
+            void queryClient.invalidateQueries({
+              queryKey: messagesQueryKey(channelId),
+            });
+          }
         },
       },
     );
@@ -303,6 +345,8 @@ export function ChannelView({
             onPin={handlePin}
             onUnpin={handleUnpin}
             onToggleReaction={handleToggleReaction}
+            onReply={startReply}
+            onJumpToReply={jumpToReply}
             pendingReactionMessageId={
               reactionMutation.isPending
                 ? reactionMutation.variables?.messageId
@@ -327,6 +371,8 @@ export function ChannelView({
           tickets={tickets}
           channels={hashChannels}
           mentionMessages={mentionMessages}
+          replyTo={replyTo}
+          onCancelReply={cancelReply}
           onSend={handleSend}
           onTyping={emitTyping}
           sendDisabled={sendMutation.isPending}
