@@ -4,6 +4,8 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSyncExternalStore } from 'react';
 import {
+  getDesktopNotificationPermission,
+  getDesktopNotificationPermissionServerSnapshot,
   getDesktopNotificationsEnabled,
   getDesktopNotificationsServerSnapshot,
   subscribeDesktopNotifications,
@@ -18,10 +20,15 @@ export function PushNotificationsHost() {
     getDesktopNotificationsEnabled,
     getDesktopNotificationsServerSnapshot,
   );
+  const permission = useSyncExternalStore(
+    subscribeDesktopNotifications,
+    getDesktopNotificationPermission,
+    getDesktopNotificationPermissionServerSnapshot,
+  );
 
   useEffect(() => {
     void syncPushSubscription(enabled);
-  }, [enabled]);
+  }, [enabled, permission]);
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;

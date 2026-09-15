@@ -86,7 +86,7 @@ export async function promptPwaInstall(): Promise<PwaInstallOutcome> {
   return outcome;
 }
 
-function isPwaInstalled() {
+export function isPwaInstalled() {
   if (typeof window === 'undefined') return false;
   if (window.matchMedia('(display-mode: standalone)').matches) return true;
   if (window.matchMedia('(display-mode: window-controls-overlay)').matches) {

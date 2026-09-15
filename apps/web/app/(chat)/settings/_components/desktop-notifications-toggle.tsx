@@ -8,17 +8,22 @@ import {
   FieldLabel,
 } from '@/components/ui/field';
 import { useDesktopNotifications } from '../../_hooks/use-desktop-notifications';
+import { useNotificationPermissionHelp } from '../../_hooks/use-notification-permission-guidance';
+
+const DEFAULT_DESCRIPTION =
+  'Show a system notification for new messages, even when JeiChat is in the background or another app is focused.';
 
 export function DesktopNotificationsToggle() {
   const { enabled, permission, setEnabled } = useDesktopNotifications();
-  const denied = permission === 'denied';
+  const help = useNotificationPermissionHelp();
+  const locked = permission === 'denied' && help?.kind !== 'ios-safari';
 
   return (
-    <Field orientation="horizontal" data-disabled={denied || undefined}>
+    <Field orientation="horizontal" data-disabled={locked || undefined}>
       <Switch
         id="desktop-notifications"
-        checked={enabled && !denied}
-        disabled={denied}
+        checked={enabled && !locked}
+        disabled={locked}
         onCheckedChange={setEnabled}
       />
       <FieldContent>
@@ -26,9 +31,7 @@ export function DesktopNotificationsToggle() {
           Desktop notifications
         </FieldLabel>
         <FieldDescription>
-          {denied
-            ? 'Notifications are blocked in this browser. Allow them in site settings to get a system alert for new messages.'
-            : 'Show a system notification for new messages, even when JeiChat is in the background or another app is focused.'}
+          {help?.description ?? DEFAULT_DESCRIPTION}
         </FieldDescription>
       </FieldContent>
     </Field>

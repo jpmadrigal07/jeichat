@@ -3,8 +3,9 @@ import {
   messageNotificationSnippet,
   messageNotificationTargetLabel,
 } from './message-notification-copy';
-import { registerPwaServiceWorker } from '@/lib/pwa';
+import { getPwaInstallState, registerPwaServiceWorker } from '@/lib/pwa';
 import { playInboxNotificationSound } from './inbox-notification-sound';
+import { isIosDevice } from './notification-platform';
 import {
   deletePushSubscription,
   fetchVapidPublicKey,
@@ -103,8 +104,7 @@ function bindPermissionPrompt() {
   promptBound = true;
 
   const prompt = () => {
-    if (!getDesktopNotificationsEnabled()) return;
-    if (getDesktopNotificationPermission() !== 'default') return;
+    if (!canPromptBrowserNotificationPermission()) return;
     void requestDesktopNotificationPermission();
   };
 
@@ -149,6 +149,14 @@ export function setDesktopNotificationsEnabled(enabled: boolean) {
   emitChange();
 }
 
+export function canPromptBrowserNotificationPermission() {
+  if (!notificationSupported()) return false;
+  if (!getDesktopNotificationsEnabled()) return false;
+  if (getDesktopNotificationPermission() !== 'default') return false;
+  if (isIosDevice() && !getPwaInstallState().installed) return false;
+  return true;
+}
+
 export async function requestDesktopNotificationPermission() {
   if (!notificationSupported()) return 'denied' as NotificationPermission;
 
@@ -160,6 +168,14 @@ export async function requestDesktopNotificationPermission() {
     emitChange();
     return Notification.permission;
   }
+}
+
+export async function promptAndSyncDesktopNotifications() {
+  const permission = await requestDesktopNotificationPermission();
+  if (permission !== 'granted') return permission;
+  await syncPushSubscription(true);
+  await showDesktopNotificationPreview();
+  return permission;
 }
 
 export function canShowDesktopNotifications() {

@@ -2,13 +2,13 @@
 
 import { useSyncExternalStore } from 'react';
 import {
+  canPromptBrowserNotificationPermission,
   getDesktopNotificationPermission,
   getDesktopNotificationPermissionServerSnapshot,
   getDesktopNotificationsEnabled,
   getDesktopNotificationsServerSnapshot,
-  requestDesktopNotificationPermission,
+  promptAndSyncDesktopNotifications,
   setDesktopNotificationsEnabled,
-  showDesktopNotificationPreview,
   subscribeDesktopNotifications,
   syncPushSubscription,
 } from '../_helpers/desktop-notifications';
@@ -34,11 +34,12 @@ export function useDesktopNotifications() {
         void syncPushSubscription(false);
         return;
       }
-      void requestDesktopNotificationPermission().then((nextPermission) => {
-        if (nextPermission !== 'granted') return;
+      if (getDesktopNotificationPermission() === 'granted') {
         void syncPushSubscription(true);
-        void showDesktopNotificationPreview();
-      });
+        return;
+      }
+      if (!canPromptBrowserNotificationPermission()) return;
+      void promptAndSyncDesktopNotifications();
     },
   };
 }
