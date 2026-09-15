@@ -76,7 +76,7 @@ export function ChannelArchivedTicketsPanel({
         <h1 className="text-lg font-semibold">Archived tickets</h1>
         <p className="text-sm text-muted-foreground">
           Archived tickets are hidden from the board. Restore one to bring it
-          back.
+          back. Done tickets are auto-archived after 30 days.
         </p>
       </div>
 
@@ -88,8 +88,8 @@ export function ChannelArchivedTicketsPanel({
             </EmptyMedia>
             <EmptyTitle>No archived tickets</EmptyTitle>
             <EmptyDescription>
-              Tickets you archive from a ticket or the board will show up
-              here.
+              Tickets you archive, and Done tickets auto-archived after 30
+              days, will show up here.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

@@ -4,11 +4,12 @@ import { GatewayModule } from '../gateway/gateway.module';
 import { InboxModule } from '../inbox/inbox.module';
 import { ChannelsController } from './channels.controller';
 import { ChannelsService } from './channels.service';
+import { TicketAutoArchiveService } from './ticket-auto-archive.service';
 
 @Module({
   imports: [WorkspacesModule, GatewayModule, InboxModule],
   controllers: [ChannelsController],
-  providers: [ChannelsService],
+  providers: [ChannelsService, TicketAutoArchiveService],
   exports: [ChannelsService],
 })
 export class ChannelsModule {}

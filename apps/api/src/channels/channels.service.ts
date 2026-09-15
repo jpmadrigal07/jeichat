@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, count, eq, gt, inArray, isNotNull, isNull, max, ne, or } from 'drizzle-orm';
+import { and, asc, count, eq, gt, inArray, isNotNull, isNull, lt, max, ne, or } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { DrizzleService } from '../database/drizzle.service';
 import {
@@ -17,6 +17,7 @@ import {
   labels,
   messages,
   workspaceMembers,
+  workspaces,
 } from '../database/schema';
 import { user } from '../database/schema/auth';
 import { ChatGateway } from '../gateway/chat.gateway';
@@ -32,6 +33,20 @@ import { PERMISSIONS } from '../workspaces/permissions';
 import { WorkspacePermissionsService } from '../workspaces/workspace-permissions.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import {
+  completedAtAfterArchiveChange,
+  doneTicketArchiveCutoff,
+  isDoneTicketAutoArchiveEnabled,
+  nextCompletedAt,
+} from './ticket-auto-archive';
+import {
+  isParentChannelEventType,
+  PARENT_CHANNEL_EVENT_TYPES,
+  type TicketEvent,
+  type TicketEventLabel,
+  type TicketEventType,
+  type TicketEventWatcher,
+} from './ticket-events';
+import {
   DEFAULT_TICKET_PRIORITY,
   DEFAULT_TICKET_STATUS,
   parseChannelKey,
@@ -45,14 +60,6 @@ import {
   ticketDisplayId,
   ticketPrefixOf,
 } from './ticket-fields';
-import {
-  isParentChannelEventType,
-  PARENT_CHANNEL_EVENT_TYPES,
-  type TicketEvent,
-  type TicketEventLabel,
-  type TicketEventType,
-  type TicketEventWatcher,
-} from './ticket-events';
 
 const parentChannels = alias(channels, 'parent_channels');
 
@@ -266,6 +273,10 @@ export class ChannelsService {
 
     const now = new Date();
     const threadId = crypto.randomUUID();
+    const threadStatus =
+      status === undefined
+        ? DEFAULT_TICKET_STATUS
+        : parseTicketStatus(status);
     const [thread] = await this.drizzle.db
       .insert(channels)
       .values({
@@ -274,10 +285,8 @@ export class ChannelsService {
         parentId,
         name: trimmed,
         description: trimmedDescription,
-        status:
-          status === undefined
-            ? DEFAULT_TICKET_STATUS
-            : parseTicketStatus(status),
+        status: threadStatus,
+        completedAt: threadStatus === 'done' ? now : null,
         priority: DEFAULT_TICKET_PRIORITY,
         ticketNumber: (lastTicket?.last ?? 0) + 1,
         createdAt: now,
@@ -524,6 +533,7 @@ export class ChannelsService {
       assigneeId?: string | null;
       dueAt?: Date | null;
       archivedAt?: Date | null;
+      completedAt?: Date | null;
       updatedAt: Date;
     } = { updatedAt: new Date() };
 
@@ -579,6 +589,14 @@ export class ChannelsService {
 
     if (data.status !== undefined) {
       patch.status = parseTicketStatus(data.status);
+      const completedAt = nextCompletedAt(
+        existing.status,
+        patch.status,
+        patch.updatedAt,
+      );
+      if (completedAt !== undefined) {
+        patch.completedAt = completedAt;
+      }
     }
     if (data.priority !== undefined) {
       patch.priority = parseTicketPriority(data.priority);
@@ -599,6 +617,15 @@ export class ChannelsService {
       const currentlyArchived = existing.archivedAt !== null;
       if (data.archived !== currentlyArchived) {
         patch.archivedAt = data.archived ? patch.updatedAt : null;
+        const restoredCompletedAt = completedAtAfterArchiveChange({
+          currentlyArchived,
+          nextArchived: data.archived,
+          nextStatus: patch.status ?? existing.status,
+          now: patch.updatedAt,
+        });
+        if (restoredCompletedAt !== undefined) {
+          patch.completedAt = restoredCompletedAt;
+        }
       }
     }
 
@@ -822,6 +849,72 @@ export class ChannelsService {
     }
 
     return enriched;
+  }
+
+  async archiveStaleDoneTickets(now = new Date()) {
+    const policies = await this.drizzle.db
+      .select({
+        id: workspaces.id,
+        days: workspaces.doneTicketArchiveAfterDays,
+      })
+      .from(workspaces);
+
+    const stale: { id: string; parentId: string | null }[] = [];
+    for (const policy of policies) {
+      if (!isDoneTicketAutoArchiveEnabled(policy.days)) continue;
+      const cutoff = doneTicketArchiveCutoff(now, policy.days);
+      const rows = await this.drizzle.db
+        .select({
+          id: channels.id,
+          parentId: channels.parentId,
+        })
+        .from(channels)
+        .where(
+          and(
+            eq(channels.workspaceId, policy.id),
+            isNotNull(channels.parentId),
+            eq(channels.status, 'done'),
+            isNull(channels.archivedAt),
+            isNotNull(channels.completedAt),
+            lt(channels.completedAt, cutoff),
+          ),
+        );
+      stale.push(...rows);
+    }
+
+    if (stale.length === 0) return 0;
+
+    const eventRows = stale.map((ticket) => ({
+      id: crypto.randomUUID(),
+      channelId: ticket.id,
+      actorId: null,
+      type: 'archived_changed' as const,
+      fromValue: false,
+      toValue: true,
+      createdAt: now,
+    }));
+
+    await this.drizzle.db.transaction(async (tx) => {
+      await tx
+        .update(channels)
+        .set({ archivedAt: now, updatedAt: now })
+        .where(
+          inArray(
+            channels.id,
+            stale.map((ticket) => ticket.id),
+          ),
+        );
+      await tx.insert(channelEvents).values(eventRows);
+    });
+
+    const published = await this.loadTicketEventsByIds(
+      eventRows.map((row) => row.id),
+    );
+    for (const event of published) {
+      this.publishTicketEvents(event.channelId, event.parentId, [event]);
+    }
+
+    return stale.length;
   }
 
   async getUnreadCounts(workspaceId: string, userId: string) {
@@ -1396,7 +1489,7 @@ export class ChannelsService {
 
   private async buildTicketEvents(input: {
     channelId: string;
-    actorId: string;
+    actorId: string | null;
     createdAt: Date;
     existing: {
       status: string | null;
@@ -1420,7 +1513,7 @@ export class ChannelsService {
     const rows: {
       id: string;
       channelId: string;
-      actorId: string;
+      actorId: string | null;
       type: TicketEventType;
       fromValue: unknown;
       toValue: unknown;

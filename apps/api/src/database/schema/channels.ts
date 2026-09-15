@@ -29,6 +29,7 @@ export const channels = pgTable(
     }),
     dueAt: timestamp('due_at', { withTimezone: true }),
     archivedAt: timestamp('archived_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
     ticketNumber: integer('ticket_number'),
     ticketKey: text('ticket_key'),
     channelType: text('channel_type').notNull().default('channel'),
@@ -48,6 +49,11 @@ export const channels = pgTable(
       table.parentId,
       table.archivedAt,
     ),
+    index('channels_done_auto_archive_idx')
+      .on(table.workspaceId, table.completedAt)
+      .where(
+        sql`${table.parentId} is not null and ${table.status} = 'done' and ${table.archivedAt} is null`,
+      ),
     uniqueIndex('channels_workspace_id_name_unq')
       .on(table.workspaceId, table.name)
       .where(

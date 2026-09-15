@@ -9,9 +9,7 @@ export const channelEvents = pgTable(
     channelId: text('channel_id')
       .notNull()
       .references(() => channels.id, { onDelete: 'cascade' }),
-    actorId: text('actor_id')
-      .notNull()
-      .references(() => user.id),
+    actorId: text('actor_id').references(() => user.id),
     type: text('type').notNull(),
     fromValue: jsonb('from_value'),
     toValue: jsonb('to_value'),

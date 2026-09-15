@@ -19,6 +19,7 @@ import {
 import { canCreateWorkspace } from './workspace-creation';
 import { WorkspaceRolesService } from './workspace-roles.service';
 import { ChatGateway } from '../gateway/chat.gateway';
+import { parseDoneTicketArchiveAfterDays } from '../channels/ticket-auto-archive';
 import {
   DEFAULT_WORKSPACE_LABELS,
   LABEL_COLORS,
@@ -95,6 +96,7 @@ export class WorkspacesService {
         name: workspaces.name,
         icon: workspaces.icon,
         ownerId: workspaces.ownerId,
+        doneTicketArchiveAfterDays: workspaces.doneTicketArchiveAfterDays,
         createdAt: workspaces.createdAt,
         updatedAt: workspaces.updatedAt,
         role: workspaceMembers.role,
@@ -120,13 +122,32 @@ export class WorkspacesService {
   async update(
     id: string,
     userId: string,
-    data: { name?: string; icon?: string | null },
+    data: {
+      name?: string;
+      icon?: string | null;
+      doneTicketArchiveAfterDays?: number;
+    },
   ) {
     await this.verifyOwnership(id, userId);
 
+    const patch: {
+      name?: string;
+      icon?: string | null;
+      doneTicketArchiveAfterDays?: number;
+      updatedAt: Date;
+    } = { updatedAt: new Date() };
+
+    if (data.name !== undefined) patch.name = data.name;
+    if (data.icon !== undefined) patch.icon = data.icon;
+    if (data.doneTicketArchiveAfterDays !== undefined) {
+      patch.doneTicketArchiveAfterDays = parseDoneTicketArchiveAfterDays(
+        data.doneTicketArchiveAfterDays,
+      );
+    }
+
     const [workspace] = await this.drizzle.db
       .update(workspaces)
-      .set({ ...data, updatedAt: new Date() })
+      .set(patch)
       .where(eq(workspaces.id, id))
       .returning();
 

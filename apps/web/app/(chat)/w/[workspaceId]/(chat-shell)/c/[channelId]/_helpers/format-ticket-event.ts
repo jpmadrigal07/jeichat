@@ -182,6 +182,14 @@ export function formatTicketEvent(event: TicketEvent): TicketEventCopy {
     }
     case 'archived_changed': {
       const archived = event.toValue === true;
+      if (!event.actor && archived) {
+        return {
+          actorName: 'JeiChat',
+          text: 'auto-archived this ticket',
+          verb: 'auto-archived',
+          detail: null,
+        };
+      }
       return {
         actorName,
         text: archived ? 'archived this ticket' : 'restored this ticket',

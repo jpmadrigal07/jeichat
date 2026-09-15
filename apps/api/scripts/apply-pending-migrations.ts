@@ -45,6 +45,11 @@ const migrations = [
     column: { table: 'messages', name: 'reply_to_id' },
     file: '../src/database/drizzle/0023_message_reply_to.sql',
   },
+  {
+    name: '0024_ticket_auto_archive',
+    column: { table: 'channels', name: 'completed_at' },
+    file: '../src/database/drizzle/0024_ticket_auto_archive.sql',
+  },
 ] as const;
 
 try {

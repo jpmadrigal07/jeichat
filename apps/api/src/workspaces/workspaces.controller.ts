@@ -84,7 +84,12 @@ export class WorkspacesController {
   @Patch(':id')
   update(
     @Param('id') id: string,
-    @Body() body: { name?: string; icon?: string | null },
+    @Body()
+    body: {
+      name?: string;
+      icon?: string | null;
+      doneTicketArchiveAfterDays?: number;
+    },
     @Session() session: UserSession<typeof auth>,
   ) {
     return this.workspacesService.update(id, session.user.id, body);

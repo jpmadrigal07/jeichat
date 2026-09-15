@@ -75,8 +75,15 @@ export function useCreateWorkspace() {
 export function useUpdateWorkspace() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...payload }: { id: string; name?: string; icon?: string | null }) =>
-      updateWorkspace(id, payload),
+    mutationFn: ({
+      id,
+      ...payload
+    }: {
+      id: string;
+      name?: string;
+      icon?: string | null;
+      doneTicketArchiveAfterDays?: number;
+    }) => updateWorkspace(id, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: workspacesQueryKey });
     },

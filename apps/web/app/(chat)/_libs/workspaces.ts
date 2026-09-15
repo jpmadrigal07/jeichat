@@ -5,6 +5,7 @@ export type Workspace = {
   name: string;
   icon: string | null;
   ownerId: string;
+  doneTicketArchiveAfterDays: number;
   createdAt: string;
   updatedAt: string;
   role?: string;
@@ -56,7 +57,11 @@ export async function createWorkspace(payload: {
 
 export async function updateWorkspace(
   id: string,
-  payload: { name?: string; icon?: string | null },
+  payload: {
+    name?: string;
+    icon?: string | null;
+    doneTicketArchiveAfterDays?: number;
+  },
 ): Promise<Workspace> {
   const { data } = await api.patch<Workspace>(`/workspaces/${id}`, payload);
   return data;

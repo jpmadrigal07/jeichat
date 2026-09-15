@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp } from 'drizzle-orm/pg-core';
+import { integer, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 import { user } from './auth';
 
 export const workspaces = pgTable('workspaces', {
@@ -8,6 +8,9 @@ export const workspaces = pgTable('workspaces', {
   ownerId: text('owner_id')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
+  doneTicketArchiveAfterDays: integer('done_ticket_archive_after_days')
+    .notNull()
+    .default(30),
   createdAt: timestamp('created_at', { withTimezone: true })
     .defaultNow()
     .notNull(),
