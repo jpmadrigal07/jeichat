@@ -3,18 +3,21 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { LogOut, Settings } from 'lucide-react';
+import { Download, LogOut, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PresenceAvatar } from './presence-avatar';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { authClient } from '@/lib/auth-client';
+import { usePwaInstall } from '@/app/_hooks/use-pwa-install';
+import { requestPwaInstall } from '@/app/_components/pwa-install-button';
 import { chatUserFooterClass } from '../_helpers/chat-footer-classes';
 import {
   profileSettingsHref,
@@ -61,6 +64,7 @@ function UserBarChrome({
   settingsHref: string;
 }) {
   const router = useRouter();
+  const { installed } = usePwaInstall();
 
   async function handleSignOut() {
     await authClient.signOut();
@@ -93,17 +97,27 @@ function UserBarChrome({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="start" className="w-56">
-            <DropdownMenuItem asChild>
-              <Link href={settingsHref}>
-                <Settings />
-                My Account
-              </Link>
-            </DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuItem asChild>
+                <Link href={settingsHref}>
+                  <Settings />
+                  My Account
+                </Link>
+              </DropdownMenuItem>
+              {installed ? null : (
+                <DropdownMenuItem onClick={() => void requestPwaInstall()}>
+                  <Download />
+                  Install
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onSelect={handleSignOut}>
-              <LogOut />
-              Log out
-            </DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuItem variant="destructive" onSelect={handleSignOut}>
+                <LogOut />
+                Log out
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
 

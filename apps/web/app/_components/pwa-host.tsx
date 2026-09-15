@@ -1,7 +1,12 @@
 'use client';
 
 import { useEffect } from 'react';
-import { registerPwaServiceWorker } from '@/lib/pwa';
+import {
+  listenForPwaInstallPrompt,
+  registerPwaServiceWorker,
+} from '@/lib/pwa';
+
+listenForPwaInstallPrompt();
 
 export function PwaHost() {
   useEffect(() => {

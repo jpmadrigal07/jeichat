@@ -10,6 +10,7 @@ import {
   ProfileIdentityFields,
   SignOutButton,
 } from './account-settings-fields';
+import { PwaInstallButton } from '@/app/_components/pwa-install-button';
 import { DesktopNotificationsToggle } from './desktop-notifications-toggle';
 import { InboxNotificationSoundToggle } from './inbox-notification-sound-toggle';
 
@@ -52,6 +53,10 @@ export function AccountSettings({ user }: { user: User }) {
           <Separator />
 
           <ChangePasswordForm />
+
+          <Separator />
+
+          <PwaInstallButton />
 
           <Separator />
 

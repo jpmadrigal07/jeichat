@@ -20,6 +20,7 @@ import {
   SignOutButton,
   type ProfileUser,
 } from '../settings/_components/account-settings-fields';
+import { PwaInstallButton } from '@/app/_components/pwa-install-button';
 import { DesktopNotificationsToggle } from '../settings/_components/desktop-notifications-toggle';
 import { InboxNotificationSoundToggle } from '../settings/_components/inbox-notification-sound-toggle';
 
@@ -139,6 +140,8 @@ function UserSettingsDialog({
                 <ProfileIdentityFields user={user} />
                 <Separator />
                 <ChangePasswordForm />
+                <Separator />
+                <PwaInstallButton />
                 <Separator />
                 <SignOutButton />
               </>
