@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { getSocket } from '@/lib/socket';
 import { showMessageNotificationToast } from '../_components/message-notification-toast';
@@ -26,6 +27,7 @@ export function useGlobalUnreadSocket({
   userId,
 }: UseGlobalUnreadSocketOptions) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const activeChannelIdRef = useRef(activeChannelId);
   activeChannelIdRef.current = activeChannelId;
   const joinedChannelsRef = useRef(new Set<string>());
@@ -115,7 +117,9 @@ export function useGlobalUnreadSocket({
         return;
       }
 
-      void showDesktopMessageNotification(notification);
+      void showDesktopMessageNotification(notification, (href) => {
+        router.push(href);
+      });
     };
 
     socket.on('message_notification', handleMessageNotification);
@@ -123,7 +127,7 @@ export function useGlobalUnreadSocket({
     return () => {
       socket.off('message_notification', handleMessageNotification);
     };
-  }, [queryClient, userId]);
+  }, [queryClient, router, userId]);
 
   useEffect(() => {
     return () => {

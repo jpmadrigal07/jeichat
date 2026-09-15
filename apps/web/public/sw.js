@@ -22,28 +22,6 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(openHref(href));
 });
 
-const recentTags = new Map();
-const DEDUPE_MS = 2000;
-
-async function displayNotification(title, options) {
-  const tag = options.tag || 'jeichat:message';
-  const now = Date.now();
-  const lastShown = recentTags.get(tag) ?? 0;
-  if (now - lastShown < DEDUPE_MS) return;
-  recentTags.set(tag, now);
-
-  await self.registration.showNotification(title || 'JeiChat', {
-    body: options.body || 'New message',
-    icon: options.icon || '/icons/icon-192.png',
-    badge: options.badge || '/icons/icon-192.png',
-    tag,
-    renotify: false,
-    data: options.data || { href: '/' },
-    silent: options.silent ?? false,
-    sound: '/sounds/notification.wav',
-  });
-}
-
 async function handlePush(event) {
   if (!event.data) return;
 
@@ -52,18 +30,22 @@ async function handlePush(event) {
     type: 'window',
     includeUncontrolled: true,
   });
-
-  // Looking at JeiChat: the in-app toast already covered this.
   if (windowClients.some((client) => client.focused)) return;
 
   const hasClient = windowClients.length > 0;
-  await displayNotification(payload.title, {
-    body: payload.body,
-    icon: payload.icon,
-    tag: payload.tag,
+  for (const client of windowClients) {
+    client.postMessage({ type: 'jeichat:play-sound' });
+  }
+
+  await self.registration.showNotification(payload.title || 'JeiChat', {
+    body: payload.body || 'New message',
+    icon: payload.icon || '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    tag: payload.tag || 'jeichat:message',
+    renotify: true,
     data: { href: payload.href || '/' },
-    // Open window already plays the JeiChat sound; keep the toast silent then.
     silent: hasClient,
+    sound: '/sounds/notification.wav',
   });
 }
 

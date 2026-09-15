@@ -1,3 +1,8 @@
+import {
+  messageNotificationHref,
+  messageNotificationSnippet,
+  messageNotificationTargetLabel,
+} from './message-notification-copy';
 import { registerPwaServiceWorker } from '@/lib/pwa';
 import { playInboxNotificationSound } from './inbox-notification-sound';
 import {
@@ -206,21 +211,32 @@ export async function syncPushSubscription(enabled = getDesktopNotificationsEnab
   });
 }
 
+function notificationOptions(
+  notification: MessageNotification,
+): NotificationOptionsWithRenotify {
+  const target = messageNotificationTargetLabel(notification);
+  const snippet = messageNotificationSnippet(notification);
+
+  return {
+    body: `${target}\n${snippet}`,
+    icon: notificationIconUrl(notification.message.sender?.image),
+    badge: '/icon.png',
+    tag: `jeichat:message:${notification.workspaceId}:${notification.channel.id}`,
+    renotify: true,
+    silent: true,
+    data: { href: messageNotificationHref(notification) },
+  };
+}
+
 async function showSystemNotification(
   title: string,
   options: NotificationOptionsWithRenotify,
   onOpen?: (href: string) => void,
 ) {
-  try {
-    const registration =
-      (await registerNotificationServiceWorker()) ??
-      (await navigator.serviceWorker.ready.catch(() => null));
-    if (registration) {
-      await registration.showNotification(title, options);
-      return true;
-    }
-  } catch {
-    // Fall through to the Notification constructor.
+  const registration = await registerNotificationServiceWorker();
+  if (registration) {
+    await registration.showNotification(title, options);
+    return true;
   }
 
   const desktopNotification = new Notification(title, options);
@@ -253,10 +269,19 @@ export async function showDesktopNotificationPreview() {
 
 export async function showDesktopMessageNotification(
   notification: MessageNotification,
+  onOpen?: (href: string) => void,
 ) {
   if (!canShowDesktopNotifications()) return false;
   if (isAppInForeground()) return false;
 
-  playInboxNotificationSound();
-  return true;
+  try {
+    playInboxNotificationSound();
+    return await showSystemNotification(
+      notification.message.sender?.name ?? 'Someone',
+      notificationOptions(notification),
+      onOpen,
+    );
+  } catch {
+    return false;
+  }
 }

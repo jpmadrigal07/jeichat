@@ -3,7 +3,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getSocket } from '@/lib/socket';
-import { isAppInForeground } from '@chat/_helpers/desktop-notifications';
 import { playInboxNotificationSound } from '@chat/_helpers/inbox-notification-sound';
 import {
   addMessageToCache,
@@ -54,7 +53,7 @@ export function useSocket(
     const handleNewMessage = (message: Message) => {
       if (message.channelId !== channelIdRef.current) return;
       addMessageToCache(queryClient, channelIdRef.current, message);
-      if (message.senderId !== currentUserIdRef.current && isAppInForeground()) {
+      if (message.senderId !== currentUserIdRef.current) {
         playInboxNotificationSound();
       }
     };
