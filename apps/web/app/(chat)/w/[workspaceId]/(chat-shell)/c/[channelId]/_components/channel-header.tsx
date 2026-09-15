@@ -127,6 +127,7 @@ export function ChannelHeader({
               channelId={channel.id}
               parentChannelId={channel.parentId}
               archivedAt={channel.archivedAt}
+              variant="button"
             />
           </>
         ) : null}

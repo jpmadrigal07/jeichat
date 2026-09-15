@@ -557,6 +557,7 @@ export function TicketArchiveMenu({
   size = 'icon-sm',
   className,
   stopCardGestures = false,
+  variant = 'menu',
 }: {
   workspaceId: string;
   channelId: string;
@@ -565,10 +566,13 @@ export function TicketArchiveMenu({
   size?: 'icon-sm' | 'icon-xs';
   className?: string;
   stopCardGestures?: boolean;
+  variant?: 'menu' | 'button';
 }) {
   const router = useRouter();
   const updateChannel = useUpdateChannel(workspaceId);
   const archived = isTicketArchived({ archivedAt });
+  const label = archived ? 'Restore ticket' : 'Archive ticket';
+  const Icon = archived ? RotateCcw : Archive;
   const gestureProps = stopCardGestures
     ? {
         draggable: false as const,
@@ -577,6 +581,34 @@ export function TicketArchiveMenu({
         onDragStart: preventCardDrag,
       }
     : {};
+
+  function toggleArchived() {
+    const nextArchived = !archived;
+    updateChannel.mutate({
+      channelId,
+      archived: nextArchived,
+    });
+    if (nextArchived && parentChannelId) {
+      router.replace(channelPageHref(workspaceId, parentChannelId));
+    }
+  }
+
+  if (variant === 'button') {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className={className}
+        disabled={updateChannel.isPending}
+        aria-label={label}
+        onClick={toggleArchived}
+      >
+        <Icon data-icon="inline-start" />
+        {label}
+      </Button>
+    );
+  }
 
   return (
     <DropdownMenu>
@@ -594,22 +626,9 @@ export function TicketArchiveMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-40">
         <DropdownMenuGroup>
-          <DropdownMenuItem
-            onSelect={() => {
-              const nextArchived = !archived;
-              updateChannel.mutate({
-                channelId,
-                archived: nextArchived,
-              });
-              if (nextArchived && parentChannelId) {
-                router.replace(
-                  channelPageHref(workspaceId, parentChannelId),
-                );
-              }
-            }}
-          >
-            {archived ? <RotateCcw /> : <Archive />}
-            {archived ? 'Restore ticket' : 'Archive ticket'}
+          <DropdownMenuItem onSelect={toggleArchived}>
+            <Icon />
+            {label}
           </DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>
