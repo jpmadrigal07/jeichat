@@ -12,6 +12,7 @@ import {
   ListFilter,
   UserRound,
   MessagesSquare,
+  Ticket,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -48,12 +49,10 @@ import {
 import {
   TICKET_STATUSES,
   TICKET_STATUS_META,
-  ticketDisplayId,
-  ticketPrefixOf,
   personInitials,
   type TicketStatus,
 } from '../_helpers/ticket-fields';
-import { isAssignedOpenTicket } from '../_helpers/ticket-filters';
+import { isAssignedTicket } from '../_helpers/ticket-filters';
 import {
   DEFAULT_SIDEBAR_TICKET_FILTER,
   channelSidebarTicketFilter,
@@ -97,9 +96,10 @@ export function ChannelSidebar({ user }: { user: User }) {
 
   const activeWorkspace = workspaces?.find((ws) => ws.id === workspaceId);
   const { topLevel, dms, threadsByParent } = groupChannelsByParent(channels ?? []);
-  const myIssues = (channels ?? [])
-    .filter((channel) => isAssignedOpenTicket(channel, user.id))
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const myTicketsUnread = (channels ?? []).reduce((total, channel) => {
+    if (!isAssignedTicket(channel, user.id)) return total;
+    return total + (unreadCounts?.[channel.id] ?? 0);
+  }, 0);
 
   if (!workspaceId) {
     return (
@@ -138,14 +138,24 @@ export function ChannelSidebar({ user }: { user: User }) {
 
       <ScrollArea className="min-h-0 min-w-0 flex-1 overflow-hidden [&_[data-slot=scroll-area-viewport]>div]:block! [&_[data-slot=scroll-area-viewport]>div]:min-w-0! [&_[data-slot=scroll-area-viewport]>div]:w-full!">
         <div className="flex min-w-0 flex-col gap-3 px-2 py-2">
-          <ChannelNavLink
-            href={`/w/${workspaceId}/inbox`}
-            name="Inbox"
-            icon={Inbox}
-            isActive={pathname === `/w/${workspaceId}/inbox`}
-            unreadCount={inboxUnread?.unreadCount ?? 0}
-            className="w-full"
-          />
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <ChannelNavLink
+              href={`/w/${workspaceId}/inbox`}
+              name="Inbox"
+              icon={Inbox}
+              isActive={pathname === `/w/${workspaceId}/inbox`}
+              unreadCount={inboxUnread?.unreadCount ?? 0}
+              className="w-full"
+            />
+            <ChannelNavLink
+              href={`/w/${workspaceId}/my-tickets`}
+              name="My tickets"
+              icon={Ticket}
+              isActive={pathname === `/w/${workspaceId}/my-tickets`}
+              unreadCount={myTicketsUnread}
+              className="w-full"
+            />
+          </div>
 
           {isLoading ? (
             <div className="flex flex-col gap-1">
@@ -155,14 +165,6 @@ export function ChannelSidebar({ user }: { user: User }) {
             </div>
           ) : (
             <div className="flex min-w-0 flex-col gap-3">
-              <MyIssuesNav
-                workspaceId={workspaceId}
-                tickets={myIssues}
-                channels={channels ?? []}
-                activeChannelId={params.channelId}
-                unreadCounts={unreadCounts}
-              />
-
               <div className="flex min-w-0 flex-col gap-0.5">
                 <div className="flex items-center justify-between px-1 mb-0.5">
                   <span className="px-1 text-xs font-medium text-muted-foreground">
@@ -359,70 +361,6 @@ function ChannelTicketFilterMenu({
         ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-}
-
-function myIssueLabel(ticket: Channel, channels: Channel[]) {
-  const parent = channels.find((channel) => channel.id === ticket.parentId);
-  if (!parent || !ticket.ticketNumber) return ticket.name;
-  return `${ticketDisplayId(ticketPrefixOf(parent), ticket.ticketNumber)} ${ticket.name}`;
-}
-
-function MyIssuesNav({
-  workspaceId,
-  tickets,
-  channels,
-  activeChannelId,
-  unreadCounts,
-}: {
-  workspaceId: string;
-  tickets: Channel[];
-  channels: Channel[];
-  activeChannelId: string | undefined;
-  unreadCounts: Record<string, number> | undefined;
-}) {
-  const hasActiveTicket = tickets.some((ticket) => ticket.id === activeChannelId);
-
-  return (
-    <Collapsible
-      defaultOpen={tickets.length > 0 || hasActiveTicket}
-      className="group/my-issues flex min-w-0 flex-col gap-0.5"
-    >
-      <CollapsibleTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full min-w-0 max-w-full shrink justify-start overflow-hidden px-2 font-normal text-muted-foreground"
-        >
-          <ChevronRight
-            data-icon="inline-start"
-            className="transition-transform group-data-[state=open]/my-issues:rotate-90"
-          />
-          <span className="text-xs font-medium">My tickets</span>
-          <Badge variant="secondary" className="ml-auto">
-            {tickets.length}
-          </Badge>
-        </Button>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="ml-4 flex min-w-0 flex-col gap-0.5 border-l pl-1">
-        {tickets.length === 0 ? (
-          <p className="px-2 py-1 text-xs text-muted-foreground">
-            No open tickets assigned to you
-          </p>
-        ) : (
-          tickets.map((ticket) => (
-            <ChannelNavLink
-              key={ticket.id}
-              href={`/w/${workspaceId}/c/${ticket.id}`}
-              name={myIssueLabel(ticket, channels)}
-              isActive={ticket.id === activeChannelId}
-              unreadCount={unreadCounts?.[ticket.id] ?? 0}
-              className="w-full"
-            />
-          ))
-        )}
-      </CollapsibleContent>
-    </Collapsible>
   );
 }
 

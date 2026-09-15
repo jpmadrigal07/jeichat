@@ -1,6 +1,8 @@
 import {
   TICKET_PRIORITIES,
   isTicketArchived,
+  ticketDisplayId,
+  ticketPrefixOf,
   ticketPriorityOf,
   ticketStatusOf,
   type TicketPriority,
@@ -221,6 +223,21 @@ export function ticketMatchesFilters(
   return true;
 }
 
+export function isAssignedTicket(
+  ticket: {
+    parentId: string | null;
+    assigneeId: string | null;
+    archivedAt?: string | Date | null;
+  },
+  userId: string,
+) {
+  return (
+    Boolean(ticket.parentId) &&
+    ticket.assigneeId === userId &&
+    !isTicketArchived(ticket)
+  );
+}
+
 export function isAssignedOpenTicket(
   ticket: {
     parentId: string | null;
@@ -231,9 +248,19 @@ export function isAssignedOpenTicket(
   userId: string,
 ) {
   return (
-    Boolean(ticket.parentId) &&
-    ticket.assigneeId === userId &&
-    isOpenStatus(ticketStatusOf(ticket.status)) &&
-    !isTicketArchived(ticket)
+    isAssignedTicket(ticket, userId) &&
+    isOpenStatus(ticketStatusOf(ticket.status))
   );
+}
+
+export function assignedTicketLabel(
+  ticket: {
+    parentId: string | null;
+    name: string;
+    ticketNumber: number | null;
+  },
+  parent?: { ticketKey?: string | null; name: string } | null,
+) {
+  if (!parent || !ticket.ticketNumber) return ticket.name;
+  return `${ticketDisplayId(ticketPrefixOf(parent), ticket.ticketNumber)} ${ticket.name}`;
 }
