@@ -2,10 +2,12 @@
 
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
+import { useState } from 'react';
 import {
   Plus,
   ChevronDown,
   ChevronRight,
+  FolderMinus,
   Settings,
   MoreHorizontal,
   Inbox,
@@ -34,6 +36,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useChannels } from '../_hooks/use-channels';
 import { ChannelTypeIcon } from './channel-type-icon';
 import { useUnreadCounts } from '../_hooks/use-unread-counts';
@@ -62,7 +69,9 @@ import {
   toggleSidebarStatus,
   type SidebarTicketFilter,
 } from '../_helpers/sidebar-ticket-filter';
+import { isChannelFolderCollapsed } from '../_helpers/sidebar-channel-collapse';
 import { useSidebarTicketFilters } from '../_hooks/use-sidebar-ticket-filter';
+import { useSidebarChannelCollapse } from '../_hooks/use-sidebar-channel-collapse';
 import { channelBoardHref, type Channel } from '../_libs/channels';
 import { CreateChannelDialog } from './create-channel-dialog';
 import { CreateDmDialog } from './create-dm-dialog';
@@ -93,6 +102,9 @@ export function ChannelSidebar({ user }: { user: User }) {
   useInboxSocket(workspaceId ?? '');
   const { filters: sidebarFilters, setChannelFilter } =
     useSidebarTicketFilters(workspaceId ?? '');
+  const { collapsedIds, setChannelCollapsed } = useSidebarChannelCollapse(
+    workspaceId ?? '',
+  );
 
   const activeWorkspace = workspaces?.find((ws) => ws.id === workspaceId);
   const { topLevel, dms, threadsByParent } = groupChannelsByParent(channels ?? []);
@@ -180,97 +192,31 @@ export function ChannelSidebar({ user }: { user: User }) {
                     </Button>
                   </CreateChannelDialog>
                 </div>
-                {topLevel.map((channel) => {
-                  const channelFilter = channelSidebarTicketFilter(
-                    sidebarFilters,
-                    channel.id,
-                  );
-                  const threads = filterSidebarTickets(
-                    threadsByParent.get(channel.id) ?? [],
-                    channelFilter,
-                    user.id,
-                    params.channelId,
-                  );
-                  const isActive = channel.id === params.channelId;
-                  return (
-                    <div key={channel.id} className="flex min-w-0 flex-col gap-0.5">
-                      <div
-                        className={cn(
-                          'flex min-w-0 items-center overflow-hidden rounded-md',
-                          isActive
-                            ? 'bg-secondary text-secondary-foreground'
-                            : 'hover:bg-muted hover:text-foreground dark:hover:bg-muted/50',
-                        )}
-                      >
-                        <ChannelNavLink
-                          href={`/w/${workspaceId}/c/${channel.id}`}
-                          name={channel.name}
-                          isPrivate={channel.isPrivate}
-                          isActive={isActive}
-                          showActiveBackground={false}
-                          unreadCount={unreadCounts?.[channel.id] ?? 0}
-                          className="min-w-0 flex-1 hover:bg-transparent dark:hover:bg-transparent"
-                        />
-                        <div className="flex shrink-0 items-center">
-                          <ChannelTicketFilterMenu
-                            filter={channelFilter}
-                            onChange={(next) =>
-                              setChannelFilter(channel.id, next)
-                            }
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="hover:bg-transparent dark:hover:bg-transparent"
-                            asChild
-                          >
-                            <Link href={createThreadHref(channel.id)}>
-                              <Plus />
-                              <span className="sr-only">Create ticket</span>
-                            </Link>
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                className="hover:bg-transparent dark:hover:bg-transparent"
-                              >
-                                <MoreHorizontal />
-                                <span className="sr-only">Channel options</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56">
-                              <DropdownMenuItem asChild>
-                                <Link
-                                  href={`/w/${workspaceId}/c/${channel.id}/settings`}
-                                >
-                                  <Settings />
-                                  Channel Settings
-                                </Link>
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </div>
-                      {threads.length > 0 ? (
-                        <div className="ml-4 flex min-w-0 flex-col gap-0.5 border-l pl-1">
-                          {groupTicketsByStatus(threads).map((group) => (
-                            <TicketStatusGroup
-                              key={group.status}
-                              workspaceId={workspaceId}
-                              channelId={channel.id}
-                              status={group.status}
-                              tickets={group.tickets}
-                              activeChannelId={params.channelId}
-                              unreadCounts={unreadCounts}
-                            />
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
+                {topLevel.map((channel) => (
+                  <ChannelFolder
+                    key={channel.id}
+                    workspaceId={workspaceId}
+                    channel={channel}
+                    tickets={threadsByParent.get(channel.id) ?? []}
+                    filter={channelSidebarTicketFilter(
+                      sidebarFilters,
+                      channel.id,
+                    )}
+                    onFilterChange={(next) =>
+                      setChannelFilter(channel.id, next)
+                    }
+                    collapsed={isChannelFolderCollapsed(
+                      collapsedIds,
+                      channel.id,
+                    )}
+                    onCollapsedChange={(next) =>
+                      setChannelCollapsed(channel.id, next)
+                    }
+                    currentUserId={user.id}
+                    activeChannelId={params.channelId}
+                    unreadCounts={unreadCounts}
+                  />
+                ))}
               </div>
 
               <DirectMessagesNav
@@ -288,6 +234,143 @@ export function ChannelSidebar({ user }: { user: User }) {
       <UserBar user={user} />
       <CreateThreadDialogHost workspaceId={workspaceId} />
     </ResizableSidebar>
+  );
+}
+
+function ChannelFolder({
+  workspaceId,
+  channel,
+  tickets,
+  filter,
+  onFilterChange,
+  collapsed,
+  onCollapsedChange,
+  currentUserId,
+  activeChannelId,
+  unreadCounts,
+}: {
+  workspaceId: string;
+  channel: Channel;
+  tickets: Channel[];
+  filter: SidebarTicketFilter;
+  onFilterChange: (filter: SidebarTicketFilter) => void;
+  collapsed: boolean;
+  onCollapsedChange: (collapsed: boolean) => void;
+  currentUserId: string;
+  activeChannelId: string | undefined;
+  unreadCounts: Record<string, number> | undefined;
+}) {
+  const isActive = channel.id === activeChannelId;
+  const visibleTickets = filterSidebarTickets(
+    tickets,
+    filter,
+    currentUserId,
+    activeChannelId,
+  );
+  const hasTickets = tickets.length > 0;
+  const [collapseEpoch, setCollapseEpoch] = useState(0);
+  const channelUnread = unreadCounts?.[channel.id] ?? 0;
+  const unreadCount =
+    collapsed && hasTickets
+      ? tickets.reduce(
+          (total, ticket) => total + (unreadCounts?.[ticket.id] ?? 0),
+          channelUnread,
+        )
+      : channelUnread;
+  const collapseLabel = `Collapse tickets in ${channel.name}`;
+
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <div
+        className={cn(
+          'flex min-w-0 items-center overflow-hidden rounded-md',
+          isActive
+            ? 'bg-secondary text-secondary-foreground'
+            : 'hover:bg-muted hover:text-foreground dark:hover:bg-muted/50',
+        )}
+      >
+        <ChannelNavLink
+          href={`/w/${workspaceId}/c/${channel.id}`}
+          name={channel.name}
+          isPrivate={channel.isPrivate}
+          isActive={isActive}
+          showActiveBackground={false}
+          unreadCount={unreadCount}
+          className="min-w-0 flex-1 hover:bg-transparent dark:hover:bg-transparent"
+        />
+        <div className="flex shrink-0 items-center">
+          <ChannelTicketFilterMenu filter={filter} onChange={onFilterChange} />
+          {hasTickets ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="hover:bg-transparent dark:hover:bg-transparent"
+                  aria-label={collapseLabel}
+                  onClick={() => {
+                    onCollapsedChange(true);
+                    setCollapseEpoch((epoch) => epoch + 1);
+                  }}
+                >
+                  <FolderMinus />
+                  <span className="sr-only">{collapseLabel}</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Collapse tickets</TooltipContent>
+            </Tooltip>
+          ) : null}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="hover:bg-transparent dark:hover:bg-transparent"
+            asChild
+          >
+            <Link href={createThreadHref(channel.id)}>
+              <Plus />
+              <span className="sr-only">Create ticket</span>
+            </Link>
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="hover:bg-transparent dark:hover:bg-transparent"
+              >
+                <MoreHorizontal />
+                <span className="sr-only">Channel options</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem asChild>
+                <Link href={`/w/${workspaceId}/c/${channel.id}/settings`}>
+                  <Settings />
+                  Channel Settings
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+      {visibleTickets.length > 0 ? (
+        <div className="ml-4 flex min-w-0 flex-col gap-0.5 border-l pl-1">
+          {groupTicketsByStatus(visibleTickets).map((group) => (
+            <TicketStatusGroup
+              key={`${group.status}-${collapsed ? `collapsed-${collapseEpoch}` : 'expanded'}`}
+              workspaceId={workspaceId}
+              channelId={channel.id}
+              status={group.status}
+              tickets={group.tickets}
+              activeChannelId={activeChannelId}
+              unreadCounts={unreadCounts}
+              forceClosed={collapsed}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -371,6 +454,7 @@ function TicketStatusGroup({
   tickets,
   activeChannelId,
   unreadCounts,
+  forceClosed = false,
 }: {
   workspaceId: string;
   channelId: string;
@@ -378,6 +462,7 @@ function TicketStatusGroup({
   tickets: Channel[];
   activeChannelId: string | undefined;
   unreadCounts: Record<string, number> | undefined;
+  forceClosed?: boolean;
 }) {
   const meta = TICKET_STATUS_META[status];
   const StatusIcon = meta.icon;
@@ -387,7 +472,9 @@ function TicketStatusGroup({
 
   return (
     <Collapsible
-      defaultOpen={isTicketStatusOpenByDefault(status, hasActiveTicket)}
+      defaultOpen={
+        !forceClosed && isTicketStatusOpenByDefault(status, hasActiveTicket)
+      }
       className="group/status flex min-w-0 flex-col gap-0.5"
     >
       <CollapsibleTrigger asChild>
