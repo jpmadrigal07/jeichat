@@ -16,7 +16,7 @@
     "build": "tsc",
     "check-types": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
-    "test": "bun test src/map-events.test.ts"
+    "test": "bun test src"
   },
   "dependencies": {
     "@jeichat/bot-protocol": "*",
