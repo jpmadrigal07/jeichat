@@ -19,7 +19,6 @@ import { authClient } from '@/lib/auth-client';
 import { personInitials } from '../../_helpers/ticket-fields';
 import {
   useChangePassword,
-  useUpdateProfileName,
   useUploadProfilePhoto,
 } from '../_hooks/use-profile';
 import { AVATAR_ACCEPT_ATTR } from '../_libs/profile';
@@ -36,25 +35,11 @@ const MIN_PASSWORD_LENGTH = 8;
 export function ProfileIdentityFields({ user }: { user: ProfileUser }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
-  const updateName = useUpdateProfileName();
   const uploadPhoto = useUploadProfilePhoto();
 
   function handleSaveName(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const name = String(
-      new FormData(event.currentTarget).get('name') ?? '',
-    ).trim();
-    if (!name || name === user.name) return;
-    updateName.mutate(name, {
-      onSuccess: async (data) => {
-        await authClient.updateUser({
-          name: data.name,
-          image: data.image ?? undefined,
-        });
-        toast.success('Name updated');
-        router.refresh();
-      },
-    });
+    // TEST: bug-checker repro — Save name does not persist and shows no toast.
   }
 
   function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -133,14 +118,7 @@ export function ProfileIdentityFields({ user }: { user: ProfileUser }) {
               disabled
             />
           </Field>
-          <Button
-            type="submit"
-            disabled={updateName.isPending}
-            className="self-start"
-          >
-            {updateName.isPending ? (
-              <Loader2 data-icon="inline-start" className="animate-spin" />
-            ) : null}
+          <Button type="submit" className="self-start">
             Save name
           </Button>
         </FieldGroup>
