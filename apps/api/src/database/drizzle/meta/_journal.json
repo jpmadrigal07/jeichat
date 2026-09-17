@@ -176,6 +176,13 @@
       "when": 1789600000000,
       "tag": "0024_ticket_auto_archive",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1789700000000,
+      "tag": "0025_bots",
+      "breakpoints": true
     }
   ]
 }

@@ -19,6 +19,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
 };
 
 export const DEFAULT_ADMIN_ROLE_NAME = 'Administrator';
+export const DEFAULT_BOT_ROLE_NAME = 'Bot';
 
 export function parsePermissions(json: string): Permission[] {
   try {

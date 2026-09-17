@@ -44,6 +44,7 @@ import {
   type TicketCompletedFilter,
   type TicketDueFilter,
 } from '@chat/_helpers/ticket-filters';
+import { BotBadge } from '@chat/_components/bot-badge';
 import { BoardDisplayMenu } from './board-display-menu';
 import type { TicketLayout } from '@chat/_libs/channels';
 
@@ -150,6 +151,7 @@ export function TicketFilterBar({
                     value={member.userId}
                   >
                     {member.name}
+                    {member.isBot ? <BotBadge /> : null}
                   </DropdownMenuRadioItem>
                 ))}
               </DropdownMenuGroup>

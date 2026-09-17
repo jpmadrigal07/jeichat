@@ -18,3 +18,4 @@ export * from './pinned-messages';
 export * from './message-reactions';
 export * from './channel-members';
 export * from './push-subscriptions';
+export * from './bots';

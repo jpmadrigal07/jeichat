@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { PresenceAvatar } from '@chat/_components/presence-avatar';
+import { BotBadge } from '@chat/_components/bot-badge';
 import { useCreateChannel } from '../_hooks/use-channels';
 import { useWorkspaceMembers } from '../_hooks/use-workspaces';
 
@@ -183,6 +184,7 @@ export function CreateChannelDialog({
                           className="min-w-0 flex-1 font-normal"
                         >
                           <span className="truncate">{member.name}</span>
+                          {member.isBot ? <BotBadge /> : null}
                         </FieldLabel>
                       </Field>
                     ))}

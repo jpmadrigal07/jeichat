@@ -313,7 +313,7 @@ function TicketBoardView({
   numbers: Map<string, number>;
   statuses: readonly TicketStatus[];
   unreadCounts: Record<string, number> | undefined;
-  membersById: Map<string, { name: string; image: string | null }>;
+  membersById: Map<string, { name: string; image: string | null; isBot?: boolean }>;
   searchParams: Pick<URLSearchParams, 'toString'>;
 }) {
   const updateChannel = useUpdateChannel(workspaceId);
@@ -323,6 +323,7 @@ function TicketBoardView({
       userId,
       name: member.name,
       image: member.image,
+      isBot: member.isBot,
     }),
   );
   const ticketsByStatus = new Map<TicketStatus, ChannelThread[]>(
@@ -588,7 +589,7 @@ function TicketListView({
   workspaceId: string;
   threads: ChannelThread[];
   unreadCounts: Record<string, number> | undefined;
-  membersById: Map<string, { name: string; image: string | null }>;
+  membersById: Map<string, { name: string; image: string | null; isBot?: boolean }>;
 }) {
   return (
     <ScrollArea className="min-h-0 flex-1 overflow-hidden">
@@ -635,7 +636,7 @@ function TicketListStatusGroup({
   status: TicketStatus;
   tickets: ChannelThread[];
   unreadCounts: Record<string, number> | undefined;
-  membersById: Map<string, { name: string; image: string | null }>;
+  membersById: Map<string, { name: string; image: string | null; isBot?: boolean }>;
 }) {
   const meta = TICKET_STATUS_META[status];
   const StatusIcon = meta.icon;
@@ -692,7 +693,7 @@ function TicketListRow({
   workspaceId: string;
   thread: ChannelThread;
   unreadLabel: string | null;
-  membersById: Map<string, { name: string; image: string | null }>;
+  membersById: Map<string, { name: string; image: string | null; isBot?: boolean }>;
 }) {
   const href = channelPageHref(workspaceId, thread.id);
   const priority = ticketPriorityOf(thread.priority);

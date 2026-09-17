@@ -8,11 +8,11 @@ import {
   Body,
   Query,
 } from '@nestjs/common';
-import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
-import type { auth } from '../auth/auth';
+import { Actor, BotAllowed, type RequestActor } from '../auth/actor';
 import { MessagesService } from './messages.service';
 
 @Controller('channels/:channelId/messages')
+@BotAllowed()
 export class MessagesController {
   constructor(private readonly messagesService: MessagesService) {}
 
@@ -25,11 +25,11 @@ export class MessagesController {
       attachmentIds?: string[];
       replyToId?: string | null;
     },
-    @Session() session: UserSession<typeof auth>,
+    @Actor() actor: RequestActor,
   ) {
     return this.messagesService.create(
       channelId,
-      session.user.id,
+      actor.userId,
       body.content ?? '',
       body.attachmentIds ?? [],
       body.replyToId,
@@ -43,9 +43,9 @@ export class MessagesController {
     @Query('around') around: string | undefined,
     @Query('direction') direction: string | undefined,
     @Query('limit') limit: string | undefined,
-    @Session() session: UserSession<typeof auth>,
+    @Actor() actor: RequestActor,
   ) {
-    return this.messagesService.findAll(channelId, session.user.id, {
+    return this.messagesService.findAll(channelId, actor.userId, {
       cursor,
       around,
       direction: direction === 'newer' ? 'newer' : 'older',
@@ -58,12 +58,12 @@ export class MessagesController {
     @Param('channelId') channelId: string,
     @Param('id') id: string,
     @Body() body: { content: string },
-    @Session() session: UserSession<typeof auth>,
+    @Actor() actor: RequestActor,
   ) {
     return this.messagesService.update(
       channelId,
       id,
-      session.user.id,
+      actor.userId,
       body.content,
     );
   }
@@ -72,27 +72,27 @@ export class MessagesController {
   remove(
     @Param('channelId') channelId: string,
     @Param('id') id: string,
-    @Session() session: UserSession<typeof auth>,
+    @Actor() actor: RequestActor,
   ) {
-    return this.messagesService.remove(channelId, id, session.user.id);
+    return this.messagesService.remove(channelId, id, actor.userId);
   }
 
   @Post(':id/pin')
   pin(
     @Param('channelId') channelId: string,
     @Param('id') id: string,
-    @Session() session: UserSession<typeof auth>,
+    @Actor() actor: RequestActor,
   ) {
-    return this.messagesService.pin(channelId, id, session.user.id);
+    return this.messagesService.pin(channelId, id, actor.userId);
   }
 
   @Delete(':id/pin')
   unpin(
     @Param('channelId') channelId: string,
     @Param('id') id: string,
-    @Session() session: UserSession<typeof auth>,
+    @Actor() actor: RequestActor,
   ) {
-    return this.messagesService.unpin(channelId, id, session.user.id);
+    return this.messagesService.unpin(channelId, id, actor.userId);
   }
 
   @Post(':id/reactions')
@@ -100,12 +100,12 @@ export class MessagesController {
     @Param('channelId') channelId: string,
     @Param('id') id: string,
     @Body() body: { emoji?: string },
-    @Session() session: UserSession<typeof auth>,
+    @Actor() actor: RequestActor,
   ) {
     return this.messagesService.toggleReaction(
       channelId,
       id,
-      session.user.id,
+      actor.userId,
       body.emoji ?? '',
     );
   }

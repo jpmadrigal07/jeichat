@@ -12,6 +12,7 @@ import { AuthController } from './auth.controller';
   imports: [
     NestBetterAuthModule.forRoot({
       auth,
+      disableGlobalAuthGuard: true,
       bodyParser: {
         json: { limit: '2mb' },
         urlencoded: { limit: '2mb', extended: true },

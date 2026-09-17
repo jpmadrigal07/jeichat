@@ -15,6 +15,7 @@ import {
   user,
   labels,
   channelLabels,
+  bots,
 } from '../database/schema';
 import { canCreateWorkspace } from './workspace-creation';
 import { WorkspaceRolesService } from './workspace-roles.service';
@@ -162,7 +163,7 @@ export class WorkspacesService {
   async findMembers(workspaceId: string, userId: string) {
     await this.verifyMembership(workspaceId, userId);
 
-    return this.drizzle.db
+    const rows = await this.drizzle.db
       .select({
         id: workspaceMembers.id,
         workspaceId: workspaceMembers.workspaceId,
@@ -172,10 +173,14 @@ export class WorkspacesService {
         name: user.name,
         email: user.email,
         image: user.image,
+        isBot: sql<boolean>`(${bots.userId} is not null)`,
       })
       .from(workspaceMembers)
       .innerJoin(user, eq(workspaceMembers.userId, user.id))
+      .leftJoin(bots, eq(bots.userId, user.id))
       .where(eq(workspaceMembers.workspaceId, workspaceId));
+
+    return rows.map((row) => ({ ...row, isBot: row.isBot === true }));
   }
 
   async listMemberUserIds(workspaceId: string) {
@@ -231,6 +236,14 @@ export class WorkspacesService {
 
     if (!targetUser) throw new NotFoundException('User not found');
 
+    const [bot] = await this.drizzle.db
+      .select({ workspaceId: bots.workspaceId })
+      .from(bots)
+      .where(eq(bots.userId, targetUserId));
+    if (bot && bot.workspaceId !== workspaceId) {
+      throw new ForbiddenException('Bot belongs to another workspace');
+    }
+
     const [member] = await this.drizzle.db
       .insert(workspaceMembers)
       .values({
@@ -279,6 +292,15 @@ export class WorkspacesService {
       workspaceId,
       action: 'removed',
     });
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
+  }
+
+  async listChannelIds(workspaceId: string) {
+    const rows = await this.drizzle.db
+      .select({ id: channels.id })
+      .from(channels)
+      .where(eq(channels.workspaceId, workspaceId));
+    return rows.map((row) => row.id);
   }
 
   async verifyMembership(workspaceId: string, userId: string) {
@@ -405,7 +427,7 @@ export class WorkspacesService {
       .where(and(eq(labels.id, labelId), eq(labels.workspaceId, workspaceId)));
   }
 
-  private async verifyOwnership(workspaceId: string, userId: string) {
+  async verifyOwnership(workspaceId: string, userId: string) {
     const member = await this.verifyMembership(workspaceId, userId);
 
     if (member.role !== 'owner') {

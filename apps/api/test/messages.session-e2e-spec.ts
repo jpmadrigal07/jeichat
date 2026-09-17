@@ -121,7 +121,7 @@ describe('session e2e — messages and notifications', () => {
     ]);
   });
 
-  it('emits new_message with sender name and image and without isBot', async () => {
+  it('emits new_message with sender name, image, and isBot false', async () => {
     const { owner, general } = await seededWorkspace();
     const socket = connectSocket(owner.cookieHeader);
     await waitForConnect(socket);
@@ -144,7 +144,7 @@ describe('session e2e — messages and notifications', () => {
       }),
     );
     expect(payload.sender).toHaveProperty('image');
-    expect(payload.sender).not.toHaveProperty('isBot');
+    expect(payload.sender?.isBot).toBe(false);
 
     await disconnectSocket(socket);
   });

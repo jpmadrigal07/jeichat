@@ -4,11 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, count, desc, eq, gt, inArray, lt, or, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { DrizzleService } from '../database/drizzle.service';
 import {
   attachments,
+  bots,
   channelMembers,
   channelWatchers,
   channels,
@@ -40,6 +41,7 @@ import {
 } from './message-reactions';
 import { PERMISSIONS } from '../workspaces/permissions';
 import { WorkspacePermissionsService } from '../workspaces/workspace-permissions.service';
+import { BotsService } from '../bots/bots.service';
 import {
   aroundWindowSizes,
   encodeMessageCursor,
@@ -60,6 +62,7 @@ export type MessageReplyToPublic = {
   sender: {
     name: string | null;
     image: string | null;
+    isBot: boolean;
   } | null;
 };
 
@@ -74,6 +77,7 @@ type MessageListRow = {
   sender: {
     name: string | null;
     image: string | null;
+    isBot: boolean;
   } | null;
 };
 
@@ -91,6 +95,7 @@ export class MessagesService {
     private readonly storage: StorageService,
     private readonly inboxService: InboxService,
     private readonly pushService: PushService,
+    private readonly botsService: BotsService,
   ) {}
 
   private async verifyChannelAccess(
@@ -216,14 +221,21 @@ export class MessagesService {
         sender: {
           name: user.name,
           image: user.image,
+          isBot: sql<boolean>`(${bots.userId} is not null)`,
         },
       })
       .from(messages)
       .leftJoin(user, eq(messages.senderId, user.id))
+      .leftJoin(bots, eq(bots.userId, messages.senderId))
       .where(inArray(messages.id, unique));
 
     for (const row of rows) {
-      mapped.set(row.id, row);
+      mapped.set(row.id, {
+        ...row,
+        sender: row.sender
+          ? { ...row.sender, isBot: row.sender.isBot === true }
+          : null,
+      });
     }
 
     return mapped;
@@ -263,10 +275,12 @@ export class MessagesService {
         sender: {
           name: user.name,
           image: user.image,
+          isBot: sql<boolean>`(${bots.userId} is not null)`,
         },
       })
       .from(messages)
       .leftJoin(user, eq(messages.senderId, user.id))
+      .leftJoin(bots, eq(bots.userId, messages.senderId))
       .where(eq(messages.id, messageId));
 
     if (!row) throw new NotFoundException('Message not found');
@@ -538,10 +552,12 @@ export class MessagesService {
         sender: {
           name: user.name,
           image: user.image,
+          isBot: sql<boolean>`(${bots.userId} is not null)`,
         },
       })
       .from(messages)
       .leftJoin(user, eq(messages.senderId, user.id))
+      .leftJoin(bots, eq(bots.userId, messages.senderId))
       .where(and(...conditions))
       .orderBy(
         params.direction === 'newer'
@@ -575,6 +591,9 @@ export class MessagesService {
       attachments: grouped.get(row.id) ?? [],
       reactions: reactionsGrouped.get(row.id) ?? [],
       replyTo: row.replyToId ? (replyToById.get(row.replyToId) ?? null) : null,
+      sender: row.sender
+        ? { ...row.sender, isBot: row.sender.isBot === true }
+        : null,
     }));
   }
 
@@ -841,10 +860,12 @@ export class MessagesService {
         updatedAt: messages.updatedAt,
         senderName: user.name,
         senderImage: user.image,
+        senderIsBot: sql<boolean>`(${bots.userId} is not null)`,
       })
       .from(pinnedMessages)
       .innerJoin(messages, eq(pinnedMessages.messageId, messages.id))
       .leftJoin(user, eq(messages.senderId, user.id))
+      .leftJoin(bots, eq(bots.userId, messages.senderId))
       .leftJoin(pinnedByUser, eq(pinnedMessages.pinnedBy, pinnedByUser.id))
       .where(eq(pinnedMessages.channelId, channelId))
       .orderBy(desc(pinnedMessages.pinnedAt));
@@ -878,7 +899,11 @@ export class MessagesService {
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
         sender: row.senderName
-          ? { name: row.senderName, image: row.senderImage }
+          ? {
+              name: row.senderName,
+              image: row.senderImage,
+              isBot: Boolean(row.senderIsBot),
+            }
           : null,
         attachments: grouped.get(row.messageId) ?? [],
         reactions: reactionsGrouped.get(row.messageId) ?? [],
@@ -970,6 +995,7 @@ export class MessagesService {
       senderId,
       content,
     );
+    const senderIsBot = await this.botsService.isBotUser(senderId);
 
     if (channel.parentId) {
       const watchers = await this.drizzle.db
@@ -978,8 +1004,8 @@ export class MessagesService {
         .where(eq(channelWatchers.channelId, channel.id));
       const watcherIds = watchers.map((row) => row.userId);
 
-      return {
-        toastRecipientIds: messageNotificationRecipientIds({
+      const toastRecipientIds = await this.botsService.excludeBots(
+        messageNotificationRecipientIds({
           isTicket: true,
           senderId,
           assigneeId: channel.assigneeId,
@@ -987,13 +1013,17 @@ export class MessagesService {
           memberIds: [],
           mentionedUserIds: mentionedIds,
         }),
-        commentInboxRecipientIds: ticketCommentInboxRecipientIds({
+      );
+      const commentInboxRecipientIds = await this.botsService.excludeBots(
+        ticketCommentInboxRecipientIds({
           senderId,
           assigneeId: channel.assigneeId,
           watcherIds,
           mentionedUserIds: mentionedIds,
         }),
-      };
+      );
+
+      return { toastRecipientIds, commentInboxRecipientIds };
     }
 
     const memberRows =
@@ -1007,15 +1037,21 @@ export class MessagesService {
             .from(workspaceMembers)
             .where(eq(workspaceMembers.workspaceId, channel.workspaceId));
 
+    const toastRecipientIds = await this.botsService.excludeBots(
+      senderIsBot
+        ? mentionedIds.filter((id) => id !== senderId)
+        : messageNotificationRecipientIds({
+            isTicket: false,
+            senderId,
+            assigneeId: null,
+            watcherIds: [],
+            memberIds: memberRows.map((row) => row.userId),
+            mentionedUserIds: mentionedIds,
+          }),
+    );
+
     return {
-      toastRecipientIds: messageNotificationRecipientIds({
-        isTicket: false,
-        senderId,
-        assigneeId: null,
-        watcherIds: [],
-        memberIds: memberRows.map((row) => row.userId),
-        mentionedUserIds: mentionedIds,
-      }),
+      toastRecipientIds,
       commentInboxRecipientIds: [],
     };
   }

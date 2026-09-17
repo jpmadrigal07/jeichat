@@ -20,6 +20,7 @@ export type WorkspaceMember = {
   name: string;
   email: string;
   image: string | null;
+  isBot?: boolean;
 };
 
 export const workspacesQueryKey = ['workspaces'] as const;

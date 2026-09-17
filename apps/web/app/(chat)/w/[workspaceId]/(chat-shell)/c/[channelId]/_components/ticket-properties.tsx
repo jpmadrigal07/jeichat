@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/popover';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import { BotBadge } from '@chat/_components/bot-badge';
 import { useUpdateChannel } from '@chat/_hooks/use-channels';
 import { useWorkspaceMembers } from '@chat/_hooks/use-workspaces';
 import type { Channel } from '@chat/_libs/channels';
@@ -183,6 +184,7 @@ export function TicketProperties({
                   <UserRound data-icon="inline-start" />
                 )}
                 <span className="truncate">{assignee?.name ?? 'Unassigned'}</span>
+                {assignee?.isBot ? <BotBadge /> : null}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-48">
@@ -212,6 +214,7 @@ export function TicketProperties({
                         </AvatarFallback>
                       </Avatar>
                       {member.name}
+                      {member.isBot ? <BotBadge /> : null}
                     </DropdownMenuRadioItem>
                   ))}
                 </DropdownMenuRadioGroup>
