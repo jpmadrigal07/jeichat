@@ -45,3 +45,18 @@ jest.mock('@thallesp/nestjs-better-auth', () => {
     })),
   };
 });
+
+jest.mock('../src/auth/actor', () => {
+  const { SetMetadata, createParamDecorator } =
+    require('@nestjs/common') as typeof import('@nestjs/common');
+  const setup = require('./jest-setup-attachments-e2e') as typeof import('./jest-setup-attachments-e2e');
+
+  return {
+    BOT_ALLOWED_KEY: 'BOT_ALLOWED',
+    BotAllowed: () => SetMetadata('BOT_ALLOWED', true),
+    Actor: createParamDecorator(() => ({
+      userId: setup.e2eSessionUserId,
+      kind: 'user' as const,
+    })),
+  };
+});

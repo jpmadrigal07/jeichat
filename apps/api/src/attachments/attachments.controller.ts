@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
 import type { Request, Response } from 'express';
+import { Actor, BotAllowed, type RequestActor } from '../auth/actor';
 import type { auth } from '../auth/auth';
 import { pipeStorageObject } from '../storage/storage.service';
 import { AttachmentsService } from './attachments.service';
@@ -21,17 +22,16 @@ export class AttachmentsController {
   constructor(private readonly attachments: AttachmentsService) {}
 
   @Post('presign')
-  presign(@Session() session: UserSession<typeof auth>, @Body() body: unknown) {
+  @BotAllowed()
+  presign(@Actor() actor: RequestActor, @Body() body: unknown) {
     const dto = validatePresignUploadDto(body);
-    return this.attachments.presignUpload(session.user.id, dto);
+    return this.attachments.presignUpload(actor.userId, dto);
   }
 
   @Get(':id/download-url')
-  download(
-    @Session() session: UserSession<typeof auth>,
-    @Param('id') id: string,
-  ) {
-    return this.attachments.getDownloadUrl(session.user.id, id);
+  @BotAllowed()
+  download(@Actor() actor: RequestActor, @Param('id') id: string) {
+    return this.attachments.getDownloadUrl(actor.userId, id);
   }
 
   @Get(':id')

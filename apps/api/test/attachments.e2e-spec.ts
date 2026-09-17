@@ -9,8 +9,10 @@ import { AttachmentsService } from '../src/attachments/attachments.service';
 import { DrizzleService } from '../src/database/drizzle.service';
 import { ChatGateway } from '../src/gateway/chat.gateway';
 import { InboxService } from '../src/inbox/inbox.service';
+import { BotsService } from '../src/bots/bots.service';
 import { MessagesController } from '../src/messages/messages.controller';
 import { MessagesService } from '../src/messages/messages.service';
+import { PushService } from '../src/push/push.service';
 import type { StorageConfig } from '../src/storage/storage.config';
 import { StorageService } from '../src/storage/storage.service';
 import { PERMISSIONS } from '../src/workspaces/permissions';
@@ -118,6 +120,8 @@ describe('Attachments API (e2e)', () => {
             notifyTicketComments: jest.fn().mockResolvedValue(undefined),
           },
         },
+        { provide: PushService, useValue: { notify: jest.fn() } },
+        { provide: BotsService, useValue: {} },
       ],
     }).compile();
 
