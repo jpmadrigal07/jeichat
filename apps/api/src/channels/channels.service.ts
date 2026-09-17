@@ -1,13 +1,15 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { and, asc, count, eq, gt, inArray, isNotNull, isNull, lt, max, ne, or } from 'drizzle-orm';
+import { and, asc, count, eq, gt, inArray, isNotNull, isNull, lt, max, ne, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { DrizzleService } from '../database/drizzle.service';
 import {
   attachments,
+  bots,
   channelEvents,
   channelLabels,
   channelMembers,
@@ -131,6 +133,7 @@ export class ChannelsService {
       : memberIds;
 
     await this.addChannelMembers(workspaceId, channel.id, invitedIds, userId);
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
 
     return channel;
   }
@@ -145,6 +148,14 @@ export class ChannelsService {
     }
 
     await this.workspacesService.verifyMembership(workspaceId, userId);
+
+    const botRows = await this.drizzle.db
+      .select({ userId: bots.userId })
+      .from(bots)
+      .where(inArray(bots.userId, [userId, targetUserId]));
+    if (botRows.length > 0) {
+      throw new ForbiddenException('Bots cannot use direct messages');
+    }
 
     const [targetMember] = await this.drizzle.db
       .select({ userId: workspaceMembers.userId })
@@ -329,6 +340,7 @@ export class ChannelsService {
     this.publishTicketEvents(threadId, parentId, published);
 
     const [enriched] = await this.withThreadAttachments([thread]);
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
     return enriched;
   }
 
@@ -848,6 +860,7 @@ export class ChannelsService {
       });
     }
 
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
     return enriched;
   }
 
@@ -1022,6 +1035,7 @@ export class ChannelsService {
     }
 
     await this.drizzle.db.delete(channels).where(eq(channels.id, id));
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
   }
 
   private async listViewableChannels(workspaceId: string, userId: string) {
@@ -1067,16 +1081,18 @@ export class ChannelsService {
         name: user.name,
         email: user.email,
         image: user.image,
+        isBot: sql<boolean>`(${bots.userId} is not null)`,
       })
       .from(channelMembers)
       .innerJoin(user, eq(channelMembers.userId, user.id))
+      .leftJoin(bots, eq(bots.userId, user.id))
       .where(eq(channelMembers.channelId, channelId))
       .orderBy(asc(user.name));
 
     return {
       isPrivate: channel.isPrivate,
       canManage,
-      data: rows,
+      data: rows.map((row) => ({ ...row, isBot: row.isBot === true })),
     };
   }
 
@@ -1111,6 +1127,7 @@ export class ChannelsService {
     if (!member) {
       throw new BadRequestException('User must be a workspace member');
     }
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
     return member;
   }
 
@@ -1146,6 +1163,7 @@ export class ChannelsService {
     if (deleted.length === 0) {
       throw new NotFoundException('Channel member not found');
     }
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
   }
 
   private async requireTopLevelChannel(

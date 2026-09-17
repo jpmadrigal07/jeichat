@@ -50,6 +50,11 @@ const migrations = [
     column: { table: 'channels', name: 'completed_at' },
     file: '../src/database/drizzle/0024_ticket_auto_archive.sql',
   },
+  {
+    name: '0025_bots',
+    table: 'bots',
+    file: '../src/database/drizzle/0025_bots.sql',
+  },
 ] as const;
 
 try {

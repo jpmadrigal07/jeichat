@@ -10,6 +10,7 @@ export type ChannelMember = {
   name: string;
   email: string;
   image: string | null;
+  isBot?: boolean;
 };
 
 export type ChannelMembersResponse = {

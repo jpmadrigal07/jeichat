@@ -12,6 +12,7 @@ import { user } from '../database/schema/auth';
 import { ChatGateway } from '../gateway/chat.gateway';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import type { InboxNotification, InboxNotificationType } from './inbox.types';
+import { BotsService } from '../bots/bots.service';
 import { mentionedUserIds } from './mentions';
 
 const parentChannels = alias(channels, 'parent_channels');
@@ -23,6 +24,7 @@ export class InboxService {
     private readonly drizzle: DrizzleService,
     private readonly workspacesService: WorkspacesService,
     private readonly chatGateway: ChatGateway,
+    private readonly botsService: BotsService,
   ) {}
 
   async list(workspaceId: string, userId: string) {
@@ -117,7 +119,9 @@ export class InboxService {
       .innerJoin(user, eq(workspaceMembers.userId, user.id))
       .where(eq(workspaceMembers.workspaceId, input.workspaceId));
 
-    const userIds = mentionedUserIds(input.content, members, input.actorId);
+    const userIds = await this.botsService.excludeBots(
+      mentionedUserIds(input.content, members, input.actorId),
+    );
     if (userIds.length === 0) return;
 
     const now = new Date();
@@ -150,6 +154,7 @@ export class InboxService {
     assigneeId: string;
   }) {
     if (input.assigneeId === input.actorId) return;
+    if (await this.botsService.isBotUser(input.assigneeId)) return;
 
     const [member] = await this.drizzle.db
       .select({ userId: workspaceMembers.userId })
@@ -185,8 +190,8 @@ export class InboxService {
     actorId: string;
     watcherIds: string[];
   }) {
-    const recipientIds = [...new Set(input.watcherIds)].filter(
-      (id) => id !== input.actorId,
+    const recipientIds = await this.botsService.excludeBots(
+      [...new Set(input.watcherIds)].filter((id) => id !== input.actorId),
     );
     if (recipientIds.length === 0) return;
 
@@ -228,8 +233,8 @@ export class InboxService {
     actorId: string;
     recipientIds: string[];
   }) {
-    const recipientIds = [...new Set(input.recipientIds)].filter(
-      (id) => id !== input.actorId,
+    const recipientIds = await this.botsService.excludeBots(
+      [...new Set(input.recipientIds)].filter((id) => id !== input.actorId),
     );
     if (recipientIds.length === 0) return;
 
@@ -273,6 +278,7 @@ export class InboxService {
     emoji: string;
   }) {
     if (input.recipientId === input.actorId) return;
+    if (await this.botsService.isBotUser(input.recipientId)) return;
 
     const [member] = await this.drizzle.db
       .select({ userId: workspaceMembers.userId })

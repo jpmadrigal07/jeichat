@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { GatewayModule } from '../gateway/gateway.module';
 import { InboxModule } from '../inbox/inbox.module';
@@ -7,7 +7,11 @@ import { ChannelsService } from './channels.service';
 import { TicketAutoArchiveService } from './ticket-auto-archive.service';
 
 @Module({
-  imports: [WorkspacesModule, GatewayModule, InboxModule],
+  imports: [
+    forwardRef(() => WorkspacesModule),
+    forwardRef(() => GatewayModule),
+    InboxModule,
+  ],
   controllers: [ChannelsController],
   providers: [ChannelsService, TicketAutoArchiveService],
   exports: [ChannelsService],

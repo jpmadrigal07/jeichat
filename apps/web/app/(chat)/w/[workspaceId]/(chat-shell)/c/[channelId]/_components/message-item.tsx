@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { BotBadge } from '@chat/_components/bot-badge';
 import { PresenceAvatar } from '@chat/_components/presence-avatar';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -103,6 +104,7 @@ function MessageReplyPreview({
       <span className="min-w-0 flex-1 text-left">
         <span className="block truncate text-xs font-semibold">
           {replyTo.sender?.name ?? 'Unknown'}
+          {replyTo.sender?.isBot ? ' (bot)' : ''}
         </span>
         <span className="block truncate text-xs text-muted-foreground">
           {messageReplySnippet(replyTo.content)}
@@ -210,6 +212,7 @@ export function MessageItem({
           <span className="text-sm font-semibold truncate">
             {message.sender?.name ?? 'Unknown'}
           </span>
+          {message.sender?.isBot ? <BotBadge /> : null}
           <Tooltip>
             <TooltipTrigger asChild>
               <span className="text-xs text-muted-foreground shrink-0 cursor-default">

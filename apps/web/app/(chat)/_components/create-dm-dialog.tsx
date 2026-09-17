@@ -31,7 +31,7 @@ export function CreateDmDialog({
   const closeRef = useRef<HTMLButtonElement>(null);
 
   const inviteableMembers = (members ?? []).filter(
-    (member) => member.userId !== currentUserId,
+    (member) => member.userId !== currentUserId && !member.isBot,
   );
 
   function startDm(targetUserId: string) {

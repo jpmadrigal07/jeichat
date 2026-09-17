@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { BotBadge } from '@chat/_components/bot-badge';
 import { PresenceAvatar } from '@chat/_components/presence-avatar';
 import {
   useWorkspaces,
@@ -107,7 +108,10 @@ export function WorkspaceMembersPanel({
                   showOffline
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{member.name}</p>
+                  <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+                    <span className="truncate">{member.name}</span>
+                    {member.isBot ? <BotBadge /> : null}
+                  </p>
                   <p className="truncate text-xs text-muted-foreground">
                     {member.email}
                   </p>

@@ -29,7 +29,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
+import { BotBadge } from '@chat/_components/bot-badge';
 import { useUpdateChannel } from '@chat/_hooks/use-channels';
 import {
   useCreateWorkspaceLabel,
@@ -53,11 +53,13 @@ import {
   type TicketPriority,
   type TicketStatus,
 } from '@chat/_helpers/ticket-fields';
+import { cn } from '@/lib/utils';
 
 export type TicketMenuMember = {
   userId: string;
   name: string;
   image: string | null;
+  isBot?: boolean;
 };
 
 const MAX_VISIBLE_WATCHERS = 3;
@@ -250,6 +252,7 @@ export function TicketAssigneeIconMenu({
                   </AvatarFallback>
                 </Avatar>
                 {member.name}
+                {member.isBot ? <BotBadge /> : null}
               </DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>
@@ -431,6 +434,7 @@ export function TicketWatchersMenu({
         id: member.userId,
         name: member.name,
         image: member.image,
+        isBot: member.isBot,
       })),
   ];
   const filtered = options.filter((watcher) =>
@@ -546,6 +550,7 @@ export function TicketWatchersMenu({
                 <AvatarFallback>{personInitials(watcher.name)}</AvatarFallback>
               </Avatar>
               {watcher.name}
+              {watcher.isBot ? <BotBadge /> : null}
             </DropdownMenuItem>
           ))}
         </DropdownMenuGroup>

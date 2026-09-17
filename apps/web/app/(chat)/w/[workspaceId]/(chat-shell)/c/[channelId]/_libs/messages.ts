@@ -28,6 +28,7 @@ export type MessageReplyTo = {
   sender: {
     name: string;
     image: string | null;
+    isBot?: boolean;
   } | null;
 };
 
@@ -41,6 +42,7 @@ export type Message = {
   sender: {
     name: string;
     image: string | null;
+    isBot?: boolean;
   } | null;
   attachments: MessageAttachment[];
   reactions: MessageReaction[];

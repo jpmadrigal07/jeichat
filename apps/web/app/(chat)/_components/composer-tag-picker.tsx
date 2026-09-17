@@ -4,6 +4,7 @@ import { Hash, MessageSquare } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { BotBadge } from '@chat/_components/bot-badge';
 import { cn } from '@/lib/utils';
 import {
   personInitials,
@@ -67,6 +68,7 @@ export function ComposerTagPicker({
                 <AvatarFallback>{personInitials(member.name)}</AvatarFallback>
               </Avatar>
               <span className="truncate">{member.name}</span>
+              {member.isBot ? <BotBadge /> : null}
             </Button>
           ))
         : null}
