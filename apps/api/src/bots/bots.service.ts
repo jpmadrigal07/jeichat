@@ -41,7 +41,10 @@ export class BotsService {
   ) {}
 
   async create(workspaceId: string, ownerId: string, name: string) {
-    await this.workspacesService.verifyOwnership(workspaceId, ownerId);
+    await this.workspacePermissionsService.assertCanManageWorkspaceBots(
+      workspaceId,
+      ownerId,
+    );
     const trimmed = name.trim();
     if (!trimmed) {
       throw new BadRequestException('Bot name is required');
@@ -309,7 +312,10 @@ export class BotsService {
     botId: string,
     ownerId: string,
   ) {
-    await this.workspacesService.verifyOwnership(workspaceId, ownerId);
+    await this.workspacePermissionsService.assertCanManageWorkspaceBots(
+      workspaceId,
+      ownerId,
+    );
     const [bot] = await this.drizzle.db
       .select()
       .from(bots)

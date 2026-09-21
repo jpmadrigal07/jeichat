@@ -56,6 +56,36 @@ describe('session e2e — bots', () => {
     await resetPublicTables();
   });
 
+  it('lets a workspace administrator create a bot', async () => {
+    const { owner, member, workspaceId } = await seededWorkspace();
+    const roles = (
+      await owner.agent.get(`/workspaces/${workspaceId}/roles`).expect(200)
+    ).body as Array<{ id: string; isAdministrator: boolean }>;
+    const adminRole = roles.find((role) => role.isAdministrator);
+    expect(adminRole).toBeDefined();
+
+    await owner.agent
+      .post(`/workspaces/${workspaceId}/roles/${adminRole!.id}/members`)
+      .send({ userId: member.user.id })
+      .expect((res) => {
+        expect([200, 201]).toContain(res.status);
+      });
+
+    const created = await member.agent
+      .post(`/workspaces/${workspaceId}/bots`)
+      .send({ name: 'Admin Bot' });
+    expect([200, 201]).toContain(created.status);
+    expect(created.body.token).toMatch(/^jei_live_/);
+  });
+
+  it('rejects bot management from a regular member', async () => {
+    const { member, workspaceId } = await seededWorkspace();
+    await member.agent
+      .post(`/workspaces/${workspaceId}/bots`)
+      .send({ name: 'Denied Bot' })
+      .expect(403);
+  });
+
   it('lets the owner create a bot and shows the token once', async () => {
     const { owner, workspaceId } = await seededWorkspace();
     const created = await owner.agent

@@ -8,12 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useWorkspaces } from '@chat/_hooks/use-workspaces';
 import { useWorkspacePresenceSocket } from '@chat/_hooks/use-presence';
+import { useCanManageWorkspaceBots } from '../_hooks/use-can-manage-workspace-bots';
 
 type NavItem = {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   ownerOnly?: boolean;
+  manageBotsOnly?: boolean;
 };
 
 export function SettingsShell({
@@ -28,6 +30,8 @@ export function SettingsShell({
   useWorkspacePresenceSocket();
   const workspace = workspaces?.find((ws) => ws.id === workspaceId);
   const isOwner = workspace?.role === 'owner';
+  const { canManage: canManageBots, isLoading: canManageBotsLoading } =
+    useCanManageWorkspaceBots(workspaceId);
 
   const navItems: NavItem[] = [
     {
@@ -49,7 +53,7 @@ export function SettingsShell({
       href: `/w/${workspaceId}/settings/bots`,
       label: 'Bots',
       icon: Bot,
-      ownerOnly: true,
+      manageBotsOnly: true,
     },
     {
       href: `/w/${workspaceId}/settings/labels`,
@@ -64,9 +68,13 @@ export function SettingsShell({
     },
   ];
 
-  const visibleNavItems = navItems.filter(
-    (item) => !item.ownerOnly || isOwner,
-  );
+  const visibleNavItems = navItems.filter((item) => {
+    if (item.ownerOnly) return isOwner;
+    if (item.manageBotsOnly) {
+      return canManageBotsLoading ? isOwner : canManageBots;
+    }
+    return true;
+  });
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
