@@ -45,6 +45,14 @@ export function ProfileIdentityFields({ user }: { user: ProfileUser }) {
       new FormData(event.currentTarget).get('name') ?? '',
     ).trim();
     if (!name || name === user.name) return;
+
+    updateName.mutate(name, {
+      onSuccess: async (data) => {
+        await authClient.updateUser({ name: data.name });
+        toast.success('Name updated');
+        router.refresh();
+      },
+    });
   }
 
   function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
