@@ -45,10 +45,12 @@ export function ProfileIdentityFields({ user }: { user: ProfileUser }) {
       new FormData(event.currentTarget).get('name') ?? '',
     ).trim();
     if (!name || name === user.name) return;
-
     updateName.mutate(name, {
       onSuccess: async (data) => {
-        await authClient.updateUser({ name: data.name });
+        await authClient.updateUser({
+          name: data.name,
+          image: data.image ?? undefined,
+        });
         toast.success('Name updated');
         router.refresh();
       },
