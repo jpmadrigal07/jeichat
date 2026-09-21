@@ -19,7 +19,6 @@ import {
 import { PresenceAvatar } from '@chat/_components/presence-avatar';
 import { BotBadge } from '@chat/_components/bot-badge';
 import { useWorkspaces } from '@chat/_hooks/use-workspaces';
-import { useCanManageWorkspaceBots } from '../_hooks/use-can-manage-workspace-bots';
 import {
   useCreateWorkspaceBot,
   useDisableWorkspaceBot,
@@ -38,10 +37,9 @@ export function WorkspaceBotsPanel({ workspaceId }: { workspaceId: string }) {
   const disableBot = useDisableWorkspaceBot(workspaceId);
   const nameRef = useRef<HTMLInputElement>(null);
   const revealedToken = createBot.data?.token ?? regenerate.data?.token ?? null;
-  const { canManage, isLoading: canManageLoading } =
-    useCanManageWorkspaceBots(workspaceId);
+  const isOwner = workspace?.role === 'owner';
 
-  if (workspaceLoading || canManageLoading) {
+  if (workspaceLoading) {
     return (
       <div className="flex max-w-2xl flex-col gap-4">
         <Skeleton className="h-8 w-48" />
@@ -75,7 +73,7 @@ export function WorkspaceBotsPanel({ workspaceId }: { workspaceId: string }) {
         </AlertDescription>
       </Alert>
 
-      {canManage ? (
+      {isOwner ? (
         <form
           className="mb-6 flex gap-2"
           onSubmit={(event) => {
@@ -105,8 +103,7 @@ export function WorkspaceBotsPanel({ workspaceId }: { workspaceId: string }) {
         </form>
       ) : (
         <p className="mb-6 text-sm text-muted-foreground">
-          Only the workspace owner or an administrator can create or disable
-          bots.
+          Only the workspace owner can create or disable bots.
         </p>
       )}
 
@@ -140,7 +137,7 @@ export function WorkspaceBotsPanel({ workspaceId }: { workspaceId: string }) {
                   Token {bot.tokenPrefix}…
                 </p>
               </div>
-              {canManage && !bot.disabledAt ? (
+              {isOwner && !bot.disabledAt ? (
                 <div className="flex items-center gap-1">
                   <Button
                     type="button"

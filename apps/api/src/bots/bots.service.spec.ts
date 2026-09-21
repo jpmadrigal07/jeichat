@@ -12,21 +12,19 @@ jest.mock('../gateway/chat.gateway', () => ({
 }));
 
 describe('BotsService', () => {
-  const workspacePermissionsService = {
-    assertCanManageWorkspaceBots: jest.fn(),
+  const workspacesService = {
+    verifyOwnership: jest.fn(),
   };
   let service: BotsService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    workspacePermissionsService.assertCanManageWorkspaceBots.mockResolvedValue(
-      undefined,
-    );
+    workspacesService.verifyOwnership.mockResolvedValue(undefined);
     service = new BotsService(
       {} as never,
+      workspacesService as never,
       {} as never,
       {} as never,
-      workspacePermissionsService as never,
       {} as never,
     );
   });
@@ -35,9 +33,10 @@ describe('BotsService', () => {
     await expect(
       service.create('ws-1', 'owner-1', '   '),
     ).rejects.toBeInstanceOf(BadRequestException);
-    expect(
-      workspacePermissionsService.assertCanManageWorkspaceBots,
-    ).toHaveBeenCalledWith('ws-1', 'owner-1');
+    expect(workspacesService.verifyOwnership).toHaveBeenCalledWith(
+      'ws-1',
+      'owner-1',
+    );
   });
 
   it('rejects an empty bot name on rename', async () => {

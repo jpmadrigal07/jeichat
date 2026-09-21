@@ -293,21 +293,6 @@ export class WorkspacePermissionsService {
     return member?.role === 'owner';
   }
 
-  async assertCanManageWorkspaceBots(workspaceId: string, userId: string) {
-    const membership = await this.getMembership(workspaceId, userId);
-    if (!membership) {
-      throw new ForbiddenException('You are not a member of this workspace');
-    }
-    if (membership.role === 'owner') return;
-
-    const roles = await this.getUserRoles(workspaceId, userId);
-    if (roles.some((role) => role.isAdministrator)) return;
-
-    throw new ForbiddenException(
-      'Only the workspace owner or an administrator can manage bots',
-    );
-  }
-
   private async getUserRoles(workspaceId: string, userId: string) {
     const rows = await this.drizzle.db
       .select({
