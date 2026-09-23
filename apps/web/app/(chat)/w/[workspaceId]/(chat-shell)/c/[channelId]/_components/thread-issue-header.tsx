@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { ChevronDown, Paperclip } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -204,24 +204,10 @@ export function ThreadIssueHeader({
                       )}
                     </p>
                   ) : null}
-                  <Input
-                    key={`title-${channel.id}-${channel.name}`}
-                    aria-label="Ticket title"
-                    defaultValue={channel.name}
-                    className="h-auto border-transparent bg-transparent px-0 py-1 text-lg font-semibold shadow-none md:text-lg dark:bg-transparent"
-                    onBlur={(e) =>
-                      saveTitle(e.currentTarget.value, e.currentTarget)
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        e.currentTarget.blur();
-                      }
-                      if (e.key === 'Escape') {
-                        e.currentTarget.value = channel.name;
-                        e.currentTarget.blur();
-                      }
-                    }}
+                  <TicketTitleField
+                    channelId={channel.id}
+                    name={channel.name}
+                    onSave={saveTitle}
                   />
                 </div>
                 {detailsOpen ? (
@@ -293,5 +279,70 @@ export function ThreadIssueHeader({
             </div>
           </ChannelDropZone>
     </Collapsible>
+  );
+}
+
+function TicketTitleField({
+  channelId,
+  name,
+  onSave,
+}: {
+  channelId: string;
+  name: string;
+  onSave: (value: string, input: HTMLInputElement) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const inputId = `ticket-title-${channelId}`;
+
+  useEffect(() => {
+    if (!editing) return;
+    const input = document.getElementById(inputId);
+    if (!(input instanceof HTMLInputElement)) return;
+    input.focus();
+    input.select();
+  }, [editing, inputId]);
+
+  const titleClassName =
+    'h-auto w-full min-w-0 border-transparent bg-transparent px-0 py-1 text-lg font-semibold shadow-none md:text-lg dark:bg-transparent';
+
+  if (editing) {
+    return (
+      <Input
+        id={inputId}
+        key={`title-edit-${channelId}-${name}`}
+        aria-label="Ticket title"
+        defaultValue={name}
+        className={titleClassName}
+        onBlur={(e) => {
+          onSave(e.currentTarget.value, e.currentTarget);
+          setEditing(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
+          if (e.key === 'Escape') {
+            e.currentTarget.value = name;
+            setEditing(false);
+          }
+        }}
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className={cn(
+        titleClassName,
+        'block cursor-text rounded-md text-left wrap-break-word whitespace-normal',
+        'hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30',
+      )}
+      aria-label="Ticket title. Click to edit"
+      onClick={() => setEditing(true)}
+    >
+      {name}
+    </button>
   );
 }
