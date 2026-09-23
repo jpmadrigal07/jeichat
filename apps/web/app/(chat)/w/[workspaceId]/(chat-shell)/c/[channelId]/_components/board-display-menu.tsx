@@ -95,7 +95,7 @@ export function BoardDisplayMenu({
           <SlidersHorizontal />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 gap-3">
+      <PopoverContent align="end" className="w-[min(20rem,calc(100vw-1rem))] gap-3">
         <PopoverHeader>
           <PopoverTitle>{layout === 'list' ? 'List' : 'Board'}</PopoverTitle>
         </PopoverHeader>

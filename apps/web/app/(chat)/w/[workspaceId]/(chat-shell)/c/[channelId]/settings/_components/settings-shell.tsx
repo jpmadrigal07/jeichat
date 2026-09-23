@@ -2,12 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowLeft, Archive, Info, Shield, Trash2, Users } from 'lucide-react';
+import { Archive, Info, Shield, Trash2, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ChatPageHeader } from '@chat/_components/chat-page-header';
 import { useChannels } from '@chat/_hooks/use-channels';
-import { isDmChannel } from '@chat/_helpers/channel-display';
+import { useWorkspaceRootCrumb } from '@chat/_hooks/use-workspace-root-crumb';
+import { channelBreadcrumbLabel, isDmChannel } from '@chat/_helpers/channel-display';
+import { channelPageHref } from '@chat/_libs/channels';
 
 type NavItem = {
   href: string;
@@ -61,28 +63,69 @@ export function ChannelSettingsShell({
     },
   ];
 
-  return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="flex h-12 items-center gap-3 border-b px-4">
-        <Button variant="ghost" size="icon-sm" asChild>
-          <Link href={`/w/${workspaceId}/c/${channelId}`}>
-            <ArrowLeft />
-            <span className="sr-only">Back to channel</span>
-          </Link>
-        </Button>
-        <div className="min-w-0">
-          {isLoading ? (
-            <Skeleton className="h-5 w-40" />
-          ) : (
-            <p className="truncate text-sm font-semibold">
-              #{channel?.name ?? 'Channel'} settings
-            </p>
-          )}
-        </div>
-      </header>
+  const settingsHome = `/w/${workspaceId}/c/${channelId}/settings`;
+  const onSettingsHome = pathname === settingsHome;
+  const workspaceRoot = useWorkspaceRootCrumb(workspaceId);
+  const visibleItems = navItems.filter((item) => item.visible !== false);
+  const activeItem = visibleItems.find((item) => pathname === item.href);
+  const channelHref = channelPageHref(workspaceId, channelId);
 
-      <div className="flex flex-1">
-        <aside className="w-56 shrink-0 border-r p-3">
+  const headerCrumbs = onSettingsHome
+    ? [
+        { label: workspaceRoot.label, href: workspaceRoot.href },
+        {
+          label: channelBreadcrumbLabel(channel),
+          href: channelHref,
+        },
+        { label: 'Settings' },
+      ]
+    : [
+        { label: workspaceRoot.label, href: workspaceRoot.href },
+        {
+          label: channelBreadcrumbLabel(channel),
+          href: channelHref,
+        },
+        { label: 'Settings', href: settingsHome },
+        { label: activeItem?.label ?? 'Settings' },
+      ];
+
+  const linearTitle = onSettingsHome
+    ? 'Settings'
+    : (activeItem?.label ?? 'Settings');
+  const linearParent = onSettingsHome
+    ? {
+        label: channelBreadcrumbLabel(channel),
+        href: channelHref,
+      }
+    : { label: 'Settings', href: settingsHome };
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      {isLoading ? (
+        <header className="flex h-12 items-center border-b px-2 md:px-4">
+          <Skeleton className="h-5 w-48" />
+        </header>
+      ) : (
+        <ChatPageHeader
+          backHref={onSettingsHome ? channelHref : settingsHome}
+          backLabel={
+            onSettingsHome ? 'Back to channel' : 'Back to channel settings'
+          }
+          linearTitle={linearTitle}
+          linearParent={linearParent}
+          crumbs={headerCrumbs}
+        />
+      )}
+
+      <div className="flex min-h-0 flex-1">
+        <aside
+          className={cn(
+            'w-56 shrink-0 border-r p-3',
+            onSettingsHome
+              ? 'max-md:w-full max-md:flex-1 max-md:overflow-y-auto max-md:border-r-0'
+              : 'max-md:hidden',
+          )}
+        >
           <nav className="flex flex-col gap-1">
             {navItems
               .filter((item) => item.visible !== false)
@@ -111,7 +154,14 @@ export function ChannelSettingsShell({
           </nav>
         </aside>
 
-        <main className="min-w-0 flex-1 overflow-y-auto p-6">{children}</main>
+        <main
+          className={cn(
+            'min-w-0 flex-1 overflow-y-auto p-4 md:p-6',
+            onSettingsHome && 'max-md:hidden',
+          )}
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

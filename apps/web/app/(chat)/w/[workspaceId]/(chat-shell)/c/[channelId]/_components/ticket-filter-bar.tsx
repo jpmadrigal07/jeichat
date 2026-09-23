@@ -97,29 +97,31 @@ export function TicketFilterBar({
         : (selectedMember?.name ?? 'Assignee');
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2">
-      <Button
-        variant={myIssuesActive ? 'secondary' : 'outline'}
-        size="sm"
-        onClick={() =>
-          replace((params) => {
-            if (myIssuesActive) {
-              clearMyIssuesParams(params);
-              return;
-            }
-            applyMyIssuesParams(params);
-          })
-        }
-      >
-        <UserRound data-icon="inline-start" />
-        My tickets
-      </Button>
+    <div className="flex shrink-0 flex-col gap-2 border-b px-2 py-2 md:flex-row md:flex-wrap md:items-center md:gap-2 md:px-4">
+      <div className="flex min-w-0 flex-wrap items-center gap-2 md:contents">
+        <Button
+          variant={myIssuesActive ? 'secondary' : 'outline'}
+          size="sm"
+          className="shrink-0"
+          onClick={() =>
+            replace((params) => {
+              if (myIssuesActive) {
+                clearMyIssuesParams(params);
+                return;
+              }
+              applyMyIssuesParams(params);
+            })
+          }
+        >
+          <UserRound data-icon="inline-start" />
+          My tickets
+        </Button>
 
-      <FilterMenu
-        label={assigneeLabel}
-        active={filters.assignee !== null}
-        icon={UserRound}
-      >
+        <FilterMenu
+          label={assigneeLabel}
+          active={filters.assignee !== null}
+          icon={UserRound}
+        >
         <DropdownMenuRadioGroup
           value={filters.assignee ?? ANY_VALUE}
           onValueChange={(value) =>
@@ -289,36 +291,40 @@ export function TicketFilterBar({
         <Button
           variant="ghost"
           size="sm"
+          className="shrink-0"
           onClick={() => replace(clearTicketFilterParams)}
         >
           <X data-icon="inline-start" />
           Clear
         </Button>
       ) : null}
-
-      <div className="relative min-w-40 max-w-64 flex-1">
-        <Search className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          type="search"
-          value={filters.q}
-          onChange={(event) =>
-            setFilter(
-              TICKET_FILTER_PARAM.q,
-              event.target.value ? event.target.value : null,
-            )
-          }
-          placeholder="Search tickets..."
-          aria-label="Search tickets"
-          className="pl-7"
-        />
       </div>
 
-      <div className="ml-auto">
-        <BoardDisplayMenu
-          workspaceId={workspaceId}
-          channelId={channelId}
-          layout={layout}
-        />
+      <div className="flex min-w-0 items-center gap-2 md:contents">
+        <div className="relative min-w-0 flex-1 md:min-w-40 md:max-w-64">
+          <Search className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="search"
+            value={filters.q}
+            onChange={(event) =>
+              setFilter(
+                TICKET_FILTER_PARAM.q,
+                event.target.value ? event.target.value : null,
+              )
+            }
+            placeholder="Search tickets..."
+            aria-label="Search tickets"
+            className="pl-7"
+          />
+        </div>
+
+        <div className="shrink-0 md:ml-auto">
+          <BoardDisplayMenu
+            workspaceId={workspaceId}
+            channelId={channelId}
+            layout={layout}
+          />
+        </div>
       </div>
     </div>
   );
@@ -338,7 +344,11 @@ function FilterMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant={active ? 'secondary' : 'outline'} size="sm">
+        <Button
+          variant={active ? 'secondary' : 'outline'}
+          size="sm"
+          className="max-w-full shrink-0"
+        >
           {Icon ? <Icon data-icon="inline-start" /> : null}
           <span className="max-w-28 truncate">{label}</span>
           <ChevronDown data-icon="inline-end" />

@@ -31,7 +31,7 @@ export function AttachmentImage({
       type="button"
       className={cn(
         'relative block overflow-hidden rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        compact ? 'size-16' : 'max-h-40 max-w-60',
+        compact ? 'size-16' : 'max-h-40 max-w-full sm:max-w-60',
       )}
       onClick={openLightbox}
     >

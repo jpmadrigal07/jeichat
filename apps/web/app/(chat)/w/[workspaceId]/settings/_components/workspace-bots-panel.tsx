@@ -75,7 +75,7 @@ export function WorkspaceBotsPanel({ workspaceId }: { workspaceId: string }) {
 
       {isOwner ? (
         <form
-          className="mb-6 flex gap-2"
+          className="mb-6 flex flex-col gap-2 sm:flex-row"
           onSubmit={(event) => {
             event.preventDefault();
             const name = nameRef.current?.value.trim() ?? '';

@@ -50,6 +50,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { useChannels, useUpdateChannel } from '@chat/_hooks/use-channels';
 import { useUnreadCounts } from '@chat/_hooks/use-unread-counts';
 import { useWorkspaceMembers } from '@chat/_hooks/use-workspaces';
@@ -107,7 +108,7 @@ export function ChannelThreadCards({
   userId: string;
 }) {
   return (
-    <Suspense fallback={<TicketListSkeleton layout={layout} />}>
+    <Suspense fallback={<TicketListSkeleton layout={layout} isMobile={false} />}>
       <ChannelThreadCardsInner
         workspaceId={workspaceId}
         channelId={channelId}
@@ -164,6 +165,16 @@ function ChannelThreadCardsInner({
           (status) => status !== 'done' && status !== 'cancelled',
         )
       : TICKET_STATUSES;
+  const isMobile = useIsMobile();
+  const ticketMenuMembers: TicketMenuMember[] = Array.from(
+    membersById,
+    ([memberUserId, member]) => ({
+      userId: memberUserId,
+      name: member.name,
+      image: member.image,
+      isBot: member.isBot,
+    }),
+  );
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -173,7 +184,7 @@ function ChannelThreadCardsInner({
         layout={layout}
       />
       {isPending ? (
-        <TicketListSkeleton layout={layout} />
+        <TicketListSkeleton layout={layout} isMobile={isMobile} />
       ) : !threads?.length ? (
         <Empty className="flex-1 border-0">
           <EmptyHeader>
@@ -211,6 +222,19 @@ function ChannelThreadCardsInner({
             </EmptyDescription>
           </EmptyHeader>
         </Empty>
+      ) : isMobile ? (
+        <TicketMobileBucketView
+          workspaceId={workspaceId}
+          channelId={channelId}
+          ticketPrefix={ticketPrefix}
+          layout={layout}
+          threads={visibleThreads}
+          numbers={numbers}
+          statuses={boardStatuses}
+          unreadCounts={unreadCounts}
+          members={ticketMenuMembers}
+          searchParams={searchParams}
+        />
       ) : layout === 'list' ? (
         <TicketListView
           workspaceId={workspaceId}
@@ -235,12 +259,22 @@ function ChannelThreadCardsInner({
   );
 }
 
-function TicketListSkeleton({ layout }: { layout: TicketLayout }) {
-  if (layout === 'list') {
+function TicketListSkeleton({
+  layout,
+  isMobile,
+}: {
+  layout: TicketLayout;
+  isMobile: boolean;
+}) {
+  if (isMobile || layout === 'list') {
     return (
-      <div className="flex flex-col gap-2 p-4">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <Skeleton key={i} className="h-10 w-full rounded-md" />
+      <div className="flex flex-col gap-3 p-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="flex flex-col gap-2">
+            <Skeleton className="h-8 w-40 rounded-md" />
+            <Skeleton className="h-16 w-full rounded-md" />
+            <Skeleton className="h-16 w-full rounded-md" />
+          </div>
         ))}
       </div>
     );
@@ -293,6 +327,217 @@ function ticketNumberById(threads: ChannelThread[]): Map<string, number> {
     next += 1;
   }
   return numbers;
+}
+
+/** GitHub Projects–style mobile: grouped buckets, no horizontal kanban or drag. */
+function TicketMobileBucketView({
+  workspaceId,
+  channelId,
+  ticketPrefix,
+  layout,
+  threads,
+  numbers,
+  statuses,
+  unreadCounts,
+  members,
+  searchParams,
+}: {
+  workspaceId: string;
+  channelId: string;
+  ticketPrefix: string;
+  layout: TicketLayout;
+  threads: ChannelThread[];
+  numbers: Map<string, number>;
+  statuses: readonly TicketStatus[];
+  unreadCounts: Record<string, number> | undefined;
+  members: TicketMenuMember[];
+  searchParams: Pick<URLSearchParams, 'toString'>;
+}) {
+  const ticketsByStatus = new Map<TicketStatus, ChannelThread[]>(
+    statuses.map((status) => [status, []]),
+  );
+  for (const thread of threads) {
+    ticketsByStatus.get(ticketStatusOf(thread.status))?.push(thread);
+  }
+
+  return (
+    <ScrollArea className="min-h-0 flex-1 overflow-hidden">
+      <div className="flex flex-col gap-1 p-2 pb-4">
+        {statuses.map((status) => {
+          const tickets = ticketsByStatus.get(status) ?? [];
+          if (tickets.length === 0) return null;
+          return (
+            <TicketMobileStatusBucket
+              key={status}
+              workspaceId={workspaceId}
+              channelId={channelId}
+              ticketPrefix={ticketPrefix}
+              layout={layout}
+              status={status}
+              tickets={tickets}
+              numbers={numbers}
+              unreadCounts={unreadCounts}
+              members={members}
+              searchParams={searchParams}
+            />
+          );
+        })}
+      </div>
+    </ScrollArea>
+  );
+}
+
+function TicketMobileStatusBucket({
+  workspaceId,
+  channelId,
+  ticketPrefix,
+  layout,
+  status,
+  tickets,
+  numbers,
+  unreadCounts,
+  members,
+  searchParams,
+}: {
+  workspaceId: string;
+  channelId: string;
+  ticketPrefix: string;
+  layout: TicketLayout;
+  status: TicketStatus;
+  tickets: ChannelThread[];
+  numbers: Map<string, number>;
+  unreadCounts: Record<string, number> | undefined;
+  members: TicketMenuMember[];
+  searchParams: Pick<URLSearchParams, 'toString'>;
+}) {
+  const meta = TICKET_STATUS_META[status];
+  const StatusIcon = meta.icon;
+  const createHref = createThreadHref(channelId, {
+    status,
+    search: searchParams,
+  });
+
+  return (
+    <Collapsible
+      defaultOpen={isTicketStatusOpenByDefault(status, false)}
+      className="group/bucket rounded-md border bg-muted/20"
+    >
+      <div className="flex items-center gap-1 px-1 py-0.5">
+        <CollapsibleTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="min-h-9 min-w-0 flex-1 justify-start font-normal"
+          >
+            <ChevronRight
+              data-icon="inline-start"
+              className="transition-transform group-data-[state=open]/bucket:rotate-90"
+            />
+            <StatusIcon className={cn('shrink-0', meta.iconClassName)} />
+            <span className="truncate">{meta.label}</span>
+            <Badge variant="secondary">{tickets.length}</Badge>
+          </Button>
+        </CollapsibleTrigger>
+        <Button variant="ghost" size="icon-sm" asChild>
+          <Link href={createHref}>
+            <Plus />
+            <span className="sr-only">Create ticket in {meta.label}</span>
+          </Link>
+        </Button>
+      </div>
+      <CollapsibleContent className="flex flex-col gap-1.5 px-2 pb-2">
+        {tickets.map((thread) =>
+          layout === 'card' ? (
+            <TicketBoardCard
+              key={thread.id}
+              workspaceId={workspaceId}
+              displayId={ticketDisplayId(
+                ticketPrefix,
+                numbers.get(thread.id) ?? 1,
+              )}
+              status={ticketStatusOf(thread.status)}
+              thread={thread}
+              unreadLabel={formatUnreadCount(unreadCounts?.[thread.id] ?? 0)}
+              members={members}
+              enableDrag={false}
+            />
+          ) : (
+            <TicketMobileListItem
+              key={thread.id}
+              workspaceId={workspaceId}
+              thread={thread}
+              unreadLabel={formatUnreadCount(unreadCounts?.[thread.id] ?? 0)}
+              members={members}
+            />
+          ),
+        )}
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function TicketMobileListItem({
+  workspaceId,
+  thread,
+  unreadLabel,
+  members,
+}: {
+  workspaceId: string;
+  thread: ChannelThread;
+  unreadLabel: string | null;
+  members: TicketMenuMember[];
+}) {
+  const href = channelPageHref(workspaceId, thread.id);
+  const priority = ticketPriorityOf(thread.priority);
+  const PriorityIcon = TICKET_PRIORITY_META[priority].icon;
+  const status = ticketStatusOf(thread.status);
+
+  return (
+    <div className="relative flex items-start gap-2 rounded-md border bg-card p-2">
+      <Link href={href} className="absolute inset-0" tabIndex={-1}>
+        <span className="sr-only">{thread.name}</span>
+      </Link>
+      <div className="pointer-events-none flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="pointer-events-auto relative z-10">
+            <TicketStatusIconMenu
+              workspaceId={workspaceId}
+              channelId={thread.id}
+              status={status}
+            />
+          </span>
+          <span className="min-w-0 flex-1 truncate font-medium">{thread.name}</span>
+          {unreadLabel ? (
+            <Badge variant="destructive">{unreadLabel}</Badge>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
+          <PriorityIcon
+            className={cn(
+              'size-3.5 shrink-0',
+              TICKET_PRIORITY_META[priority].iconClassName,
+            )}
+          />
+          <span className="pointer-events-auto relative z-10">
+            <TicketAssigneeIconMenu
+              workspaceId={workspaceId}
+              channelId={thread.id}
+              assigneeId={thread.assigneeId}
+              members={members}
+            />
+          </span>
+        </div>
+      </div>
+      <TicketArchiveMenu
+        workspaceId={workspaceId}
+        channelId={thread.id}
+        archivedAt={thread.archivedAt}
+        size="icon-xs"
+        stopCardGestures
+        className="relative z-10 shrink-0"
+      />
+    </div>
+  );
 }
 
 function TicketBoardView({
@@ -492,6 +737,7 @@ function TicketBoardCard({
   thread,
   unreadLabel,
   members,
+  enableDrag = true,
 }: {
   workspaceId: string;
   displayId: string;
@@ -499,25 +745,33 @@ function TicketBoardCard({
   thread: ChannelThread;
   unreadLabel: string | null;
   members: TicketMenuMember[];
+  enableDrag?: boolean;
 }) {
   const priority = ticketPriorityOf(thread.priority);
 
   return (
     <Link
       href={channelPageHref(workspaceId, thread.id)}
-      draggable
-      className="group/card min-w-0 active:cursor-grabbing"
-      onDragStart={(event) => {
-        if (
-          event.target instanceof Element &&
-          event.target.closest('button')
-        ) {
-          event.preventDefault();
-          return;
-        }
-        event.dataTransfer.setData('text/plain', thread.id);
-        event.dataTransfer.effectAllowed = 'move';
-      }}
+      draggable={enableDrag}
+      className={cn(
+        'group/card min-w-0',
+        enableDrag && 'active:cursor-grabbing',
+      )}
+      onDragStart={
+        enableDrag
+          ? (event) => {
+              if (
+                event.target instanceof Element &&
+                event.target.closest('button')
+              ) {
+                event.preventDefault();
+                return;
+              }
+              event.dataTransfer.setData('text/plain', thread.id);
+              event.dataTransfer.effectAllowed = 'move';
+            }
+          : undefined
+      }
     >
       <Card size="sm" className="gap-1.5 hover:bg-muted/50">
         <CardHeader className="gap-1.5 py-0">

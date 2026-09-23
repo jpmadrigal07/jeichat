@@ -11,7 +11,11 @@ export default function WorkspacePage() {
   const [, startTransition] = useTransition();
 
   useEffect(() => {
-    if (channels && channels.length > 0) {
+    const media = window.matchMedia('(max-width: 767px)');
+
+    function openFirstChannel() {
+      if (media.matches || !channels?.length) return;
+
       const general = channels.find(
         (c) => c.name === 'general' && c.channelType !== 'dm' && !c.parentId,
       );
@@ -19,12 +23,16 @@ export default function WorkspacePage() {
         general ??
         channels.find((c) => c.channelType !== 'dm' && !c.parentId) ??
         channels[0];
-      if (firstChannel) {
-        startTransition(() => {
-          router.replace(`/w/${workspaceId}/c/${firstChannel.id}`);
-        });
-      }
+      if (!firstChannel) return;
+
+      startTransition(() => {
+        router.replace(`/w/${workspaceId}/c/${firstChannel.id}`);
+      });
     }
+
+    openFirstChannel();
+    media.addEventListener('change', openFirstChannel);
+    return () => media.removeEventListener('change', openFirstChannel);
   }, [channels, workspaceId, router]);
 
   return (

@@ -6,6 +6,12 @@ import { useSearchParams } from 'next/navigation';
 import { Pin, PinOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Empty,
   EmptyDescription,
   EmptyHeader,
@@ -50,6 +56,56 @@ export function PinnedMessagesPopoverHost({
   );
 }
 
+export function PinnedMessagesDialogHost({
+  channelId,
+  open,
+  onOpenChange,
+}: {
+  channelId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[min(32rem,calc(100dvh-2rem))] flex-col gap-0 p-0 sm:max-w-md">
+        <DialogHeader className="border-b px-4 py-3">
+          <DialogTitle>Pinned messages</DialogTitle>
+        </DialogHeader>
+        <Suspense
+          fallback={
+            <div className="flex min-h-40 items-center justify-center p-6 text-sm text-muted-foreground">
+              Loading pins…
+            </div>
+          }
+        >
+          <PinnedMessagesDialogPanel
+            channelId={channelId}
+            onNavigate={() => onOpenChange(false)}
+          />
+        </Suspense>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PinnedMessagesDialogPanel({
+  channelId,
+  onNavigate,
+}: {
+  channelId: string;
+  onNavigate: () => void;
+}) {
+  const searchParams = useSearchParams();
+  return (
+    <PinnedMessagesPanel
+      channelId={channelId}
+      search={searchParams}
+      onNavigate={onNavigate}
+      className="min-h-0 flex-1"
+    />
+  );
+}
+
 function PinnedMessagesPopoverFromSearch({
   channelId,
 }: {
@@ -70,9 +126,7 @@ function PinnedMessagesPopover({
 }) {
   const [open, setOpen] = useState(false);
   const { data } = usePinnedMessages(channelId);
-  const unpin = useUnpinMessage(channelId);
   const pins = data?.data ?? [];
-  const canManageMessages = data?.canManageMessages ?? false;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -101,41 +155,67 @@ function PinnedMessagesPopover({
         </TooltipContent>
       </Tooltip>
 
-      <PopoverContent align="end" className="w-80 gap-0 p-0">
+      <PopoverContent align="end" className="w-[min(20rem,calc(100vw-1rem))] gap-0 p-0">
         <PopoverHeader className="border-b px-3 py-2">
           <PopoverTitle>Pinned messages</PopoverTitle>
         </PopoverHeader>
-
-        {pins.length === 0 ? (
-          <Empty className="p-6">
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <Pin />
-              </EmptyMedia>
-              <EmptyTitle>No pinned messages</EmptyTitle>
-              <EmptyDescription>
-                Pin a message from the hover menu to keep it here.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : (
-          <ScrollArea className="max-h-80">
-            <div className="flex flex-col p-1">
-              {pins.map((pin) => (
-                <PinnedMessageRow
-                  key={pin.id}
-                  pin={pin}
-                  href={pinnedMessageHref(pin.messageId, search)}
-                  canUnpin={canManageMessages}
-                  onJump={() => setOpen(false)}
-                  onUnpin={() => unpin.mutate(pin.messageId)}
-                />
-              ))}
-            </div>
-          </ScrollArea>
-        )}
+        <PinnedMessagesPanel
+          channelId={channelId}
+          search={search}
+          onNavigate={() => setOpen(false)}
+        />
       </PopoverContent>
     </Popover>
+  );
+}
+
+function PinnedMessagesPanel({
+  channelId,
+  search,
+  onNavigate,
+  className,
+}: {
+  channelId: string;
+  search: Pick<URLSearchParams, 'toString'>;
+  onNavigate: () => void;
+  className?: string;
+}) {
+  const { data } = usePinnedMessages(channelId);
+  const unpin = useUnpinMessage(channelId);
+  const pins = data?.data ?? [];
+  const canManageMessages = data?.canManageMessages ?? false;
+
+  if (pins.length === 0) {
+    return (
+      <Empty className={className ?? 'p-6'}>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <Pin />
+          </EmptyMedia>
+          <EmptyTitle>No pinned messages</EmptyTitle>
+          <EmptyDescription>
+            Pin a message from the hover menu to keep it here.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    );
+  }
+
+  return (
+    <ScrollArea className={className ?? 'max-h-80'}>
+      <div className="flex flex-col p-1">
+        {pins.map((pin) => (
+          <PinnedMessageRow
+            key={pin.id}
+            pin={pin}
+            href={pinnedMessageHref(pin.messageId, search)}
+            canUnpin={canManageMessages}
+            onJump={onNavigate}
+            onUnpin={() => unpin.mutate(pin.messageId)}
+          />
+        ))}
+      </div>
+    </ScrollArea>
   );
 }
 

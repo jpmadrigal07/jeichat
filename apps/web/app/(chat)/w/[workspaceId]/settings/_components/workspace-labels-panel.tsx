@@ -318,6 +318,7 @@ export function WorkspaceLabelsPanel({
           </EmptyHeader>
         </Empty>
       ) : (
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -339,6 +340,7 @@ export function WorkspaceLabelsPanel({
             ))}
           </TableBody>
         </Table>
+        </div>
       )}
     </div>
   );

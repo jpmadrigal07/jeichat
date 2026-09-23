@@ -346,8 +346,8 @@ export function WorkspaceRolesPanel({
         </p>
       </div>
 
-      <div className="flex gap-6">
-        <aside className="w-52 shrink-0">
+      <div className="flex flex-col gap-6 md:flex-row">
+        <aside className="w-full shrink-0 md:w-52">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">
               ROLES

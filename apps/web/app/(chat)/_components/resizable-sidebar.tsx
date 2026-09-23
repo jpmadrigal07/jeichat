@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { cn } from '@/lib/utils';
 
 export const CHANNEL_SIDEBAR_DEFAULT_WIDTH = 240;
@@ -99,10 +99,14 @@ export function ResizableSidebar({
   return (
     <div
       className={cn(
-        'relative flex min-h-0 min-w-0 shrink-0 flex-col overflow-hidden',
+        'relative flex min-h-0 w-full min-w-0 shrink-0 flex-col overflow-hidden md:w-(--channel-sidebar-width)',
         className,
       )}
-      style={{ width }}
+      style={
+        {
+          '--channel-sidebar-width': `${width}px`,
+        } as CSSProperties
+      }
     >
       {children}
       <div
@@ -112,7 +116,7 @@ export function ResizableSidebar({
         aria-valuemin={CHANNEL_SIDEBAR_MIN_WIDTH}
         aria-valuemax={CHANNEL_SIDEBAR_MAX_WIDTH}
         aria-valuenow={width}
-        className="absolute inset-y-0 -right-1 z-20 flex w-2 cursor-col-resize touch-none select-none justify-center after:absolute after:inset-y-0 after:w-px after:bg-border hover:after:bg-primary/50 active:after:bg-primary"
+        className="absolute inset-y-0 -right-1 z-20 hidden w-2 cursor-col-resize touch-none select-none justify-center after:absolute after:inset-y-0 after:w-px after:bg-border hover:after:bg-primary/50 active:after:bg-primary md:flex"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={(event) => stopResize(event, true)}

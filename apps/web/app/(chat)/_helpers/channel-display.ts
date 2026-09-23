@@ -12,3 +12,15 @@ export function channelDisplayName(channel: Channel): string {
   }
   return channel.name;
 }
+
+/** Label for GitHub-style header breadcrumbs (includes # for channels). */
+export function channelBreadcrumbLabel(
+  channel: Pick<Channel, 'channelType' | 'name' | 'dmPeer'> | null | undefined,
+  fallback = 'Channel',
+): string {
+  if (!channel) return fallback;
+  if (isDmChannel(channel)) {
+    return channel.dmPeer?.name ?? channel.name ?? fallback;
+  }
+  return `# ${channel.name}`;
+}

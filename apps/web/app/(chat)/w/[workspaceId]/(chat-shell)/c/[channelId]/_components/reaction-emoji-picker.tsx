@@ -49,7 +49,7 @@ export function ReactionEmojiPicker({
           </Button>
         </PopoverTrigger>
       ) : null}
-      <PopoverContent align="start" className="w-[320px] p-0">
+      <PopoverContent align="start" className="w-[min(20rem,calc(100vw-1rem))] p-0">
         <div className="flex items-center gap-0.5 border-b p-1.5">
           {QUICK_REACTIONS.map((emoji) => (
             <Button

@@ -13,6 +13,7 @@ import type {
 } from '@chat/_helpers/ticket-mentions';
 import { ComposerTagPicker } from '@chat/_components/composer-tag-picker';
 import { useComposerTagPicker } from '@chat/_hooks/use-composer-tag-picker';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   markdownShortcutForKey,
   wrapAsMarkdownLink,
@@ -61,6 +62,22 @@ function focusTextarea(textarea: HTMLTextAreaElement | null) {
   });
 }
 
+/** Keeps desktop placeholder on one line; full name stays in the header. */
+const DESKTOP_MESSAGE_PLACEHOLDER_MAX = 48;
+
+function messageComposerPlaceholder(
+  channelName: string | undefined,
+  isMobile: boolean,
+): string {
+  if (isMobile) return 'Write a message…';
+  const name = channelName?.trim() || '…';
+  const label =
+    name.length > DESKTOP_MESSAGE_PLACEHOLDER_MAX
+      ? `${name.slice(0, DESKTOP_MESSAGE_PLACEHOLDER_MAX - 1)}…`
+      : name;
+  return `Message #${label}`;
+}
+
 export function MessageInput({
   channelName,
   currentUserId,
@@ -76,6 +93,7 @@ export function MessageInput({
   sendDisabled,
   uploads,
 }: MessageInputProps) {
+  const isMobile = useIsMobile();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasSendDisabledRef = useRef(false);
@@ -236,8 +254,8 @@ export function MessageInput({
           <AttachmentPickerButton onAdd={uploads.addFiles} />
           <Textarea
             ref={textareaRef}
-            placeholder={`Message #${channelName ?? '...'}`}
-            className="min-h-6 max-h-[200px] resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0 dark:bg-transparent"
+            placeholder={messageComposerPlaceholder(channelName, isMobile)}
+            className="h-6 min-h-6 max-h-[200px] field-sizing-fixed resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0 dark:bg-transparent"
             rows={1}
             autoFocus
             onKeyDown={handleKeyDown}

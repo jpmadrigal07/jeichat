@@ -11,6 +11,7 @@ import {
   Settings,
   MoreHorizontal,
   Inbox,
+  LayoutGrid,
   ListFilter,
   UserRound,
   MessagesSquare,
@@ -20,6 +21,13 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import {
   Collapsible,
@@ -83,6 +91,7 @@ import { PresenceAvatar } from './presence-avatar';
 import { channelDisplayName } from '../_helpers/channel-display';
 import { UserBar } from './user-bar';
 import { ResizableSidebar } from './resizable-sidebar';
+import { WorkspaceSwitcher } from './workspace-switcher';
 
 type User = {
   id: string;
@@ -127,10 +136,34 @@ export function ChannelSidebar({ user }: { user: User }) {
 
   return (
     <ResizableSidebar className="border-r bg-sidebar/50">
-      <div className="flex h-12 items-center px-4 border-b">
+      <div className="flex h-12 min-w-0 items-center gap-1 border-b px-2 md:px-4">
+        <Sheet key={pathname}>
+          <SheetTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="md:hidden"
+              aria-label="Switch workspace"
+            >
+              <LayoutGrid />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-24! gap-0 p-0 sm:max-w-24">
+            <SheetHeader className="sr-only">
+              <SheetTitle>Workspaces</SheetTitle>
+            </SheetHeader>
+            <div className="flex flex-1 justify-center overflow-y-auto py-3">
+              <WorkspaceSwitcher
+                workspaces={workspaces ?? []}
+                activeWorkspaceId={workspaceId}
+                user={user}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-1 truncate font-semibold text-sm hover:text-foreground/80 transition-colors">
+            <button className="flex min-w-0 flex-1 items-center gap-1 text-sm font-semibold transition-colors hover:text-foreground/80">
               <span className="truncate">
                 {activeWorkspace?.name ?? 'Workspace'}
               </span>

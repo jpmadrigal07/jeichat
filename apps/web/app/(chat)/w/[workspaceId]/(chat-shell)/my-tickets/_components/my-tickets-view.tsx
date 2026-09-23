@@ -26,9 +26,11 @@ import {
 import { useChannels } from '@chat/_hooks/use-channels';
 import { useUnreadCounts } from '@chat/_hooks/use-unread-counts';
 import { channelPageHref, type Channel } from '@chat/_libs/channels';
+import { ChatPageHeader } from '@chat/_components/chat-page-header';
 import { ChatPane } from '@chat/_components/chat-pane';
 import { MembersSidebarToggle } from '@chat/_components/members-sidebar-toggle';
 import { WorkspaceSearch } from '@chat/_components/workspace-search';
+import { useWorkspaceRootCrumb } from '@chat/_hooks/use-workspace-root-crumb';
 
 export function MyTicketsView({
   workspaceId,
@@ -43,22 +45,33 @@ export function MyTicketsView({
     (channels ?? []).map((channel) => [channel.id, channel]),
   );
   const tickets = assignedTicketsForUser(channels ?? [], userId);
+  const workspaceRoot = useWorkspaceRootCrumb(workspaceId);
 
   return (
     <ChatPane
       currentUserId={userId}
       header={
-        <div className="flex h-12 shrink-0 items-center gap-2 border-b px-4">
-          <h1 className="min-w-0 flex-1 truncate text-sm font-semibold">
-            My tickets
-          </h1>
-          <div className="ml-auto flex shrink-0 items-center gap-1">
-            <MembersSidebarToggle />
-            <div className="ml-3">
-              <WorkspaceSearch workspaceId={workspaceId} />
-            </div>
-          </div>
-        </div>
+        <ChatPageHeader
+          backHref={workspaceRoot.href}
+          backLabel="Back to channels"
+          linearTitle="My tickets"
+          linearParent={{
+            label: workspaceRoot.label,
+            href: workspaceRoot.href,
+          }}
+          crumbs={[
+            { label: workspaceRoot.label, href: workspaceRoot.href },
+            { label: 'My tickets' },
+          ]}
+          actions={
+            <>
+              <MembersSidebarToggle />
+              <div className="md:ml-3">
+                <WorkspaceSearch workspaceId={workspaceId} />
+              </div>
+            </>
+          }
+        />
       }
     >
       {isPending ? (

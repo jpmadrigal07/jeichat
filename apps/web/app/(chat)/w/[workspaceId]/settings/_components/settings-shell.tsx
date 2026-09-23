@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ArrowLeft, Bot, Info, Shield, Tag, Trash2, Users } from 'lucide-react';
+import { Bot, Info, Shield, Tag, Trash2, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ChatPageHeader } from '@chat/_components/chat-page-header';
 import { useWorkspaces } from '@chat/_hooks/use-workspaces';
+import { useWorkspaceRootCrumb } from '@chat/_hooks/use-workspace-root-crumb';
 import { useWorkspacePresenceSocket } from '@chat/_hooks/use-presence';
 
 type NavItem = {
@@ -67,34 +68,56 @@ export function SettingsShell({
   const visibleNavItems = navItems.filter(
     (item) => !item.ownerOnly || isOwner,
   );
+  const settingsHome = `/w/${workspaceId}/settings`;
+  const onSettingsHome = pathname === settingsHome;
+  const workspaceRoot = useWorkspaceRootCrumb(workspaceId);
+  const activeItem = visibleNavItems.find((item) => pathname === item.href);
+
+  const headerCrumbs = onSettingsHome
+    ? [
+        { label: workspaceRoot.label, href: workspaceRoot.href },
+        { label: 'Settings' },
+      ]
+    : [
+        { label: workspaceRoot.label, href: workspaceRoot.href },
+        { label: 'Settings', href: settingsHome },
+        { label: activeItem?.label ?? 'Settings' },
+      ];
+
+  const linearTitle = onSettingsHome
+    ? 'Settings'
+    : (activeItem?.label ?? 'Settings');
+  const linearParent = onSettingsHome
+    ? { label: workspaceRoot.label, href: workspaceRoot.href }
+    : { label: 'Settings', href: settingsHome };
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="flex h-14 items-center gap-3 border-b px-4">
-        <Button variant="ghost" size="icon-sm" asChild>
-          <Link href={`/w/${workspaceId}`}>
-            <ArrowLeft />
-            <span className="sr-only">Back to workspace</span>
-          </Link>
-        </Button>
-        <div className="min-w-0">
-          {isLoading ? (
-            <Skeleton className="h-5 w-40" />
-          ) : (
-            <>
-              <p className="truncate text-sm font-semibold">
-                {workspace?.name ?? 'Workspace'} settings
-              </p>
-              <p className="truncate text-xs text-muted-foreground">
-                Manage workspace details, members, and preferences.
-              </p>
-            </>
-          )}
-        </div>
-      </header>
+    <div className="flex min-h-svh flex-col bg-background">
+      {isLoading ? (
+        <header className="flex h-12 items-center border-b px-2 md:px-4">
+          <Skeleton className="h-5 w-48" />
+        </header>
+      ) : (
+        <ChatPageHeader
+          backHref={onSettingsHome ? workspaceRoot.href : settingsHome}
+          backLabel={
+            onSettingsHome ? 'Back to channels' : 'Back to settings'
+          }
+          linearTitle={linearTitle}
+          linearParent={linearParent}
+          crumbs={headerCrumbs}
+        />
+      )}
 
-      <div className="flex flex-1">
-        <aside className="w-56 shrink-0 border-r p-3">
+      <div className="flex min-h-0 flex-1">
+        <aside
+          className={cn(
+            'w-56 shrink-0 border-r p-3',
+            onSettingsHome
+              ? 'max-md:w-full max-md:flex-1 max-md:overflow-y-auto max-md:border-r-0'
+              : 'max-md:hidden',
+          )}
+        >
           <nav className="flex flex-col gap-1">
             {visibleNavItems.map((item) => {
               const Icon = item.icon;
@@ -120,7 +143,14 @@ export function SettingsShell({
           </nav>
         </aside>
 
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main
+          className={cn(
+            'min-w-0 flex-1 overflow-y-auto p-4 md:p-6',
+            onSettingsHome && 'max-md:hidden',
+          )}
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

@@ -43,10 +43,21 @@ const MAX_EXPORT_MONTHS = 1;
 type ExportDialogProps = {
   channelId: string;
   channel: Channel | undefined;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
 };
 
-export function ExportDialog({ channelId, channel }: ExportDialogProps) {
-  const [open, setOpen] = useState(false);
+export function ExportDialog({
+  channelId,
+  channel,
+  open: openProp,
+  onOpenChange: onOpenChangeProp,
+  showTrigger = true,
+}: ExportDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = openProp ?? internalOpen;
+  const setOpen = onOpenChangeProp ?? setInternalOpen;
   const [fromDate, setFromDate] = useState<Date | undefined>();
   const [toDate, setToDate] = useState<Date | undefined>();
   const previewRef = useRef<HTMLPreElement>(null);
@@ -124,11 +135,14 @@ export function ExportDialog({ channelId, channel }: ExportDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8">
-          <FileDown className="h-4 w-4" />
-        </Button>
-      </DialogTrigger>
+      {showTrigger ? (
+        <DialogTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <FileDown className="h-4 w-4" />
+            <span className="sr-only">Export chat</span>
+          </Button>
+        </DialogTrigger>
+      ) : null}
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Export #{channel?.name ?? 'channel'}</DialogTitle>

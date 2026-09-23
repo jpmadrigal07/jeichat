@@ -1,6 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
+import { ChevronLeft } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -91,7 +92,7 @@ export function MembersSidebar({ currentUserId }: { currentUserId: string }) {
   const router = useRouter();
   const { data: members, isLoading } = useWorkspaceMembers(workspaceId ?? '');
   const { data: onlineIds } = useOnlineUserIds(workspaceId);
-  const { open } = useMembersSidebarOpen();
+  const { open, setOpen } = useMembersSidebarOpen();
   const createDm = useCreateOrGetDm(workspaceId ?? '');
   const onlineSet = new Set(onlineIds ?? []);
 
@@ -114,7 +115,26 @@ export function MembersSidebar({ currentUserId }: { currentUserId: string }) {
     .sort(sortByName);
 
   return (
-    <aside className="flex h-full min-h-0 w-60 shrink-0 flex-col overflow-hidden border-l bg-sidebar/50">
+    <>
+      <button
+        type="button"
+        aria-label="Close members"
+        className="fixed inset-0 z-30 bg-black/40 md:hidden"
+        onClick={() => setOpen(false)}
+      />
+      <aside className="fixed inset-y-0 right-0 z-40 flex h-full min-h-0 w-full max-w-sm flex-col overflow-hidden border-l bg-background md:relative md:z-auto md:w-60 md:max-w-none md:shrink-0 md:bg-sidebar/50">
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b px-2 md:hidden">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Close members"
+          onClick={() => setOpen(false)}
+        >
+          <ChevronLeft />
+        </Button>
+        <p className="text-sm font-semibold">Members</p>
+      </div>
       {isLoading ? (
         <div className="flex flex-col gap-2 p-4">
           {Array.from({ length: 5 }).map((_, index) => (
@@ -139,6 +159,7 @@ export function MembersSidebar({ currentUserId }: { currentUserId: string }) {
           />
         </ScrollArea>
       )}
-    </aside>
+      </aside>
+    </>
   );
 }

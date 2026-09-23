@@ -94,14 +94,14 @@ function UserSettingsDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[min(40rem,calc(100vh-2rem))] w-full max-w-4xl gap-0 overflow-hidden p-0 text-sm sm:max-w-4xl">
+      <DialogContent className="flex h-[min(40rem,calc(100dvh-1rem))] w-full max-w-[calc(100%-1rem)] flex-col gap-0 overflow-hidden p-0 text-sm sm:max-w-4xl md:flex-row">
         <DialogTitle className="sr-only">User settings</DialogTitle>
         <DialogDescription className="sr-only">
           Manage your profile, password, and appearance.
         </DialogDescription>
 
-        <aside className="flex w-48 shrink-0 flex-col gap-1 border-r bg-muted/30 p-3">
-          <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">
+        <aside className="flex w-full shrink-0 flex-row gap-1 overflow-x-auto border-b bg-muted/30 p-3 pr-12 md:w-48 md:flex-col md:overflow-visible md:border-r md:border-b-0 md:pr-3">
+          <p className="hidden px-3 pb-1 text-xs font-medium text-muted-foreground md:block">
             User settings
           </p>
           {NAV_ITEMS.map((item) => {
@@ -113,7 +113,7 @@ function UserSettingsDialog({
                 href={profileSettingsHref(item.tab, search)}
                 replace
                 className={cn(
-                  'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
+                  'flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
                   isActive
                     ? 'bg-accent font-medium text-accent-foreground'
                     : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
@@ -126,8 +126,8 @@ function UserSettingsDialog({
           })}
         </aside>
 
-        <ScrollArea className="h-full min-w-0 flex-1">
-          <div className="flex flex-col gap-6 p-6 pr-12">
+        <ScrollArea className="h-full min-h-0 min-w-0 flex-1">
+          <div className="flex flex-col gap-6 p-4 md:p-6 md:pr-12">
             {tab === 'account' ? (
               <>
                 <div>

@@ -98,9 +98,9 @@ export function ChannelArchivedTicketsPanel({
           <TableHeader>
             <TableRow>
               <TableHead>Ticket</TableHead>
-              <TableHead className="w-40">Status</TableHead>
-              <TableHead className="w-36">Archived</TableHead>
-              <TableHead className="w-32 text-right">
+              <TableHead className="hidden w-40 sm:table-cell">Status</TableHead>
+              <TableHead className="hidden w-36 md:table-cell">Archived</TableHead>
+              <TableHead className="w-12 text-right sm:w-32">
                 <span className="sr-only">Actions</span>
               </TableHead>
             </TableRow>
@@ -125,7 +125,7 @@ export function ChannelArchivedTicketsPanel({
                       <span className="truncate font-medium">{ticket.name}</span>
                     </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="hidden sm:table-cell">
                     <span className="inline-flex items-center gap-1.5 text-sm">
                       <StatusIcon
                         className={TICKET_STATUS_META[status].iconClassName}
@@ -133,7 +133,7 @@ export function ChannelArchivedTicketsPanel({
                       {TICKET_STATUS_META[status].label}
                     </span>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
                     {archivedAt && !Number.isNaN(archivedAt.getTime())
                       ? format(archivedAt, 'MMM d, yyyy')
                       : '—'}
@@ -152,7 +152,7 @@ export function ChannelArchivedTicketsPanel({
                       }
                     >
                       <RotateCcw data-icon="inline-start" />
-                      Restore
+                      <span className="max-sm:sr-only">Restore</span>
                     </Button>
                   </TableCell>
                 </TableRow>

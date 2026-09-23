@@ -186,37 +186,73 @@ export function WorkspaceSearch({ workspaceId }: { workspaceId: string }) {
   return (
     <Popover open={open} onOpenChange={setOpen} modal={false}>
       <PopoverAnchor asChild>
-        <div className="relative w-44 lg:w-56">
-          <Search className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        <div className="relative md:w-44 lg:w-56">
+          <div className="relative hidden md:block">
+            <Search className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              ref={inputRef}
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setOpen(true);
+              }}
+              onFocus={() => setOpen(true)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  setOpen(false);
+                  inputRef.current?.blur();
+                }
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  commitQuery();
+                }
+              }}
+              placeholder={`Search ${workspaceName}`}
+              className="pr-2 pl-7"
+              aria-label={`Search ${workspaceName}`}
+            />
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="md:hidden"
+            aria-label={`Search ${workspaceName}`}
+            onClick={() => setOpen(true)}
+          >
+            <Search />
+          </Button>
+        </div>
+      </PopoverAnchor>
+      <PopoverContent
+        align="end"
+        className="max-h-[min(20rem,calc(100dvh-6rem))] w-[min(24rem,calc(100vw-1rem))] gap-0 overflow-x-hidden overflow-y-auto overscroll-contain p-1 data-closed:overflow-hidden"
+        onOpenAutoFocus={(event) => {
+          if (window.matchMedia('(min-width: 768px)').matches) {
+            event.preventDefault();
+          }
+        }}
+      >
+        <div className="relative p-2 md:hidden">
+          <Search className="pointer-events-none absolute top-1/2 left-4 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
-            ref={inputRef}
             value={query}
             onChange={(event) => {
               setQuery(event.target.value);
               setOpen(true);
             }}
-            onFocus={() => setOpen(true)}
             onKeyDown={(event) => {
-              if (event.key === 'Escape') {
-                setOpen(false);
-                inputRef.current?.blur();
-              }
+              if (event.key === 'Escape') setOpen(false);
               if (event.key === 'Enter') {
                 event.preventDefault();
                 commitQuery();
               }
             }}
             placeholder={`Search ${workspaceName}`}
-            className="pr-2 pl-7"
+            className="pl-7"
             aria-label={`Search ${workspaceName}`}
           />
         </div>
-      </PopoverAnchor>
-      <PopoverContent
-        align="end"
-        className="max-h-80 w-80 gap-0 overflow-x-hidden overflow-y-auto overscroll-contain p-1 lg:w-96 data-closed:overflow-hidden"
-        onOpenAutoFocus={(event) => event.preventDefault()}
-      >
         {showSuggestions ? (
           <div className="flex flex-col p-1">
             {parsed.incomplete === 'has'

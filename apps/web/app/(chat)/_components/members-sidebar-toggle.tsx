@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/tooltip';
 import { useMembersSidebarOpen } from '../_hooks/use-members-sidebar';
 
-export function MembersSidebarToggle() {
+export function MembersSidebarToggle({ className }: { className?: string }) {
   const { open, setOpen } = useMembersSidebarOpen();
 
   return (
@@ -19,6 +19,7 @@ export function MembersSidebarToggle() {
           pressed={open}
           onPressedChange={setOpen}
           aria-label={open ? 'Hide members' : 'Show members'}
+          className={className}
         >
           <Users />
         </Toggle>

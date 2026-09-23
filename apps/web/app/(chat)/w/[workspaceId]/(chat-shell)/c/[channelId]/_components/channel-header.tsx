@@ -6,14 +6,6 @@ import { useSearchParams } from 'next/navigation';
 import { Columns3, MessageSquare, MessageSquarePlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
-import {
   ToggleGroup,
   ToggleGroupItem,
 } from '@/components/ui/toggle-group';
@@ -29,16 +21,27 @@ import {
   type TicketLayout,
 } from '@chat/_libs/channels';
 import { createThreadHref } from '@chat/_components/create-thread-dialog';
+import {
+  ChatPageHeader,
+  type ChatLinearParent,
+} from '@chat/_components/chat-page-header';
+import type { ChatCrumb } from '@chat/_components/chat-breadcrumbs';
 import { ExportDialog } from './export-dialog';
 import { PinnedMessagesPopoverHost } from './pinned-messages-popover';
+import {
+  ChannelHeaderOverflowMenu,
+  type ChannelHeaderOverflowMenuProps,
+} from './channel-header-overflow-menu';
 import { MembersSidebarToggle } from '@chat/_components/members-sidebar-toggle';
 import { WorkspaceSearch } from '@chat/_components/workspace-search';
 import { ChannelTypeIcon } from '@chat/_components/channel-type-icon';
 import { PresenceAvatar } from '@chat/_components/presence-avatar';
 import {
+  channelBreadcrumbLabel,
   channelDisplayName,
   isDmChannel,
 } from '@chat/_helpers/channel-display';
+import { useWorkspaceRootCrumb } from '@chat/_hooks/use-workspace-root-crumb';
 import { TicketArchiveMenu } from './ticket-property-menus';
 
 type ChannelViewMode = 'messages' | 'threads';
@@ -60,105 +63,238 @@ export function ChannelHeader({
   view,
   layout,
 }: ChannelHeaderProps) {
+  const workspaceRoot = useWorkspaceRootCrumb(workspaceId);
   const isThread = Boolean(channel?.parentId);
   const isDm = isDmChannel(channel);
+  const onBoard = view === 'threads' && !isThread;
+
+  const backHref =
+    isThread && parentChannel
+      ? channelPageHref(workspaceId, parentChannel.id)
+      : `/w/${workspaceId}`;
+
+  const backLabel =
+    isThread && parentChannel
+      ? `Back to ${channelBreadcrumbLabel(parentChannel)}`
+      : 'Back to channels';
+
+  const crumbs = buildChannelHeaderCrumbs({
+    workspaceRoot,
+    channel,
+    parentChannel,
+    onBoard,
+    workspaceId,
+  });
+
+  const { linearTitle, linearParent } = buildChannelHeaderLinear({
+    channel,
+    parentChannel,
+    onBoard,
+    workspaceId,
+  });
+
+  const leading =
+    isDm && channel?.dmPeer ? (
+      <PresenceAvatar
+        userId={channel.dmPeer.id}
+        name={channel.dmPeer.name}
+        image={channel.dmPeer.image}
+        size="sm"
+        showOffline
+        className="shrink-0"
+      />
+    ) : !isThread && !isDm && channel ? (
+      <ChannelTypeIcon
+        isPrivate={channel.isPrivate}
+        className="h-4 w-4 shrink-0 text-muted-foreground max-md:hidden"
+      />
+    ) : null;
 
   return (
-    <div className="flex h-12 items-center gap-2 border-b px-4 shrink-0">
-      {isThread && parentChannel && channel ? (
-        <Breadcrumb className="min-w-0 flex-1">
-          <BreadcrumbList className="flex-nowrap text-sm">
-            <BreadcrumbItem className="min-w-0">
-              <BreadcrumbLink asChild className="min-w-0 truncate">
-                <Link href={channelPageHref(workspaceId, parentChannel.id)}>
-                  # {parentChannel.name}
-                </Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem className="min-w-0">
-              <BreadcrumbPage className="min-w-0 truncate font-medium">
-                {channelDisplayName(channel)}
-              </BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-      ) : (
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          {isDm && channel?.dmPeer ? (
-            <PresenceAvatar
-              userId={channel.dmPeer.id}
-              name={channel.dmPeer.name}
-              image={channel.dmPeer.image}
-              size="sm"
-              showOffline
-            />
-          ) : isThread ? (
-            <MessageSquare className="h-5 w-5 shrink-0 text-muted-foreground" />
-          ) : (
-            <ChannelTypeIcon
-              isPrivate={channel?.isPrivate}
-              className="h-5 w-5 text-muted-foreground"
-            />
-          )}
-          <h1 className="min-w-0 truncate text-sm font-semibold">
-            {channel ? channelDisplayName(channel) : 'Loading...'}
-          </h1>
-          {channel?.description && !isThread && !isDm ? (
-            <span className="truncate text-xs text-muted-foreground">
-              {channel.description}
-            </span>
+    <ChatPageHeader
+      backHref={backHref}
+      backLabel={backLabel}
+      linearTitle={linearTitle}
+      linearParent={linearParent}
+      crumbs={crumbs}
+      leading={leading}
+      actions={
+        <>
+          {isThread && channel ? (
+            <>
+              {parentChannel ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  asChild
+                  className="max-md:hidden"
+                >
+                  <Link href={channelBoardHref(workspaceId, parentChannel.id)}>
+                    <Columns3 data-icon="inline-start" />
+                    Board
+                  </Link>
+                </Button>
+              ) : null}
+              <TicketArchiveMenu
+                workspaceId={workspaceId}
+                channelId={channel.id}
+                parentChannelId={channel.parentId}
+                archivedAt={channel.archivedAt}
+                variant="button"
+                className="max-md:hidden"
+              />
+            </>
           ) : null}
-        </div>
-      )}
-      <div className="ml-auto flex shrink-0 items-center gap-1">
-        {isThread && channel ? (
-          <>
-            {parentChannel ? (
-              <Button variant="outline" size="sm" asChild>
-                <Link href={channelBoardHref(workspaceId, parentChannel.id)}>
-                  <Columns3 data-icon="inline-start" />
-                  Board
-                </Link>
-              </Button>
-            ) : null}
-            <TicketArchiveMenu
-              workspaceId={workspaceId}
-              channelId={channel.id}
-              parentChannelId={channel.parentId}
-              archivedAt={channel.archivedAt}
-              variant="button"
-            />
-          </>
-        ) : null}
-        {!isThread && channel && !isDm ? (
-          <Suspense
-            fallback={
-              <ChannelHeaderTicketActions
+          {!isThread && channel && !isDm ? (
+            <Suspense
+              fallback={
+                <ChannelHeaderTicketActions
+                  channelId={channelId}
+                  workspaceId={workspaceId}
+                  view={view}
+                  layout={layout}
+                />
+              }
+            >
+              <ChannelHeaderTicketActionsFromSearch
                 channelId={channelId}
                 workspaceId={workspaceId}
                 view={view}
                 layout={layout}
               />
+            </Suspense>
+          ) : null}
+          <div className="hidden shrink-0 items-center gap-1 md:flex">
+            <ExportDialog channelId={channelId} channel={channel} />
+            <PinnedMessagesPopoverHost channelId={channelId} />
+          </div>
+          <MembersSidebarToggle className="max-md:hidden" />
+          <Suspense
+            fallback={
+              <ChannelHeaderOverflowMenu
+                workspaceId={workspaceId}
+                channelId={channelId}
+                channel={channel}
+                parentChannel={parentChannel}
+                view={view}
+                layout={layout}
+                isThread={isThread}
+                isTicketChannel={Boolean(!isThread && channel && !isDm)}
+              />
             }
           >
-            <ChannelHeaderTicketActionsFromSearch
-              channelId={channelId}
+            <ChannelHeaderOverflowMenuFromSearch
               workspaceId={workspaceId}
+              channelId={channelId}
+              channel={channel}
+              parentChannel={parentChannel}
               view={view}
               layout={layout}
+              isThread={isThread}
+              isTicketChannel={Boolean(!isThread && channel && !isDm)}
             />
           </Suspense>
-        ) : null}
-        <ExportDialog channelId={channelId} channel={channel} />
-        <PinnedMessagesPopoverHost channelId={channelId} />
-        <MembersSidebarToggle />
-        <div className="ml-3">
-          <WorkspaceSearch workspaceId={workspaceId} />
-        </div>
-      </div>
-    </div>
+          <div className="md:ml-3">
+            <WorkspaceSearch workspaceId={workspaceId} />
+          </div>
+        </>
+      }
+    />
   );
+}
+
+function buildChannelHeaderLinear({
+  channel,
+  parentChannel,
+  onBoard,
+  workspaceId,
+}: {
+  channel: Channel | undefined;
+  parentChannel: Channel | undefined;
+  onBoard: boolean;
+  workspaceId: string;
+}): { linearTitle: string; linearParent?: ChatLinearParent } {
+  if (channel?.parentId && parentChannel) {
+    return {
+      linearTitle: channel ? channelDisplayName(channel) : 'Ticket',
+      linearParent: {
+        label: channelBreadcrumbLabel(parentChannel),
+        href: channelPageHref(workspaceId, parentChannel.id),
+      },
+    };
+  }
+
+  if (!channel) {
+    return { linearTitle: 'Loading…' };
+  }
+
+  if (onBoard && !isDmChannel(channel)) {
+    return {
+      linearTitle: 'Board',
+      linearParent: {
+        label: channelBreadcrumbLabel(channel),
+        href: channelPageHref(workspaceId, channel.id),
+      },
+    };
+  }
+
+  return {
+    linearTitle: channelBreadcrumbLabel(channel),
+  };
+}
+
+function buildChannelHeaderCrumbs({
+  workspaceRoot,
+  channel,
+  parentChannel,
+  onBoard,
+  workspaceId,
+}: {
+  workspaceRoot: ChatCrumb;
+  channel: Channel | undefined;
+  parentChannel: Channel | undefined;
+  onBoard: boolean;
+  workspaceId: string;
+}): ChatCrumb[] {
+  const root: ChatCrumb = {
+    label: workspaceRoot.label,
+    href: workspaceRoot.href,
+  };
+
+  if (channel?.parentId && parentChannel) {
+    return [
+      root,
+      {
+        label: channelBreadcrumbLabel(parentChannel),
+        href: channelPageHref(workspaceId, parentChannel.id),
+      },
+      {
+        label: channel ? channelDisplayName(channel) : 'Ticket',
+      },
+    ];
+  }
+
+  if (!channel) {
+    return [root, { label: 'Loading…' }];
+  }
+
+  if (onBoard && !isDmChannel(channel)) {
+    return [
+      root,
+      {
+        label: channelBreadcrumbLabel(channel),
+        href: channelPageHref(workspaceId, channel.id),
+      },
+      { label: 'Board' },
+    ];
+  }
+
+  return [
+    root,
+    {
+      label: channelBreadcrumbLabel(channel),
+    },
+  ];
 }
 
 function ChannelHeaderTicketActionsFromSearch(
@@ -166,6 +302,24 @@ function ChannelHeaderTicketActionsFromSearch(
 ) {
   const searchParams = useSearchParams();
   return <ChannelHeaderTicketActions {...props} search={searchParams} />;
+}
+
+function ChannelHeaderOverflowMenuFromSearch(
+  props: Omit<ChannelHeaderOverflowMenuProps, 'createThreadHref'>,
+) {
+  const searchParams = useSearchParams();
+  const createThreadHrefValue = createThreadHref(
+    props.channelId,
+    props.view === 'threads'
+      ? { layout: props.layout, search: searchParams }
+      : undefined,
+  );
+  return (
+    <ChannelHeaderOverflowMenu
+      {...props}
+      createThreadHref={createThreadHrefValue}
+    />
+  );
 }
 
 type ChannelHeaderTicketActionsProps = {
@@ -198,7 +352,7 @@ function ChannelHeaderTicketActions({
         <ToggleGroupItem value="messages" asChild>
           <Link href={channelPageHref(workspaceId, channelId)}>
             <MessageSquare data-icon="inline-start" />
-            Chat
+            <span className="max-md:sr-only">Chat</span>
           </Link>
         </ToggleGroupItem>
         <ToggleGroupItem value="threads" asChild>
@@ -211,13 +365,18 @@ function ChannelHeaderTicketActions({
             )}
           >
             <Columns3 data-icon="inline-start" />
-            Board
+            <span className="max-md:sr-only">Board</span>
           </Link>
         </ToggleGroupItem>
       </ToggleGroup>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon-sm" asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            asChild
+            className="max-md:hidden"
+          >
             <Link
               href={createThreadHref(
                 channelId,
