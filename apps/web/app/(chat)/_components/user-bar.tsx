@@ -73,7 +73,7 @@ function UserBarChrome({
 
   return (
     <div className={chatUserFooterClass}>
-      <div className="flex h-11 w-full items-center gap-1 rounded-lg border bg-muted/30 px-2">
+      <div className="flex w-full items-center gap-1 rounded-lg border bg-muted/30 px-2 max-md:h-14 md:h-11">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -84,13 +84,13 @@ function UserBarChrome({
                 userId={user.id}
                 name={user.name}
                 image={user.image}
-                className="size-7"
+                className="size-7 max-md:size-9!"
               />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium leading-tight">
+                <p className="truncate text-sm font-medium leading-tight max-md:text-base!">
                   {user.name}
                 </p>
-                <p className="truncate text-xs text-muted-foreground leading-tight">
+                <p className="truncate text-xs leading-tight text-muted-foreground max-md:text-sm!">
                   {user.email}
                 </p>
               </div>
