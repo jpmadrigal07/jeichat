@@ -161,6 +161,35 @@
   html {
     @apply font-sans;
     }
+  /* Scale rem-based type, icons, and controls on small screens. */
+  @media (width < 48rem) {
+    html {
+      font-size: 125%;
+    }
+  }
+}
+
+/*
+ * iOS Safari zooms the viewport when a focused field is under 16px.
+ * `!important` is required so this wins over `text-sm` / `text-xs` utilities.
+ */
+@media (pointer: coarse), (hover: none) {
+  input:not(
+    [type="button"],
+    [type="submit"],
+    [type="reset"],
+    [type="checkbox"],
+    [type="radio"],
+    [type="file"],
+    [type="image"],
+    [type="range"],
+    [type="hidden"],
+    [type="color"]
+  ),
+  textarea,
+  select {
+    font-size: max(16px, 1rem) !important;
+  }
 }
 
 .md-chat {

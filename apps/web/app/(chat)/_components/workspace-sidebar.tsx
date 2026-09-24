@@ -27,7 +27,7 @@ export function WorkspaceSidebar({ user }: { user: User }) {
   useWorkspacePresenceSocket();
 
   return (
-    <div className="flex w-[72px] flex-col items-center gap-2 bg-sidebar py-3 border-r">
+    <div className="flex h-full w-[72px] flex-col items-center gap-2 border-r bg-sidebar py-3">
       {isLoading ? (
         <div className="flex flex-col gap-2">
           {Array.from({ length: 3 }).map((_, i) => (

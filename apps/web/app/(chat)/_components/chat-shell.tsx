@@ -34,7 +34,7 @@ export function ChatShell({
             isDirectory ? 'max-md:flex-1' : 'max-md:hidden',
           )}
         >
-          <div className="max-md:hidden">
+          <div className="flex h-full max-md:hidden">
             <WorkspaceSidebar user={user} />
           </div>
           <ChannelSidebar user={user} />
