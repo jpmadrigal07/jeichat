@@ -141,11 +141,11 @@ export function ChannelSidebar({ user }: { user: User }) {
           <SheetTrigger asChild>
             <Button
               variant="ghost"
-              size="icon-sm"
+              size="icon"
               className="md:hidden"
               aria-label="Switch workspace"
             >
-              <LayoutGrid />
+              <LayoutGrid className="size-4" />
             </Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-24! gap-0 p-0 sm:max-w-24">
