@@ -13,6 +13,22 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { isApiError } from '@/lib/api-error';
 import { PwaHost } from '@/app/_components/pwa-host';
 
+const IOS_VIEWPORT =
+  'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';
+
+function lockIosInputZoom() {
+  document.querySelectorAll('meta[name="viewport"]').forEach((meta) => {
+    if (meta.getAttribute('content') !== IOS_VIEWPORT) {
+      meta.setAttribute('content', IOS_VIEWPORT);
+    }
+  });
+}
+
+if (typeof document !== 'undefined') {
+  lockIosInputZoom();
+  queueMicrotask(lockIosInputZoom);
+}
+
 const ReactQueryDevtools = lazy(() =>
   import('@tanstack/react-query-devtools').then((d) => ({
     default: d.ReactQueryDevtools,

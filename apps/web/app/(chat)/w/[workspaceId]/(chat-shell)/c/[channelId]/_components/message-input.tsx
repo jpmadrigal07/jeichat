@@ -255,7 +255,7 @@ export function MessageInput({
           <Textarea
             ref={textareaRef}
             placeholder={messageComposerPlaceholder(channelName, isMobile)}
-            className="h-6 min-h-6 max-h-[200px] field-sizing-fixed resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0 dark:bg-transparent"
+            className="h-6 min-h-6 max-h-[200px] field-sizing-fixed resize-none border-0 bg-transparent p-0 text-base shadow-none focus-visible:ring-0 dark:bg-transparent"
             rows={1}
             autoFocus
             onKeyDown={handleKeyDown}
