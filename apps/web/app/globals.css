@@ -161,6 +161,15 @@
   html {
     @apply font-sans;
     }
+  /*
+   * Stop the root page from rubber-banding when swiping past the top or
+   * bottom (most noticeable in the installed PWA). Inner scroll areas keep
+   * their own native bounce; it just no longer drags the whole app along.
+   */
+  html,
+  body {
+    @apply overscroll-none;
+    }
   /* Scale rem-based type, icons, and controls on small screens. */
   @media (width < 48rem) {
     html {
