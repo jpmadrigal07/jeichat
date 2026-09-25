@@ -41,7 +41,6 @@ import {
   channelDisplayName,
   isDmChannel,
 } from '@chat/_helpers/channel-display';
-import { useWorkspaceRootCrumb } from '@chat/_hooks/use-workspace-root-crumb';
 import { TicketArchiveMenu } from './ticket-property-menus';
 
 type ChannelViewMode = 'messages' | 'threads';
@@ -63,7 +62,6 @@ export function ChannelHeader({
   view,
   layout,
 }: ChannelHeaderProps) {
-  const workspaceRoot = useWorkspaceRootCrumb(workspaceId);
   const isThread = Boolean(channel?.parentId);
   const isDm = isDmChannel(channel);
   const onBoard = view === 'threads' && !isThread;
@@ -79,7 +77,6 @@ export function ChannelHeader({
       : 'Back to channels';
 
   const crumbs = buildChannelHeaderCrumbs({
-    workspaceRoot,
     channel,
     parentChannel,
     onBoard,
@@ -244,26 +241,18 @@ function buildChannelHeaderLinear({
 }
 
 function buildChannelHeaderCrumbs({
-  workspaceRoot,
   channel,
   parentChannel,
   onBoard,
   workspaceId,
 }: {
-  workspaceRoot: ChatCrumb;
   channel: Channel | undefined;
   parentChannel: Channel | undefined;
   onBoard: boolean;
   workspaceId: string;
 }): ChatCrumb[] {
-  const root: ChatCrumb = {
-    label: workspaceRoot.label,
-    href: workspaceRoot.href,
-  };
-
   if (channel?.parentId && parentChannel) {
     return [
-      root,
       {
         label: channelBreadcrumbLabel(parentChannel),
         href: channelPageHref(workspaceId, parentChannel.id),
@@ -275,26 +264,21 @@ function buildChannelHeaderCrumbs({
   }
 
   if (!channel) {
-    return [root, { label: 'Loading…' }];
+    return [{ label: 'Loading…' }];
   }
 
+  // The leading ChannelTypeIcon already renders the # / lock, so use the bare name.
   if (onBoard && !isDmChannel(channel)) {
     return [
-      root,
       {
-        label: channelBreadcrumbLabel(channel),
+        label: channelDisplayName(channel),
         href: channelPageHref(workspaceId, channel.id),
       },
       { label: 'Board' },
     ];
   }
 
-  return [
-    root,
-    {
-      label: channelBreadcrumbLabel(channel),
-    },
-  ];
+  return [{ label: channelDisplayName(channel) }];
 }
 
 function ChannelHeaderTicketActionsFromSearch(
