@@ -21,6 +21,7 @@ import {
   isParentChannelEventType,
   type TicketEvent,
 } from '../_libs/channel-events';
+import { patchChannelFromTicketEvent } from '@chat/_hooks/use-channels';
 import {
   archivedChannelThreadsQueryKey,
   channelThreadsQueryKey,
@@ -114,6 +115,11 @@ export function useSocket(
 
     const handleChannelEvent = (event: TicketEvent) => {
       const current = channelIdRef.current;
+      patchChannelFromTicketEvent(
+        queryClient,
+        workspaceIdRef.current,
+        event,
+      );
       if (event.type === 'archived_changed' && event.parentId) {
         queryClient.invalidateQueries({
           queryKey: channelsQueryKey(workspaceIdRef.current),
