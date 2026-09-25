@@ -26,8 +26,6 @@ export function MessageReactions({
   onToggle,
   disabled = false,
 }: MessageReactionsProps) {
-  const hasReactions = reactions.length > 0;
-
   return (
     <div className="mt-1 flex flex-wrap items-center gap-1">
       {reactions.map((reaction) => (
@@ -52,15 +50,7 @@ export function MessageReactions({
         </Tooltip>
       ))}
 
-      <ReactionEmojiPicker
-        onSelect={onToggle}
-        disabled={disabled}
-        triggerClassName={
-          hasReactions
-            ? 'opacity-100'
-            : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
-        }
-      />
+      <ReactionEmojiPicker onSelect={onToggle} disabled={disabled} />
     </div>
   );
 }
