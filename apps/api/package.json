@@ -24,6 +24,7 @@
     "test:e2e:session": "node ./test/run-session-e2e.cjs",
     "db:generate": "drizzle-kit generate --config=./src/database/drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=./src/database/drizzle.config.ts",
+    "db:migrate:github": "bun ./scripts/apply-github-integration-tables.ts",
     "db:push": "drizzle-kit push --config=./src/database/drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config=./src/database/drizzle.config.ts"
   },
