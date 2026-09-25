@@ -1,5 +1,6 @@
 'use client';
 
+import type { QueryClient } from '@tanstack/react-query';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchChannels,
@@ -16,7 +17,10 @@ import {
   type ChannelThread,
   type UpdateChannelPayload,
 } from '../_libs/channels';
-import { channelEventsQueryKey } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_libs/channel-events';
+import {
+  channelEventsQueryKey,
+  type TicketEvent,
+} from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_libs/channel-events';
 
 function isChannelThreadsQuery(
   queryKey: readonly unknown[],
@@ -31,7 +35,7 @@ function isChannelThreadsQuery(
   );
 }
 
-function applyChannelPatch<T extends Channel>(
+export function applyChannelPatch<T extends Channel>(
   channel: T,
   vars: UpdateChannelPayload & { channelId: string },
 ): T {
@@ -62,6 +66,103 @@ function applyChannelPatch<T extends Channel>(
       (attachment) => !remove.has(attachment.id),
     ),
   };
+}
+
+/** Keep Properties / board cards in sync when ticket fields change via websocket. */
+export function patchChannelFromTicketEvent(
+  queryClient: QueryClient,
+  workspaceId: string,
+  event: TicketEvent,
+) {
+  const ticketId = event.channelId;
+  let patch: (UpdateChannelPayload & { channelId: string }) | null = null;
+
+  switch (event.type) {
+    case 'status_changed':
+      if (typeof event.toValue === 'string') {
+        patch = { channelId: ticketId, status: event.toValue };
+      }
+      break;
+    case 'priority_changed':
+      if (typeof event.toValue === 'string') {
+        patch = { channelId: ticketId, priority: event.toValue };
+      }
+      break;
+    case 'assignee_changed': {
+      const to = event.toValue;
+      const assigneeId =
+        to && typeof to === 'object' && 'id' in to && typeof to.id === 'string'
+          ? to.id
+          : null;
+      patch = { channelId: ticketId, assigneeId };
+      break;
+    }
+    case 'due_changed':
+      patch = {
+        channelId: ticketId,
+        dueAt:
+          typeof event.toValue === 'string'
+            ? event.toValue
+            : event.toValue === null
+              ? null
+              : undefined,
+      };
+      if (patch.dueAt === undefined) patch = null;
+      break;
+    case 'labels_changed':
+      if (Array.isArray(event.toValue)) {
+        patch = {
+          channelId: ticketId,
+          labels: event.toValue as Channel['labels'],
+        };
+      }
+      break;
+    case 'watchers_changed':
+      if (Array.isArray(event.toValue)) {
+        patch = {
+          channelId: ticketId,
+          watchers: event.toValue as Channel['watchers'],
+        };
+      }
+      break;
+    case 'archived_changed':
+      if (typeof event.toValue === 'boolean') {
+        patch = { channelId: ticketId, archived: event.toValue };
+      }
+      break;
+    default:
+      break;
+  }
+
+  if (!patch) return;
+
+  queryClient.setQueryData<Channel[]>(channelsQueryKey(workspaceId), (old) =>
+    old?.map((channel) =>
+      channel.id === ticketId ? applyChannelPatch(channel, patch) : channel,
+    ),
+  );
+
+  if (!event.parentId) return;
+
+  queryClient.setQueriesData<ChannelThread[]>(
+    {
+      predicate: (query) => isChannelThreadsQuery(query.queryKey, workspaceId),
+    },
+    (old) =>
+      old?.map((thread) =>
+        thread.id === ticketId ? applyChannelPatch(thread, patch) : thread,
+      ),
+  );
+  queryClient.setQueriesData<ChannelThread[]>(
+    {
+      predicate: (query) =>
+        isChannelThreadsQuery(query.queryKey, workspaceId, 'archived-threads'),
+    },
+    (old) =>
+      old?.map((thread) =>
+        thread.id === ticketId ? applyChannelPatch(thread, patch) : thread,
+      ),
+  );
 }
 
 export function useChannels(workspaceId: string) {
