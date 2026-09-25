@@ -1,7 +1,16 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Pencil, Pin, PinOff, Reply, Trash2, X, Check } from 'lucide-react';
+import {
+  Check,
+  Pencil,
+  Pin,
+  PinOff,
+  Reply,
+  SmilePlus,
+  Trash2,
+  X,
+} from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -20,6 +29,7 @@ import {
 import { BotBadge } from '@chat/_components/bot-badge';
 import { PresenceAvatar } from '@chat/_components/presence-avatar';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import type { Message, MessageReplyTo } from '../_libs/messages';
@@ -29,6 +39,7 @@ import { MessageActionDrawer } from './message-action-drawer';
 import { MessageAttachments } from './message-attachments';
 import { MessageMarkdown } from './message-markdown';
 import { MessageReactions } from './message-reactions';
+import { QUICK_REACTIONS, ReactionEmojiPicker } from './reaction-emoji-picker';
 import type { MentionableMember } from '@chat/_helpers/mentions';
 import type {
   TaggableChannel,
@@ -115,17 +126,21 @@ function MessageReplyPreview({
   );
 }
 
+// Toolbar reactions shown before the full picker, like Discord's hover bar.
+const TOOLBAR_REACTIONS = QUICK_REACTIONS.slice(0, 3);
+
 function MessageHoverAction({
   label,
-  onClick,
   destructive = false,
+  className,
   children,
-}: {
+  ...props
+}: React.ComponentProps<typeof Button> & {
   label: string;
-  onClick?: () => void;
   destructive?: boolean;
-  children: React.ReactNode;
 }) {
+  // Props are spread onto the Button so this can also be an `asChild`
+  // trigger (e.g. for the emoji picker popover).
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -133,12 +148,13 @@ function MessageHoverAction({
           type="button"
           variant="ghost"
           size="icon-sm"
+          {...props}
           className={cn(
             'rounded-sm',
             destructive &&
               'text-destructive hover:bg-destructive/10 hover:text-destructive',
+            className,
           )}
-          onClick={onClick}
         >
           {children}
           <span className="sr-only">{label}</span>
@@ -310,8 +326,36 @@ export function MessageItem({
               'pointer-events-none opacity-0',
               'group-hover:pointer-events-auto group-hover:opacity-100',
               'group-focus-within:pointer-events-auto group-focus-within:opacity-100',
+              // Stay visible while the emoji picker popover is open.
+              'has-data-[state=open]:pointer-events-auto has-data-[state=open]:opacity-100',
             )}
           >
+            {TOOLBAR_REACTIONS.map((emoji) => (
+              <MessageHoverAction
+                key={emoji}
+                label={`React with ${emoji}`}
+                disabled={reactionPending}
+                className="text-base"
+                onClick={() => onToggleReaction(message.id, emoji)}
+              >
+                {emoji}
+              </MessageHoverAction>
+            ))}
+            <ReactionEmojiPicker
+              align="end"
+              onSelect={(emoji) => onToggleReaction(message.id, emoji)}
+            >
+              <MessageHoverAction
+                label="Add reaction"
+                disabled={reactionPending}
+              >
+                <SmilePlus />
+              </MessageHoverAction>
+            </ReactionEmojiPicker>
+            <Separator
+              orientation="vertical"
+              className="mx-0.5 h-4 data-vertical:self-center"
+            />
             <MessageHoverAction
               label="Reply"
               onClick={() => onReply(message.id)}

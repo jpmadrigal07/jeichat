@@ -7,7 +7,6 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { MessageReaction } from '../_libs/messages';
-import { ReactionEmojiPicker } from './reaction-emoji-picker';
 
 type MessageReactionsProps = {
   reactions: MessageReaction[];
@@ -26,15 +25,12 @@ export function MessageReactions({
   onToggle,
   disabled = false,
 }: MessageReactionsProps) {
+  // New reactions are added from the hover toolbar (desktop) or the
+  // long-press drawer (mobile), so there's nothing to show until one exists.
+  if (reactions.length === 0) return null;
+
   return (
-    <div
-      className={cn(
-        'mt-1 flex flex-wrap items-center gap-1',
-        // Mobile reacts via the long-press drawer, so with no reactions yet
-        // there's nothing to show.
-        reactions.length === 0 && 'max-md:hidden',
-      )}
-    >
+    <div className="mt-1 flex flex-wrap items-center gap-1">
       {reactions.map((reaction) => (
         <Tooltip key={reaction.emoji}>
           <TooltipTrigger asChild>
@@ -56,12 +52,6 @@ export function MessageReactions({
           <TooltipContent>{reactionTooltip(reaction)}</TooltipContent>
         </Tooltip>
       ))}
-
-      <ReactionEmojiPicker
-        onSelect={onToggle}
-        disabled={disabled}
-        triggerClassName="max-md:hidden"
-      />
     </div>
   );
 }
