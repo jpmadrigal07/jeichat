@@ -461,7 +461,7 @@ export function MessageList({
   }, [highlightIndex, virtualizer]);
 
   return (
-    <div ref={parentRef} className="relative min-h-0 flex-1 overflow-y-auto">
+    <div ref={parentRef} className="relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
       <div ref={headerRef}>
         {header}
         {isFetchingNextPage ? (
