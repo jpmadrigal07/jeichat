@@ -3,6 +3,7 @@
 import { useCallback } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { X } from 'lucide-react';
+import { TransformComponent, TransformWrapper } from 'react-zoom-pan-pinch';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -30,7 +31,7 @@ export function ChannelAttachmentLightbox() {
     <Dialog open={isOpen} onOpenChange={(open) => !open && closeLightbox()}>
       <DialogContent
         showCloseButton={false}
-        className="flex max-w-[90vw] flex-col overflow-hidden rounded-xl border-0 bg-zinc-950 p-2 text-zinc-100 ring-0 shadow-2xl sm:max-w-[min(90vw,1200px)] sm:p-4"
+        className="flex h-dvh w-screen max-w-none flex-col overflow-hidden rounded-none border-0 bg-zinc-950 p-0 text-zinc-100 ring-0 shadow-2xl sm:h-auto sm:w-full sm:max-w-[min(90vw,1200px)] sm:rounded-xl sm:p-4"
       >
         <DialogClose asChild>
           <Button
@@ -45,12 +46,26 @@ export function ChannelAttachmentLightbox() {
         </DialogClose>
         <DialogTitle className="sr-only">Attachment preview</DialogTitle>
         {attachmentId ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={attachmentFileUrl(attachmentId)}
-            alt="Attachment preview"
-            className="max-h-[85vh] w-full object-contain"
-          />
+          /* Pinch / double-tap / wheel zoom — page zoom is disabled in the root viewport. Keyed so each image opens unzoomed. */
+          <TransformWrapper
+            key={attachmentId}
+            minScale={1}
+            maxScale={6}
+            centerZoomedOut
+            doubleClick={{ mode: 'toggle', step: 1.5 }}
+          >
+            <TransformComponent
+              wrapperClass="size-full! min-h-0 flex-1 touch-none sm:h-[85vh]!"
+              contentClass="size-full!"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={attachmentFileUrl(attachmentId)}
+                alt="Attachment preview"
+                className="size-full object-contain"
+              />
+            </TransformComponent>
+          </TransformWrapper>
         ) : null}
       </DialogContent>
     </Dialog>
