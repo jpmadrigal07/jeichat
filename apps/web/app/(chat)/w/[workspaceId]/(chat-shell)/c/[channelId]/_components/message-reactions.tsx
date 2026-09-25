@@ -7,7 +7,6 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import type { MessageReaction } from '../_libs/messages';
-import { ReactionEmojiPicker } from './reaction-emoji-picker';
 
 type MessageReactionsProps = {
   reactions: MessageReaction[];
@@ -26,7 +25,9 @@ export function MessageReactions({
   onToggle,
   disabled = false,
 }: MessageReactionsProps) {
-  const hasReactions = reactions.length > 0;
+  // New reactions are added from the hover toolbar (desktop) or the
+  // long-press drawer (mobile), so there's nothing to show until one exists.
+  if (reactions.length === 0) return null;
 
   return (
     <div className="mt-1 flex flex-wrap items-center gap-1">
@@ -51,16 +52,6 @@ export function MessageReactions({
           <TooltipContent>{reactionTooltip(reaction)}</TooltipContent>
         </Tooltip>
       ))}
-
-      <ReactionEmojiPicker
-        onSelect={onToggle}
-        disabled={disabled}
-        triggerClassName={
-          hasReactions
-            ? 'opacity-100'
-            : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
-        }
-      />
     </div>
   );
 }

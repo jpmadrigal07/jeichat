@@ -2,29 +2,26 @@
 
 import { useState } from 'react';
 import { EmojiPicker } from 'frimousse';
-import { SmilePlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
 
-const QUICK_REACTIONS = ['👍', '❤️', '😂', '🎉', '🔥', '👀'] as const;
+export const QUICK_REACTIONS = ['👍', '❤️', '😂', '🎉', '🔥', '👀'] as const;
 
 type ReactionEmojiPickerProps = {
   onSelect: (emoji: string) => void;
-  disabled?: boolean;
-  showTrigger?: boolean;
-  triggerClassName?: string;
+  /** Rendered as the popover trigger (via `asChild`). */
+  children: React.ReactNode;
+  align?: 'start' | 'center' | 'end';
 };
 
 export function ReactionEmojiPicker({
   onSelect,
-  disabled = false,
-  showTrigger = true,
-  triggerClassName,
+  children,
+  align = 'start',
 }: ReactionEmojiPickerProps) {
   const [open, setOpen] = useState(false);
 
@@ -35,21 +32,11 @@ export function ReactionEmojiPicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      {showTrigger ? (
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            disabled={disabled}
-            className={cn('h-6 w-6 rounded-full', triggerClassName)}
-          >
-            <SmilePlus className="size-3.5" />
-            <span className="sr-only">Add reaction</span>
-          </Button>
-        </PopoverTrigger>
-      ) : null}
-      <PopoverContent align="start" className="w-[min(20rem,calc(100vw-1rem))] p-0">
+      <PopoverTrigger asChild>{children}</PopoverTrigger>
+      <PopoverContent
+        align={align}
+        className="w-[min(20rem,calc(100vw-1rem))] p-0"
+      >
         <div className="flex items-center gap-0.5 border-b p-1.5">
           {QUICK_REACTIONS.map((emoji) => (
             <Button

@@ -99,6 +99,12 @@ function RemovableAttachment({
   );
 }
 
+// One row per attachment group that scrolls horizontally on its own, so wide
+// or numerous attachments never widen the message list. The padding/negative
+// margin pair keeps card rings and focus rings from being clipped.
+const scrollRowClass =
+  '-m-1 flex items-start overflow-x-auto overscroll-x-contain p-1 *:shrink-0';
+
 export function MessageAttachments({
   attachments,
   onRemove,
@@ -115,9 +121,9 @@ export function MessageAttachments({
   );
 
   return (
-    <div className={cn('flex flex-col gap-2', className)}>
+    <div className={cn('flex min-w-0 flex-col gap-2', className)}>
       {images.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
+        <div className={cn(scrollRowClass, 'gap-1.5')}>
           {images.map((attachment) => (
             <RemovableAttachment
               key={attachment.id}
@@ -134,11 +140,7 @@ export function MessageAttachments({
         </div>
       ) : null}
       {others.length > 0 ? (
-        <div
-          className={
-            compact ? 'flex flex-wrap gap-1' : 'flex flex-col gap-1.5'
-          }
-        >
+        <div className={cn(scrollRowClass, compact ? 'gap-1' : 'gap-1.5')}>
           {others.map((attachment) => (
             <RemovableAttachment
               key={attachment.id}
