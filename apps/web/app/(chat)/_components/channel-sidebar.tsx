@@ -212,7 +212,7 @@ export function ChannelSidebar({ user }: { user: User }) {
             <div className="flex min-w-0 flex-col gap-3">
               <div className="flex min-w-0 flex-col gap-0.5">
                 <div className="flex items-center justify-between px-1 mb-0.5">
-                  <span className="px-1 text-xs font-medium text-muted-foreground">
+                  <span className="px-1 text-xs font-medium text-muted-foreground md:text-sm">
                     Channels
                   </span>
                   <CreateChannelDialog
@@ -220,7 +220,7 @@ export function ChannelSidebar({ user }: { user: User }) {
                     currentUserId={user.id}
                   >
                     <Button variant="ghost" size="icon-sm" className="size-7">
-                      <Plus />
+                      <Plus className="size-3 md:size-3.5" />
                       <span className="sr-only">Create channel</span>
                     </Button>
                   </CreateChannelDialog>
@@ -347,7 +347,7 @@ function ChannelFolder({
                     setCollapseEpoch((epoch) => epoch + 1);
                   }}
                 >
-                  <FolderMinus />
+                  <FolderMinus className="size-3 md:size-3.5" />
                   <span className="sr-only">{collapseLabel}</span>
                 </Button>
               </TooltipTrigger>
@@ -361,7 +361,7 @@ function ChannelFolder({
             asChild
           >
             <Link href={createThreadHref(channel.id)}>
-              <Plus />
+              <Plus className="size-3 md:size-3.5" />
               <span className="sr-only">Create ticket</span>
             </Link>
           </Button>
@@ -372,7 +372,7 @@ function ChannelFolder({
                 size="icon-sm"
                 className="hover:bg-transparent dark:hover:bg-transparent"
               >
-                <MoreHorizontal />
+                <MoreHorizontal className="size-3 md:size-3.5" />
                 <span className="sr-only">Channel options</span>
               </Button>
             </DropdownMenuTrigger>
@@ -425,7 +425,7 @@ function ChannelTicketFilterMenu({
           className="hover:bg-transparent dark:hover:bg-transparent"
           aria-pressed={active}
         >
-          <ListFilter />
+          <ListFilter className="size-3 md:size-3.5" />
           <span className="sr-only">Filter tickets</span>
         </Button>
       </DropdownMenuTrigger>
@@ -514,13 +514,15 @@ function TicketStatusGroup({
         <Button
           variant="ghost"
           size="sm"
-          className="w-full min-w-0 max-w-full shrink justify-start overflow-hidden px-2 font-normal text-muted-foreground"
+          className="w-full min-w-0 max-w-full shrink justify-start overflow-hidden px-2 font-normal text-muted-foreground md:text-sm"
         >
           <ChevronRight
             data-icon="inline-start"
-            className="transition-transform group-data-[state=open]/status:rotate-90"
+            className="size-3 transition-transform group-data-[state=open]/status:rotate-90 md:size-3.5"
           />
-          <StatusIcon className={meta.iconClassName} />
+          <StatusIcon
+            className={cn('size-3 md:size-3.5', meta.iconClassName)}
+          />
           <span className="truncate">{meta.label}</span>
           <Badge variant="secondary" className="ml-auto">
             {tickets.length}
@@ -542,7 +544,7 @@ function TicketStatusGroup({
           <Button
             variant="ghost"
             size="lg"
-            className="min-w-0 w-full max-w-full shrink justify-start overflow-hidden px-2 font-normal text-muted-foreground"
+            className="min-w-0 w-full max-w-full shrink justify-start overflow-hidden px-2 font-normal text-muted-foreground md:text-sm"
             asChild
           >
             <Link href={channelBoardHref(workspaceId, channelId)}>See more</Link>
@@ -589,10 +591,12 @@ function DirectMessagesNav({
           >
             <ChevronRight
               data-icon="inline-start"
-              className="size-3.5 transition-transform group-data-[state=open]/dms:rotate-90"
+              className="size-3.5 transition-transform group-data-[state=open]/dms:rotate-90 md:size-4"
             />
-            <MessagesSquare className="size-4 shrink-0" />
-            <span className="truncate text-xs font-medium">Direct messages</span>
+            <MessagesSquare className="size-4 shrink-0 md:size-4.5" />
+            <span className="truncate text-xs font-medium md:text-sm">
+              Direct messages
+            </span>
           </Button>
         </CollapsibleTrigger>
         <CreateDmDialog workspaceId={workspaceId} currentUserId={currentUserId}>
@@ -601,14 +605,14 @@ function DirectMessagesNav({
             size="icon-sm"
             className="shrink-0 hover:bg-transparent aria-expanded:bg-transparent dark:hover:bg-transparent dark:aria-expanded:bg-transparent"
           >
-            <Plus />
+            <Plus className="size-3 md:size-3.5" />
             <span className="sr-only">Start direct message</span>
           </Button>
         </CreateDmDialog>
       </div>
       <CollapsibleContent className="flex min-w-0 flex-col gap-0.5 pl-5">
         {dms.length === 0 ? (
-          <p className="px-1 py-0.5 text-[0.6875rem] text-muted-foreground">
+          <p className="px-1 py-0.5 text-[0.6875rem] text-muted-foreground md:text-xs">
             Message a teammate
           </p>
         ) : (
@@ -681,7 +685,7 @@ function DmNavLink({
             {personInitials(name)}
           </span>
         )}
-        <span className="min-w-0 flex-1 truncate text-[0.6875rem] leading-none">
+        <span className="min-w-0 flex-1 truncate text-[0.6875rem] leading-none md:text-xs">
           {name}
         </span>
         {unreadLabel ? (
@@ -727,7 +731,7 @@ function ChannelNavLink({
       variant={isActive && showActiveBackground ? 'secondary' : 'ghost'}
       size="lg"
       className={cn(
-        'min-w-0 max-w-full shrink justify-start gap-1.5 overflow-hidden px-2',
+        'min-w-0 max-w-full shrink justify-start gap-1.5 overflow-hidden px-2 md:text-sm',
         hasUnread
           ? 'font-semibold text-foreground'
           : isActive
@@ -748,9 +752,12 @@ function ChannelNavLink({
             showOffline
           />
         ) : isPrivate !== undefined ? (
-          <ChannelTypeIcon isPrivate={isPrivate} className={iconClass} />
+          <ChannelTypeIcon
+            isPrivate={isPrivate}
+            className={cn(iconClass, 'md:size-4.5')}
+          />
         ) : Icon ? (
-          <Icon className={iconClass} />
+          <Icon className={cn('size-4 md:size-4.5', iconClass)} />
         ) : null}
         <span className="min-w-0 flex-1 truncate">{name}</span>
         {unreadLabel ? (
