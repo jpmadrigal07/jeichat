@@ -514,7 +514,7 @@ function TicketStatusGroup({
         <Button
           variant="ghost"
           size="sm"
-          className="w-full min-w-0 max-w-full shrink justify-start overflow-hidden px-2 font-normal text-muted-foreground md:text-sm"
+          className="w-full min-w-0 max-w-full shrink justify-start overflow-hidden px-2 text-[0.6875rem] font-normal text-muted-foreground md:text-xs"
         >
           <ChevronRight
             data-icon="inline-start"
@@ -537,14 +537,14 @@ function TicketStatusGroup({
             name={ticket.name}
             isActive={ticket.id === activeChannelId}
             unreadCount={unreadCounts?.[ticket.id] ?? 0}
-            className="w-full"
+            className="w-full text-[0.6875rem] md:text-xs"
           />
         ))}
         {hasMoreTickets ? (
           <Button
             variant="ghost"
             size="lg"
-            className="min-w-0 w-full max-w-full shrink justify-start overflow-hidden px-2 font-normal text-muted-foreground md:text-sm"
+            className="min-w-0 w-full max-w-full shrink justify-start overflow-hidden px-2 text-[0.6875rem] font-normal text-muted-foreground md:text-xs"
             asChild
           >
             <Link href={channelBoardHref(workspaceId, channelId)}>See more</Link>
