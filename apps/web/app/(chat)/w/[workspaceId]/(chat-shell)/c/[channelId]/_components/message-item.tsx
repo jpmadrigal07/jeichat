@@ -273,7 +273,9 @@ export function MessageItem({
             ) : null}
             <MessageAttachments attachments={message.attachments} />
             <MessageReactions
-              reactions={message.reactions ?? []}
+              reactions={
+                Array.isArray(message.reactions) ? message.reactions : []
+              }
               onToggle={(emoji) => onToggleReaction(message.id, emoji)}
               disabled={reactionPending}
             />

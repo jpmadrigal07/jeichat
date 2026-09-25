@@ -232,6 +232,7 @@ export function ThreadIssueHeader({
                   <TicketProperties
                     workspaceId={workspaceId}
                     channel={channel}
+                    boardTicketKey={parentChannel?.ticketKey}
                     className="min-w-0"
                   />
                   <div className="flex min-w-0 flex-col gap-2 px-2">

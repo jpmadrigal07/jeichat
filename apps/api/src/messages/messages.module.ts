@@ -4,6 +4,7 @@ import { InboxModule } from '../inbox/inbox.module';
 import { PushModule } from '../push/push.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { BotsModule } from '../bots/bots.module';
+import { GithubIntegrationModule } from '../integrations/github/github.module';
 import { ChannelPinsController } from './channel-pins.controller';
 import { MessagesController } from './messages.controller';
 import { MessagesService } from './messages.service';
@@ -15,6 +16,7 @@ import { MessagesService } from './messages.service';
     InboxModule,
     PushModule,
     forwardRef(() => BotsModule),
+    forwardRef(() => GithubIntegrationModule),
   ],
   controllers: [MessagesController, ChannelPinsController],
   providers: [MessagesService],
