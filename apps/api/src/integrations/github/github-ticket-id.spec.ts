@@ -25,6 +25,13 @@ describe('github-ticket-id', () => {
     expect(resolvePullRequestAutomation('opened', false, false)).toBe(
       'in_review',
     );
+    expect(resolvePullRequestAutomation('reopened', false, false)).toBe(
+      'in_review',
+    );
+    expect(resolvePullRequestAutomation('synchronize', false, false)).toBe(
+      'in_review',
+    );
+    expect(resolvePullRequestAutomation('opened', false, true)).toBeNull();
     expect(resolvePullRequestAutomation('closed', true, false)).toBe('done');
     expect(resolvePullRequestAutomation('closed', false, false)).toBeNull();
   });

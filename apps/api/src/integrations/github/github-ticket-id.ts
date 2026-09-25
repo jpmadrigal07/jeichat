@@ -51,8 +51,15 @@ export function resolvePullRequestAutomation(
   merged: boolean,
   draft: boolean,
 ): TicketStatus | null {
-  if (action === 'opened' && !draft) return 'in_review';
-  if (action === 'ready_for_review') return 'in_review';
+  if (draft) return null;
+  if (
+    action === 'opened' ||
+    action === 'reopened' ||
+    action === 'ready_for_review' ||
+    action === 'synchronize'
+  ) {
+    return 'in_review';
+  }
   if (action === 'closed') {
     if (merged) return 'done';
     return null;

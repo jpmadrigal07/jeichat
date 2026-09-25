@@ -14,6 +14,7 @@ import { AuthController } from './auth.controller';
       auth,
       disableGlobalAuthGuard: true,
       bodyParser: {
+        rawBody: true,
         json: { limit: '2mb' },
         urlencoded: { limit: '2mb', extended: true },
       },
