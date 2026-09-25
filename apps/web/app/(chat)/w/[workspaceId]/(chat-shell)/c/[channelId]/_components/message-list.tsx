@@ -46,6 +46,7 @@ type MessageListProps = {
 
 const EDITING_ROW_ESTIMATE = 160;
 const EVENT_ROW_ESTIMATE = 40;
+const LIST_PADDING_END = 16;
 
 function formatDateSeparator(dateStr: string): string {
   const date = new Date(dateStr);
@@ -200,6 +201,8 @@ export function MessageList({
     },
     overscan: 10,
     scrollMargin,
+    paddingEnd: LIST_PADDING_END,
+    scrollPaddingEnd: LIST_PADDING_END,
     useAnimationFrameWithResizeObserver: true,
     onChange: (instance) => {
       if (!isInitialPinRef.current || itemCountRef.current === 0) return;

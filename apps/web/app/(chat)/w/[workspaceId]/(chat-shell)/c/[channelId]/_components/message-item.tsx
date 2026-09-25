@@ -290,7 +290,10 @@ export function MessageItem({
                   workspaceId={workspaceId}
                 />
               ) : null}
-              <MessageAttachments attachments={message.attachments} />
+              <MessageAttachments
+                attachments={message.attachments}
+                className={message.content ? 'mt-1.5' : undefined}
+              />
               <MessageReactions
                 reactions={message.reactions ?? []}
                 onToggle={(emoji) => onToggleReaction(message.id, emoji)}
