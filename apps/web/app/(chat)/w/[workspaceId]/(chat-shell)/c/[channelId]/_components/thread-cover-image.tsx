@@ -16,7 +16,10 @@ export function ThreadCoverImage({
     <img
       src={attachmentFileUrl(attachment.id)}
       alt={attachment.filename}
-      className={cn('aspect-video w-full object-cover', className)}
+      className={cn(
+        'aspect-video w-full object-cover text-xs text-muted-foreground',
+        className,
+      )}
     />
   );
 }
