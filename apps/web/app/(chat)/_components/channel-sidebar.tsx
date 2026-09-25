@@ -657,7 +657,7 @@ function DmNavLink({
       variant={isActive ? 'secondary' : 'ghost'}
       size="sm"
       className={cn(
-        'h-6 min-w-0 w-full max-w-full shrink justify-start gap-1 overflow-hidden px-1',
+        'h-8 min-w-0 w-full max-w-full shrink justify-start gap-1.5 overflow-hidden px-1',
         hasUnread
           ? 'font-semibold text-foreground'
           : isActive
@@ -673,10 +673,11 @@ function DmNavLink({
             userId={peer.userId}
             name={peer.name}
             image={peer.image}
-            className="size-4! [&_[data-slot=avatar-fallback]]:text-[0.5rem] [&_[data-slot=avatar-badge]]:size-1.5 [&_[data-slot=avatar-badge]]:ring-1"
+            size="sm"
+            className="size-5! [&_[data-slot=avatar-fallback]]:text-[0.5625rem]"
           />
         ) : (
-          <span className="flex size-4 shrink-0 items-center justify-center rounded-full bg-muted text-[0.5rem] font-medium">
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[0.5625rem] font-medium">
             {personInitials(name)}
           </span>
         )}
