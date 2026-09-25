@@ -32,6 +32,7 @@ import {
   extractTicketNumbers,
   resolvePullRequestAutomation,
   resolvePushAutomation,
+  shouldApplyPushStatusAutomation,
 } from './github-ticket-id';
 import { ticketPrefixOf } from '../../channels/ticket-fields';
 import { PERMISSIONS } from '../../workspaces/permissions';
@@ -620,6 +621,26 @@ export class GithubIntegrationService {
         .from(channels)
         .where(eq(channels.id, ticketChannelId))
         .limit(1);
+
+      const [openPr] = await this.drizzle.db
+        .select({ id: githubPrLinks.id })
+        .from(githubPrLinks)
+        .where(
+          and(
+            eq(githubPrLinks.ticketChannelId, ticketChannelId),
+            eq(githubPrLinks.state, 'open'),
+          ),
+        )
+        .limit(1);
+
+      if (
+        !shouldApplyPushStatusAutomation(before?.status, Boolean(openPr))
+      ) {
+        this.logger.debug(
+          `GitHub push skipped status for ticket ${ticketKey}-${ticketNumber} (status=${before?.status ?? 'unknown'}, openPr=${Boolean(openPr)})`,
+        );
+        continue;
+      }
 
       await this.channelsService.applyIntegrationTicketStatus(
         ctx.link.workspaceId,

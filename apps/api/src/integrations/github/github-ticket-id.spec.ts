@@ -3,6 +3,7 @@ import {
   formatSuggestedBranchName,
   resolvePullRequestAutomation,
   resolvePushAutomation,
+  shouldApplyPushStatusAutomation,
 } from './github-ticket-id';
 
 describe('github-ticket-id', () => {
@@ -38,5 +39,14 @@ describe('github-ticket-id', () => {
 
   it('maps push events to in_progress', () => {
     expect(resolvePushAutomation()).toBe('in_progress');
+  });
+
+  it('skips push status when in review, done, or an open PR exists', () => {
+    expect(shouldApplyPushStatusAutomation('todo', false)).toBe(true);
+    expect(shouldApplyPushStatusAutomation('in_progress', false)).toBe(true);
+    expect(shouldApplyPushStatusAutomation('in_review', false)).toBe(false);
+    expect(shouldApplyPushStatusAutomation('done', false)).toBe(false);
+    expect(shouldApplyPushStatusAutomation('todo', true)).toBe(false);
+    expect(shouldApplyPushStatusAutomation('in_progress', true)).toBe(false);
   });
 });

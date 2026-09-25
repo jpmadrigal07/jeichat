@@ -70,3 +70,19 @@ export function resolvePullRequestAutomation(
 export function resolvePushAutomation(): TicketStatus {
   return 'in_progress';
 }
+
+/** Push → in_progress only before review is underway (no open PR, not in review/done). */
+export function shouldApplyPushStatusAutomation(
+  currentStatus: string | null | undefined,
+  hasOpenPullRequest: boolean,
+): boolean {
+  if (hasOpenPullRequest) return false;
+  if (
+    currentStatus === 'in_review' ||
+    currentStatus === 'done' ||
+    currentStatus === 'cancelled'
+  ) {
+    return false;
+  }
+  return true;
+}
