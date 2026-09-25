@@ -243,7 +243,7 @@ export function MessageItem({
         />
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-2">
+          <div className="mb-0.5 flex items-baseline gap-2">
             <span className="text-sm font-semibold truncate">
               {message.sender?.name ?? 'Unknown'}
             </span>
@@ -308,7 +308,7 @@ export function MessageItem({
               ) : null}
               <MessageAttachments
                 attachments={message.attachments}
-                className={message.content ? 'mt-1.5' : undefined}
+                className="mt-1.5"
               />
               <MessageReactions
                 reactions={message.reactions ?? []}
