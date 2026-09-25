@@ -39,9 +39,10 @@ export function AttachmentImage({
       <img
         src={attachmentFileUrl(attachment.id)}
         alt={attachment.filename}
-        className={
-          compact ? 'size-full object-cover' : 'max-h-40 max-w-60 object-contain'
-        }
+        className={cn(
+          'text-xs text-muted-foreground',
+          compact ? 'size-full object-cover' : 'max-h-40 max-w-60 object-contain',
+        )}
       />
     </button>
   );
