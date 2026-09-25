@@ -274,19 +274,6 @@ export class WorkspacePermissionsService {
     return result;
   }
 
-  async assertWorkspaceAdministrator(workspaceId: string, userId: string) {
-    if (await this.isWorkspaceOwner(workspaceId, userId)) {
-      return;
-    }
-    const assignedRoles = await this.getUserRoles(workspaceId, userId);
-    if (assignedRoles.some((role) => role.isAdministrator)) {
-      return;
-    }
-    throw new ForbiddenException(
-      'Only workspace administrators can manage this integration',
-    );
-  }
-
   private async getMembership(workspaceId: string, userId: string) {
     const [member] = await this.drizzle.db
       .select({ role: workspaceMembers.role })

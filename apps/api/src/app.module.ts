@@ -19,7 +19,6 @@ import { UsersModule } from './users/users.module';
 import { SearchModule } from './search/search.module';
 import { PushModule } from './push/push.module';
 import { BotsModule } from './bots/bots.module';
-import { GithubIntegrationModule } from './integrations/github/github.module';
 
 // Load .env from repo root (works from apps/api/dist or apps/api/src) or cwd
 const envFilePath =
@@ -50,7 +49,6 @@ const envFilePath =
     SearchModule,
     PushModule,
     BotsModule,
-    GithubIntegrationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

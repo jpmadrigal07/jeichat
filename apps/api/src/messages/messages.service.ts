@@ -1,10 +1,8 @@
 import {
   BadRequestException,
   ForbiddenException,
-  Inject,
   Injectable,
   NotFoundException,
-  forwardRef,
 } from '@nestjs/common';
 import { and, asc, count, desc, eq, gt, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
@@ -44,7 +42,6 @@ import {
 import { PERMISSIONS } from '../workspaces/permissions';
 import { WorkspacePermissionsService } from '../workspaces/workspace-permissions.service';
 import { BotsService } from '../bots/bots.service';
-import { GithubIntegrationService } from '../integrations/github/github.service';
 import {
   aroundWindowSizes,
   encodeMessageCursor,
@@ -99,8 +96,6 @@ export class MessagesService {
     private readonly inboxService: InboxService,
     private readonly pushService: PushService,
     private readonly botsService: BotsService,
-    @Inject(forwardRef(() => GithubIntegrationService))
-    private readonly githubIntegration: GithubIntegrationService,
   ) {}
 
   private async verifyChannelAccess(
@@ -391,11 +386,6 @@ export class MessagesService {
           })
         : Promise.resolve(),
     ]);
-    if (/^@?github\b/i.test(content.trim())) {
-      void this.githubIntegration
-        .handleChatCommand(channel.workspaceId, channelId, senderId, content)
-        .catch(() => undefined);
-    }
     return message;
   }
 

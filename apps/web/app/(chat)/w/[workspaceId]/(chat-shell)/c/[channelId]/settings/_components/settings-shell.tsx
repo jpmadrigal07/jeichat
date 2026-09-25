@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Archive, GitBranch, Info, Shield, Trash2, Users } from 'lucide-react';
+import { Archive, Info, Shield, Trash2, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChatPageHeader } from '@chat/_components/chat-page-header';
@@ -48,12 +48,6 @@ export function ChannelSettingsShell({
       label: 'Members',
       icon: Users,
       visible: !channel?.parentId,
-    },
-    {
-      href: `/w/${workspaceId}/c/${channelId}/settings/github`,
-      label: 'GitHub',
-      icon: GitBranch,
-      visible: !channel?.parentId && !isDmChannel(channel),
     },
     {
       href: `/w/${workspaceId}/c/${channelId}/settings/archived`,

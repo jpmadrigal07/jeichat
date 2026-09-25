@@ -25,7 +25,6 @@ import { useUpdateChannel } from '@chat/_hooks/use-channels';
 import { useWorkspaceMembers } from '@chat/_hooks/use-workspaces';
 import type { Channel } from '@chat/_libs/channels';
 import { TicketLabelsMenu, TicketWatchersMenu } from './ticket-property-menus';
-import { TicketGithubSection } from './ticket-github-section';
 import {
   TICKET_PRIORITIES,
   TICKET_PRIORITY_META,
@@ -55,12 +54,10 @@ function PropertyRow({
 export function TicketProperties({
   workspaceId,
   channel,
-  boardTicketKey,
   className,
 }: {
   workspaceId: string;
   channel: Channel;
-  boardTicketKey?: string | null;
   className?: string;
 }) {
   const updateChannel = useUpdateChannel(workspaceId);
@@ -275,7 +272,6 @@ export function TicketProperties({
             </PopoverContent>
           </Popover>
         </PropertyRow>
-        <TicketGithubSection boardTicketKey={boardTicketKey} channel={channel} />
       </div>
     </div>
   );
