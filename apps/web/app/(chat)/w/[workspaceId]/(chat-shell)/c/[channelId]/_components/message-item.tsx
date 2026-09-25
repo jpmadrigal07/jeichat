@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Pencil, Pin, PinOff, Reply, Trash2, X, Check } from 'lucide-react';
 import {
   Tooltip,
@@ -16,7 +16,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { BotBadge } from '@chat/_components/bot-badge';
 import { PresenceAvatar } from '@chat/_components/presence-avatar';
@@ -25,6 +24,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import type { Message, MessageReplyTo } from '../_libs/messages';
 import { messageReplySnippet } from '../_helpers/message-reply';
+import { useLongPress } from '../_hooks/use-long-press';
+import { MessageActionDrawer } from './message-action-drawer';
 import { MessageAttachments } from './message-attachments';
 import { MessageMarkdown } from './message-markdown';
 import { MessageReactions } from './message-reactions';
@@ -171,8 +172,19 @@ export function MessageItem({
   workspaceId,
 }: MessageItemProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [openPanel, setOpenPanel] = useState<'actions' | 'delete' | null>(null);
   const isEdited = message.updatedAt !== message.createdAt;
   const showActions = !isEditing;
+  const longPress = useLongPress(() => setOpenPanel('actions'), {
+    // Below `md` the hover toolbar is hidden, so long press replaces it.
+    enabled: () =>
+      showActions && window.matchMedia('(max-width: 767px)').matches,
+  });
+
+  function handleTogglePin() {
+    if (isPinned) onUnpin(message.id);
+    else onPin(message.id);
+  }
 
   function handleSaveEdit() {
     const value = textareaRef.current?.value.trim();
@@ -193,164 +205,182 @@ export function MessageItem({
   }
 
   return (
-    <div
-      className={cn(
-        'group relative flex gap-3 px-4 py-1.5 hover:bg-muted/50',
-        isHighlighted && 'bg-accent/50',
-      )}
-    >
-      <PresenceAvatar
-        userId={message.senderId}
-        name={message.sender?.name ?? 'Unknown'}
-        image={message.sender?.image}
-        workspaceId={workspaceId}
-        className="mt-0.5"
-      />
+    <>
+      <div
+        {...longPress}
+        className={cn(
+          'group relative flex gap-3 px-4 py-1.5 hover:bg-muted/50',
+          // Long press opens the action drawer on mobile, so suppress the
+          // native text selection / callout it would otherwise trigger.
+          showActions &&
+            'max-md:select-none max-md:[-webkit-touch-callout:none]',
+          isHighlighted && 'bg-accent/50',
+          openPanel === 'actions' && 'bg-muted/50',
+        )}
+      >
+        <PresenceAvatar
+          userId={message.senderId}
+          name={message.sender?.name ?? 'Unknown'}
+          image={message.sender?.image}
+          workspaceId={workspaceId}
+          className="mt-0.5"
+        />
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm font-semibold truncate">
-            {message.sender?.name ?? 'Unknown'}
-          </span>
-          {message.sender?.isBot ? <BotBadge /> : null}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="text-xs text-muted-foreground shrink-0 cursor-default">
-                {formatTime(message.createdAt)}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              {formatFullDate(message.createdAt)}
-            </TooltipContent>
-          </Tooltip>
-          {isEdited && (
-            <span className="text-xs text-muted-foreground">(edited)</span>
-          )}
-          {isPinned ? (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Pin className="size-3" />
-              Pinned
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2">
+            <span className="text-sm font-semibold truncate">
+              {message.sender?.name ?? 'Unknown'}
             </span>
-          ) : null}
+            {message.sender?.isBot ? <BotBadge /> : null}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="text-xs text-muted-foreground shrink-0 cursor-default">
+                  {formatTime(message.createdAt)}
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                {formatFullDate(message.createdAt)}
+              </TooltipContent>
+            </Tooltip>
+            {isEdited && (
+              <span className="text-xs text-muted-foreground">(edited)</span>
+            )}
+            {isPinned ? (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Pin className="size-3" />
+                Pinned
+              </span>
+            ) : null}
+          </div>
+
+          {isEditing ? (
+            <div className="mt-1">
+              <Textarea
+                ref={textareaRef}
+                defaultValue={message.content}
+                onKeyDown={handleEditKeyDown}
+                className="min-h-[60px] text-sm resize-none"
+                autoFocus
+              />
+              <div className="flex gap-1 mt-1">
+                <Button size="sm" variant="ghost" onClick={onCancelEdit}>
+                  <X className="h-3.5 w-3.5 mr-1" />
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleSaveEdit}>
+                  <Check className="h-3.5 w-3.5 mr-1" />
+                  Save
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <MessageReplyPreview
+                replyToId={message.replyToId}
+                replyTo={message.replyTo}
+                onJumpToReply={onJumpToReply}
+              />
+              {message.content ? (
+                <MessageMarkdown
+                  content={message.content}
+                  className="text-sm break-words"
+                  members={members}
+                  tickets={tickets}
+                  channels={channels}
+                  workspaceId={workspaceId}
+                />
+              ) : null}
+              <MessageAttachments attachments={message.attachments} />
+              <MessageReactions
+                reactions={message.reactions ?? []}
+                onToggle={(emoji) => onToggleReaction(message.id, emoji)}
+                disabled={reactionPending}
+              />
+            </>
+          )}
         </div>
 
-        {isEditing ? (
-          <div className="mt-1">
-            <Textarea
-              ref={textareaRef}
-              defaultValue={message.content}
-              onKeyDown={handleEditKeyDown}
-              className="min-h-[60px] text-sm resize-none"
-              autoFocus
-            />
-            <div className="flex gap-1 mt-1">
-              <Button size="sm" variant="ghost" onClick={onCancelEdit}>
-                <X className="h-3.5 w-3.5 mr-1" />
-                Cancel
-              </Button>
-              <Button size="sm" onClick={handleSaveEdit}>
-                <Check className="h-3.5 w-3.5 mr-1" />
-                Save
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <MessageReplyPreview
-              replyToId={message.replyToId}
-              replyTo={message.replyTo}
-              onJumpToReply={onJumpToReply}
-            />
-            {message.content ? (
-              <MessageMarkdown
-                content={message.content}
-                className="text-sm break-words"
-                members={members}
-                tickets={tickets}
-                channels={channels}
-                workspaceId={workspaceId}
-              />
+        {showActions ? (
+          <div
+            className={cn(
+              'absolute -top-3 right-4 z-10 hidden items-center rounded-md border bg-popover p-0.5 shadow-md md:flex',
+              'pointer-events-none opacity-0',
+              'group-hover:pointer-events-auto group-hover:opacity-100',
+              'group-focus-within:pointer-events-auto group-focus-within:opacity-100',
+            )}
+          >
+            <MessageHoverAction
+              label="Reply"
+              onClick={() => onReply(message.id)}
+            >
+              <Reply />
+            </MessageHoverAction>
+            {canManageMessages ? (
+              <MessageHoverAction
+                label={isPinned ? 'Unpin message' : 'Pin message'}
+                onClick={handleTogglePin}
+              >
+                {isPinned ? <PinOff /> : <Pin />}
+              </MessageHoverAction>
             ) : null}
-            <MessageAttachments attachments={message.attachments} />
-            <MessageReactions
-              reactions={message.reactions ?? []}
-              onToggle={(emoji) => onToggleReaction(message.id, emoji)}
-              disabled={reactionPending}
-            />
-          </>
-        )}
+            {isOwn ? (
+              <MessageHoverAction label="Edit message" onClick={onStartEdit}>
+                <Pencil />
+              </MessageHoverAction>
+            ) : null}
+            {isOwn ? (
+              <MessageHoverAction
+                label="Delete message"
+                destructive
+                onClick={() => setOpenPanel('delete')}
+              >
+                <Trash2 />
+              </MessageHoverAction>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
-      {showActions ? (
-        <div
-          className={cn(
-            'absolute -top-3 right-4 z-10 flex items-center rounded-md border bg-popover p-0.5 shadow-md',
-            'pointer-events-none opacity-0',
-            'group-hover:pointer-events-auto group-hover:opacity-100',
-            'group-focus-within:pointer-events-auto group-focus-within:opacity-100',
-          )}
+      <MessageActionDrawer
+        open={openPanel === 'actions'}
+        onOpenChange={(open) => setOpenPanel(open ? 'actions' : null)}
+        message={message}
+        isOwn={isOwn}
+        isPinned={isPinned}
+        canManageMessages={canManageMessages}
+        reactionPending={reactionPending}
+        onReact={(emoji) => onToggleReaction(message.id, emoji)}
+        onReply={() => onReply(message.id)}
+        onTogglePin={handleTogglePin}
+        onStartEdit={onStartEdit}
+        onRequestDelete={() => setOpenPanel('delete')}
+      />
+
+      {isOwn ? (
+        <AlertDialog
+          open={openPanel === 'delete'}
+          onOpenChange={(open) => setOpenPanel(open ? 'delete' : null)}
         >
-          <MessageHoverAction
-            label="Reply"
-            onClick={() => onReply(message.id)}
-          >
-            <Reply />
-          </MessageHoverAction>
-          {canManageMessages ? (
-            <MessageHoverAction
-              label={isPinned ? 'Unpin message' : 'Pin message'}
-              onClick={() =>
-                isPinned ? onUnpin(message.id) : onPin(message.id)
-              }
-            >
-              {isPinned ? <PinOff /> : <Pin />}
-            </MessageHoverAction>
-          ) : null}
-          {isOwn ? (
-            <MessageHoverAction label="Edit message" onClick={onStartEdit}>
-              <Pencil />
-            </MessageHoverAction>
-          ) : null}
-          {isOwn ? (
-            <AlertDialog>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className="rounded-sm text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Trash2 />
-                      <span className="sr-only">Delete message</span>
-                    </Button>
-                  </AlertDialogTrigger>
-                </TooltipTrigger>
-                <TooltipContent side="top">Delete message</TooltipContent>
-              </Tooltip>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete message?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This message will be permanently deleted. This action
-                    cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    variant="destructive"
-                    onClick={() => onDelete(message.id)}
-                  >
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          ) : null}
-        </div>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete message?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This message will be permanently deleted. This action cannot be
+                undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={() => onDelete(message.id)}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       ) : null}
-    </div>
+    </>
   );
 }

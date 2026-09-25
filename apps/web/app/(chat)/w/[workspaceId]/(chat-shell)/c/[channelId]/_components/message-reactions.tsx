@@ -27,7 +27,14 @@ export function MessageReactions({
   disabled = false,
 }: MessageReactionsProps) {
   return (
-    <div className="mt-1 flex flex-wrap items-center gap-1">
+    <div
+      className={cn(
+        'mt-1 flex flex-wrap items-center gap-1',
+        // Mobile reacts via the long-press drawer, so with no reactions yet
+        // there's nothing to show.
+        reactions.length === 0 && 'max-md:hidden',
+      )}
+    >
       {reactions.map((reaction) => (
         <Tooltip key={reaction.emoji}>
           <TooltipTrigger asChild>
@@ -50,7 +57,11 @@ export function MessageReactions({
         </Tooltip>
       ))}
 
-      <ReactionEmojiPicker onSelect={onToggle} disabled={disabled} />
+      <ReactionEmojiPicker
+        onSelect={onToggle}
+        disabled={disabled}
+        triggerClassName="max-md:hidden"
+      />
     </div>
   );
 }

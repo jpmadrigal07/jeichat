@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
-const QUICK_REACTIONS = ['👍', '❤️', '😂', '🎉', '🔥', '👀'] as const;
+export const QUICK_REACTIONS = ['👍', '❤️', '😂', '🎉', '🔥', '👀'] as const;
 
 type ReactionEmojiPickerProps = {
   onSelect: (emoji: string) => void;
