@@ -53,14 +53,7 @@ export function InboxView({
           backHref={workspaceRoot.href}
           backLabel="Back to channels"
           linearTitle="Inbox"
-          linearParent={{
-            label: workspaceRoot.label,
-            href: workspaceRoot.href,
-          }}
-          crumbs={[
-            { label: workspaceRoot.label, href: workspaceRoot.href },
-            { label: 'Inbox' },
-          ]}
+          crumbs={[{ label: 'Inbox' }]}
           actions={
             <>
               {unreadCount > 0 ? (

@@ -55,14 +55,7 @@ export function MyTicketsView({
           backHref={workspaceRoot.href}
           backLabel="Back to channels"
           linearTitle="My tickets"
-          linearParent={{
-            label: workspaceRoot.label,
-            href: workspaceRoot.href,
-          }}
-          crumbs={[
-            { label: workspaceRoot.label, href: workspaceRoot.href },
-            { label: 'My tickets' },
-          ]}
+          crumbs={[{ label: 'My tickets' }]}
           actions={
             <>
               <MembersSidebarToggle />
