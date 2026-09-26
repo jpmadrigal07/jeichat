@@ -28,6 +28,7 @@ import { ChannelHeader } from './_components/channel-header';
 import { ChannelThreadCards } from './_components/channel-thread-cards';
 import { ThreadIssueHeader } from './_components/thread-issue-header';
 import { MessageList } from './_components/message-list';
+import { ChannelEmptyState } from './_components/channel-empty-state';
 import { MessageInput } from './_components/message-input';
 import { TypingIndicator } from './_components/typing-indicator';
 import { ChannelAttachmentLightbox } from './_components/channel-attachment-lightbox';
@@ -316,51 +317,55 @@ export function ChannelView({
         className="relative flex min-h-0 flex-1 flex-col"
       >
         <div className="relative flex min-h-0 flex-1 flex-col">
-          <MessageList
-            key={`${channelId}:${highlightMessageId ?? 'live'}`}
-            header={
-              isThread && channel ? (
-                <ThreadIssueHeader
-                  workspaceId={workspaceId}
-                  channel={channel}
-                  parentChannel={parentChannel}
-                  members={members ?? []}
-                  tickets={tickets}
-                  channels={hashChannels}
-                  mentionMessages={mentionMessages}
-                />
-              ) : null
-            }
-            entries={timeline}
-            currentUserId={userId}
-            hasNextPage={hasNextPage}
-            isFetchingNextPage={isFetchingNextPage}
-            fetchNextPage={fetchNextPage}
-            hasPreviousPage={hasPreviousPage}
-            isFetchingPreviousPage={isFetchingPreviousPage}
-            fetchPreviousPage={fetchPreviousPage}
-            onJumpToLatest={jumpToLatest}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onPin={handlePin}
-            onUnpin={handleUnpin}
-            onToggleReaction={handleToggleReaction}
-            onReply={startReply}
-            onJumpToReply={jumpToReply}
-            pendingReactionMessageId={
-              reactionMutation.isPending
-                ? reactionMutation.variables?.messageId
-                : undefined
-            }
-            pinnedMessageIds={pinnedMessageIds}
-            canManageMessages={canManageMessages}
-            highlightMessageId={highlightMessageId}
-            members={members ?? []}
-            tickets={tickets}
-            channels={hashChannels}
-            workspaceId={workspaceId}
-            showTicketLink={!isThread}
-          />
+          {timeline.length === 0 && !isThread ? (
+            <ChannelEmptyState channel={channel} />
+          ) : (
+            <MessageList
+              key={`${channelId}:${highlightMessageId ?? 'live'}`}
+              header={
+                isThread && channel ? (
+                  <ThreadIssueHeader
+                    workspaceId={workspaceId}
+                    channel={channel}
+                    parentChannel={parentChannel}
+                    members={members ?? []}
+                    tickets={tickets}
+                    channels={hashChannels}
+                    mentionMessages={mentionMessages}
+                  />
+                ) : null
+              }
+              entries={timeline}
+              currentUserId={userId}
+              hasNextPage={hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+              fetchNextPage={fetchNextPage}
+              hasPreviousPage={hasPreviousPage}
+              isFetchingPreviousPage={isFetchingPreviousPage}
+              fetchPreviousPage={fetchPreviousPage}
+              onJumpToLatest={jumpToLatest}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onPin={handlePin}
+              onUnpin={handleUnpin}
+              onToggleReaction={handleToggleReaction}
+              onReply={startReply}
+              onJumpToReply={jumpToReply}
+              pendingReactionMessageId={
+                reactionMutation.isPending
+                  ? reactionMutation.variables?.messageId
+                  : undefined
+              }
+              pinnedMessageIds={pinnedMessageIds}
+              canManageMessages={canManageMessages}
+              highlightMessageId={highlightMessageId}
+              members={members ?? []}
+              tickets={tickets}
+              channels={hashChannels}
+              workspaceId={workspaceId}
+              showTicketLink={!isThread}
+            />
+          )}
           <TypingIndicator users={typingNames} />
         </div>
         <MessageInput
