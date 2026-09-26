@@ -521,9 +521,13 @@ function TicketStatusGroup({
     >
       <CollapsibleTrigger asChild>
         <Button
-          variant="ghost"
+          variant={hasActiveTicket ? 'secondary' : 'ghost'}
           size="sm"
-          className="w-full min-w-0 max-w-full shrink justify-start overflow-hidden px-2 text-[0.6875rem] font-normal text-muted-foreground md:text-xs"
+          className={cn(
+            'w-full min-w-0 max-w-full shrink justify-start overflow-hidden px-2 text-[0.6875rem] font-normal md:text-xs',
+            !hasActiveTicket &&
+              'text-muted-foreground aria-expanded:bg-transparent aria-expanded:text-muted-foreground aria-expanded:hover:bg-muted aria-expanded:hover:text-foreground dark:aria-expanded:hover:bg-muted/50',
+          )}
         >
           <ChevronRight
             data-icon="inline-start"
