@@ -80,7 +80,11 @@ import {
 import { isChannelFolderCollapsed } from '../_helpers/sidebar-channel-collapse';
 import { useSidebarTicketFilters } from '../_hooks/use-sidebar-ticket-filter';
 import { useSidebarChannelCollapse } from '../_hooks/use-sidebar-channel-collapse';
-import { channelBoardHref, type Channel } from '../_libs/channels';
+import {
+  channelBoardHref,
+  conversationPageHref,
+  type Channel,
+} from '../_libs/channels';
 import { CreateChannelDialog } from './create-channel-dialog';
 import { CreateDmDialog } from './create-dm-dialog';
 import {
@@ -101,9 +105,14 @@ type User = {
 };
 
 export function ChannelSidebar({ user }: { user: User }) {
-  const params = useParams<{ workspaceId?: string; channelId?: string }>();
+  const params = useParams<{
+    workspaceId?: string;
+    channelId?: string;
+    ticketId?: string;
+  }>();
   const pathname = usePathname();
   const workspaceId = params.workspaceId;
+  const activeChannelId = params.ticketId ?? params.channelId;
   const { data: workspaces } = useWorkspaces();
   const { data: channels, isLoading } = useChannels(workspaceId ?? '');
   const { data: unreadCounts } = useUnreadCounts(workspaceId ?? '');
@@ -246,7 +255,7 @@ export function ChannelSidebar({ user }: { user: User }) {
                       setChannelCollapsed(channel.id, next)
                     }
                     currentUserId={user.id}
-                    activeChannelId={params.channelId}
+                    activeChannelId={activeChannelId}
                     unreadCounts={unreadCounts}
                   />
                 ))}
@@ -256,7 +265,7 @@ export function ChannelSidebar({ user }: { user: User }) {
                 workspaceId={workspaceId}
                 currentUserId={user.id}
                 dms={dms}
-                activeChannelId={params.channelId}
+                activeChannelId={activeChannelId}
                 unreadCounts={unreadCounts}
               />
             </div>
@@ -533,7 +542,7 @@ function TicketStatusGroup({
         {visibleTickets.map((ticket) => (
           <ChannelNavLink
             key={ticket.id}
-            href={`/w/${workspaceId}/c/${ticket.id}`}
+            href={conversationPageHref(workspaceId, ticket)}
             name={ticket.name}
             isActive={ticket.id === activeChannelId}
             unreadCount={unreadCounts?.[ticket.id] ?? 0}

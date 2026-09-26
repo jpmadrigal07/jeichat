@@ -5,7 +5,7 @@ import {
   type TaggableChannel,
   type TaggableTicket,
 } from '@chat/_helpers/ticket-mentions';
-import { channelPageHref } from '@chat/_libs/channels';
+import { channelPageHref, ticketPageHref } from '@chat/_libs/channels';
 
 export type RemarkChatTagsOptions = {
   members: MentionableMember[];
@@ -62,7 +62,7 @@ export function remarkChatTags(options: RemarkChatTagsOptions) {
           if (part.kind === 'ticket') {
             return {
               type: 'link',
-              url: channelPageHref(workspaceId, part.ticketId),
+              url: ticketPageHref(workspaceId, part.parentId, part.ticketId),
               title: part.name,
               data: {
                 hProperties: { className: ['md-ticket'] },

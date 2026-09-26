@@ -1,33 +1,23 @@
-import { getServerSession } from '@/lib/auth-server';
 import { redirect } from 'next/navigation';
-import { parseTicketLayout } from '@chat/_libs/channels';
-import { ChannelView } from '../channel-view';
 
-export default async function ChannelBoardPage({
+/** Legacy `/board` URL — the board now lives at `/b`. */
+export default async function LegacyChannelBoardPage({
   params,
   searchParams,
 }: {
   params: Promise<{ workspaceId: string; channelId: string }>;
-  searchParams: Promise<{
-    layout?: string | string[];
-    message?: string | string[];
-  }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const session = await getServerSession();
-  if (!session?.data?.user) redirect('/login');
-
+  const { workspaceId, channelId } = await params;
   const query = await searchParams;
-  const messageParam = Array.isArray(query.message)
-    ? query.message[0]
-    : query.message;
-
-  return (
-    <ChannelView
-      params={params}
-      userId={session.data.user.id}
-      view="threads"
-      layout={parseTicketLayout(query.layout)}
-      highlightMessageId={messageParam ?? null}
-    />
-  );
+  const next = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value == null) continue;
+    for (const item of Array.isArray(value) ? value : [value]) {
+      next.append(key, item);
+    }
+  }
+  const qs = next.toString();
+  const path = `/w/${workspaceId}/c/${channelId}/b`;
+  redirect(qs ? `${path}?${qs}` : path);
 }

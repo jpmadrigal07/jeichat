@@ -70,7 +70,7 @@ import {
   type TicketMenuMember,
 } from './ticket-property-menus';
 import {
-  channelPageHref,
+  conversationPageHref,
   type ChannelThread,
   type TicketLayout,
 } from '@chat/_libs/channels';
@@ -487,7 +487,7 @@ function TicketMobileListItem({
   unreadLabel: string | null;
   members: TicketMenuMember[];
 }) {
-  const href = channelPageHref(workspaceId, thread.id);
+  const href = conversationPageHref(workspaceId, thread);
   const priority = ticketPriorityOf(thread.priority);
   const PriorityIcon = TICKET_PRIORITY_META[priority].icon;
   const status = ticketStatusOf(thread.status);
@@ -751,7 +751,7 @@ function TicketBoardCard({
 
   return (
     <Link
-      href={channelPageHref(workspaceId, thread.id)}
+      href={conversationPageHref(workspaceId, thread)}
       draggable={enableDrag}
       className={cn(
         'group/card min-w-0',
@@ -949,7 +949,7 @@ function TicketListRow({
   unreadLabel: string | null;
   membersById: Map<string, { name: string; image: string | null; isBot?: boolean }>;
 }) {
-  const href = channelPageHref(workspaceId, thread.id);
+  const href = conversationPageHref(workspaceId, thread);
   const priority = ticketPriorityOf(thread.priority);
   const PriorityIcon = TICKET_PRIORITY_META[priority].icon;
   const assignee = thread.assigneeId

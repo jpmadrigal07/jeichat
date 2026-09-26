@@ -1,4 +1,4 @@
-import { channelPageHref } from '@chat/_libs/channels';
+import { conversationPageHref } from '@chat/_libs/channels';
 import { api } from '@/lib/api';
 
 export type MessageAttachment = {
@@ -119,12 +119,12 @@ export function pinnedMessageHref(
 
 export function messagePageHref(
   workspaceId: string,
-  channelId: string,
+  channel: { id: string; parentId: string | null },
   messageId: string,
 ) {
   const params = new URLSearchParams();
   params.set(MESSAGE_HIGHLIGHT_PARAM, messageId);
-  return `${channelPageHref(workspaceId, channelId)}?${params.toString()}`;
+  return `${conversationPageHref(workspaceId, channel)}?${params.toString()}`;
 }
 
 export function flattenMessagePages(

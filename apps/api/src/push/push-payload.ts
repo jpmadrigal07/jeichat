@@ -77,6 +77,13 @@ function absoluteUrl(value: string | null | undefined) {
   }
 }
 
+function conversationPath(notification: MessagePushInput) {
+  const { workspaceId, channel } = notification;
+  return channel.parentId
+    ? `/w/${workspaceId}/c/${channel.parentId}/b/${channel.id}`
+    : `/w/${workspaceId}/c/${channel.id}`;
+}
+
 export function toPushNotificationPayload(
   notification: MessagePushInput,
 ): PushNotificationPayload {
@@ -87,7 +94,7 @@ export function toPushNotificationPayload(
   return {
     title: senderName,
     body: `${target}\n${text}`,
-    href: `/w/${notification.workspaceId}/c/${notification.channel.id}?message=${notification.message.id}`,
+    href: `${conversationPath(notification)}?message=${notification.message.id}`,
     tag: `jeichat:message:${notification.workspaceId}:${notification.channel.id}`,
     icon: absoluteUrl(notification.message.sender?.image),
   };

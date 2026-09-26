@@ -232,6 +232,24 @@ export function channelPageHref(workspaceId: string, channelId: string) {
   return `/w/${workspaceId}/c/${channelId}`;
 }
 
+export function ticketPageHref(
+  workspaceId: string,
+  parentId: string,
+  ticketId: string,
+) {
+  return `${channelPageHref(workspaceId, parentId)}/b/${ticketId}`;
+}
+
+/** Canonical URL for any channel row — tickets nest under their parent channel. */
+export function conversationPageHref(
+  workspaceId: string,
+  channel: { id: string; parentId: string | null },
+) {
+  return channel.parentId
+    ? ticketPageHref(workspaceId, channel.parentId, channel.id)
+    : channelPageHref(workspaceId, channel.id);
+}
+
 export type TicketLayout = 'card' | 'list';
 
 export function channelBoardHref(
@@ -245,7 +263,7 @@ export function channelBoardHref(
   if (layout === 'list') params.set('layout', 'list');
   else params.delete('layout');
   const query = params.toString();
-  const path = `${channelPageHref(workspaceId, channelId)}/board`;
+  const path = `${channelPageHref(workspaceId, channelId)}/b`;
   return query ? `${path}?${query}` : path;
 }
 

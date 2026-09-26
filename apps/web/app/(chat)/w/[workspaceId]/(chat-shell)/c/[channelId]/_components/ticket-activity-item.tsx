@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/tooltip';
 import { useChannels } from '@chat/_hooks/use-channels';
 import { isTicketArchived } from '@chat/_helpers/ticket-fields';
-import { channelPageHref } from '@chat/_libs/channels';
+import { channelPageHref, conversationPageHref } from '@chat/_libs/channels';
 import {
   isParentChannelEventType,
   type TicketEvent,
@@ -79,11 +79,11 @@ export function TicketActivityItem({
   const copy = formatTicketEvent(event);
   const ticket = event.ticket;
   const { data: channels } = useChannels(workspaceId);
+  const ticketChannel = ticket
+    ? channels?.find((item) => item.id === ticket.id)
+    : undefined;
   const ticketArchived = Boolean(
-    ticket &&
-      isTicketArchived(
-        channels?.find((item) => item.id === ticket.id) ?? {},
-      ),
+    ticket && isTicketArchived(ticketChannel ?? {}),
   );
   const showTicketLink =
     Boolean(ticket) &&
@@ -103,7 +103,11 @@ export function TicketActivityItem({
             {copy.verb}{' '}
             {showTicketLink ? (
               <Link
-                href={channelPageHref(workspaceId, ticket.id)}
+                href={
+                  ticketChannel
+                    ? conversationPageHref(workspaceId, ticketChannel)
+                    : channelPageHref(workspaceId, ticket.id)
+                }
                 title={ticket.name}
                 className="font-medium text-primary underline-offset-2 hover:underline"
               >

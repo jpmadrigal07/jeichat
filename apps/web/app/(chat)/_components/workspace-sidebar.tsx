@@ -17,11 +17,15 @@ type User = {
 
 export function WorkspaceSidebar({ user }: { user: User }) {
   const { data: workspaces, isLoading } = useWorkspaces();
-  const params = useParams<{ workspaceId?: string; channelId?: string }>();
+  const params = useParams<{
+    workspaceId?: string;
+    channelId?: string;
+    ticketId?: string;
+  }>();
 
   useGlobalUnreadSocket({
     workspaces: workspaces ?? [],
-    activeChannelId: params.channelId,
+    activeChannelId: params.ticketId ?? params.channelId,
     userId: user.id,
   });
   useWorkspacePresenceSocket();

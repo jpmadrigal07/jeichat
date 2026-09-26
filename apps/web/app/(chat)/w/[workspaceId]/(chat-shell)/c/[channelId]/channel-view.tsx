@@ -158,8 +158,8 @@ export function ChannelView({
       })
     : null;
   const mentionMessages = useMemo(
-    () => taggableMessages(messages, channel?.name),
-    [channel?.name, messages],
+    () => taggableMessages(messages, channel),
+    [channel, messages],
   );
 
   const timeline = useMemo(

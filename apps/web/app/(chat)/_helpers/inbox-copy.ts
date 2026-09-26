@@ -2,7 +2,7 @@ import {
   ticketDisplayId,
   ticketPrefixOf,
 } from './ticket-fields';
-import { channelPageHref } from '../_libs/channels';
+import { conversationPageHref } from '../_libs/channels';
 import { MESSAGE_HIGHLIGHT_PARAM } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_libs/messages';
 import type { InboxNotification } from '../_libs/inbox';
 
@@ -49,7 +49,7 @@ export function inboxItemHref(workspaceId: string, notification: InboxNotificati
   if (notification.message?.id) {
     const params = new URLSearchParams();
     params.set(MESSAGE_HIGHLIGHT_PARAM, notification.message.id);
-    return `${channelPageHref(workspaceId, notification.channel.id)}?${params.toString()}`;
+    return `${conversationPageHref(workspaceId, notification.channel)}?${params.toString()}`;
   }
-  return channelPageHref(workspaceId, notification.channel.id);
+  return conversationPageHref(workspaceId, notification.channel);
 }

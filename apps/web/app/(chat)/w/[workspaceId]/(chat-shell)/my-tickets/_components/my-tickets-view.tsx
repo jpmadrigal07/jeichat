@@ -25,7 +25,7 @@ import {
 } from '@chat/_helpers/ticket-filters';
 import { useChannels } from '@chat/_hooks/use-channels';
 import { useUnreadCounts } from '@chat/_hooks/use-unread-counts';
-import { channelPageHref, type Channel } from '@chat/_libs/channels';
+import { conversationPageHref, type Channel } from '@chat/_libs/channels';
 import { ChatPageHeader } from '@chat/_components/chat-page-header';
 import { ChatPane } from '@chat/_components/chat-pane';
 import { MembersSidebarToggle } from '@chat/_components/members-sidebar-toggle';
@@ -113,7 +113,7 @@ export function MyTicketsView({
                   unread && 'bg-muted/50',
                 )}
               >
-                <Link href={channelPageHref(workspaceId, ticket.id)}>
+                <Link href={conversationPageHref(workspaceId, ticket)}>
                   <StatusIcon
                     className={cn(
                       'shrink-0',
