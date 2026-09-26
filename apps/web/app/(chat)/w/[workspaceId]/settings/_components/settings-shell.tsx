@@ -94,7 +94,7 @@ export function SettingsShell({
   return (
     <div className="flex min-h-svh flex-col bg-background">
       {isLoading ? (
-        <header className="flex h-12 items-center border-b px-2 md:px-4">
+        <header className="flex h-12 items-center border-b px-4">
           <Skeleton className="h-5 w-48" />
         </header>
       ) : (
@@ -145,7 +145,7 @@ export function SettingsShell({
 
         <main
           className={cn(
-            'min-w-0 flex-1 overflow-y-auto p-4 md:p-6',
+            'min-w-0 flex-1 overflow-y-auto p-6',
             onSettingsHome && 'max-md:hidden',
           )}
         >

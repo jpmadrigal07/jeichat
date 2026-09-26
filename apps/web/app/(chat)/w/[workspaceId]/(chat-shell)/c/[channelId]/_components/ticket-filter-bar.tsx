@@ -97,7 +97,7 @@ export function TicketFilterBar({
         : (selectedMember?.name ?? 'Assignee');
 
   return (
-    <div className="flex shrink-0 flex-col gap-2 border-b px-2 py-2 md:flex-row md:flex-wrap md:items-center md:gap-2 md:px-4">
+    <div className="flex shrink-0 flex-col gap-2 border-b px-4 py-2 md:flex-row md:flex-wrap md:items-center">
       <div className="flex min-w-0 flex-wrap items-center gap-2 md:contents">
         <Button
           variant={myIssuesActive ? 'secondary' : 'outline'}

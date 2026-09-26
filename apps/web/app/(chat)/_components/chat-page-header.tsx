@@ -41,7 +41,7 @@ export function ChatPageHeader({
   return (
     <div
       className={cn(
-        'flex h-12 shrink-0 items-center gap-1 border-b px-2 md:gap-2 md:px-4',
+        'flex h-12 shrink-0 items-center gap-2 border-b px-4',
         className,
       )}
     >
@@ -73,7 +73,7 @@ export function ChatPageHeader({
         <ChatBreadcrumbs crumbs={crumbs} className="hidden min-w-0 md:flex" />
       </div>
       {actions ? (
-        <div className="ml-auto flex shrink-0 items-center gap-0.5 md:gap-1">
+        <div className="ml-auto flex shrink-0 items-center gap-1">
           {actions}
         </div>
       ) : null}
