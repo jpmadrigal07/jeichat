@@ -102,14 +102,14 @@ export function MyTicketsView({
                 variant="ghost"
                 asChild
                 className={cn(
-                  'h-auto min-h-12 w-full justify-start rounded-none border-b px-4 py-3 font-normal',
+                  'h-auto min-h-12 w-full items-start justify-start gap-3 rounded-none border-b px-4 py-3 font-normal',
                   unread && 'bg-muted/50',
                 )}
               >
                 <Link href={conversationPageHref(workspaceId, ticket)}>
                   <StatusIcon
                     className={cn(
-                      'shrink-0',
+                      'mt-[3px] size-3.5 shrink-0',
                       TICKET_STATUS_META[status].iconClassName,
                     )}
                   />
@@ -128,7 +128,7 @@ export function MyTicketsView({
                       </span>
                     ) : null}
                   </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
+                  <span className="mt-0.5 shrink-0 text-xs text-muted-foreground">
                     {formatTicketTime(ticket.updatedAt)}
                   </span>
                 </Link>
