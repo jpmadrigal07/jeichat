@@ -11,6 +11,7 @@ import {
   DialogContent,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { isPreviousEntry } from '@chat/_helpers/navigation-history';
 import { attachmentFileUrl } from '../_helpers/attachment-file-url';
 
 export function ChannelAttachmentLightbox() {
@@ -24,7 +25,14 @@ export function ChannelAttachmentLightbox() {
     const params = new URLSearchParams(searchParams.toString());
     params.delete('lightbox');
     const qs = params.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    const href = qs ? `${pathname}?${qs}` : pathname;
+    // Opening pushed an entry — pop it so the preview doesn't stay in history
+    // (the back button would reopen it). Deep links have nothing to pop.
+    if (isPreviousEntry(href)) {
+      router.back();
+    } else {
+      router.replace(href, { scroll: false });
+    }
   }, [pathname, router, searchParams]);
 
   return (

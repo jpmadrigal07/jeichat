@@ -2,21 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import type { MouseEvent } from 'react';
-
-// Navigation API isn't in TypeScript's DOM lib yet.
-type NavigationWithBack = { canGoBack?: boolean };
-
-/**
- * `navigation.canGoBack` only counts same-origin entries, so it's false when
- * the page was opened directly (deep link, push notification, new tab).
- * `history.length` can't tell those apart from in-app history.
- */
-function canGoBackInApp() {
-  const { navigation } = window as Window & {
-    navigation?: NavigationWithBack;
-  };
-  return navigation?.canGoBack === true;
-}
+import { canGoBackInApp } from '@chat/_helpers/navigation-history';
 
 /**
  * Click handler for a back `<Link>`: returns to the previous in-app page, and
