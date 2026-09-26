@@ -127,6 +127,22 @@ export class ChannelsController {
     );
   }
 
+  @Patch(':id/threads/order')
+  @BotAllowed()
+  reorderThreads(
+    @Param('workspaceId') workspaceId: string,
+    @Param('id') id: string,
+    @Body() body: { status: string; ticketIds: string[] },
+    @Actor() actor: RequestActor,
+  ) {
+    return this.channelsService.reorderThreads(
+      workspaceId,
+      id,
+      actor.userId,
+      body,
+    );
+  }
+
   @Post(':id/read')
   markAsRead(
     @Param('workspaceId') workspaceId: string,

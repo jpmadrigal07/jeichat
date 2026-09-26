@@ -39,6 +39,8 @@ export type Channel = {
   archivedAt?: string | null;
   ticketNumber: number | null;
   ticketKey: string | null;
+  /** Manual order within a board status column; null sorts first. */
+  boardPosition?: number | null;
   channelType: 'channel' | 'dm';
   dmPeer: DmPeer | null;
   isPrivate: boolean;
@@ -212,6 +214,18 @@ export async function fetchChannelThreads(
   const { data } = await api.get<ChannelThread[]>(
     `/workspaces/${workspaceId}/channels/${channelId}/threads`,
     { signal: ctx?.signal },
+  );
+  return data;
+}
+
+export async function reorderChannelThreads(
+  workspaceId: string,
+  channelId: string,
+  payload: { status: string; ticketIds: string[] },
+): Promise<ChannelThread[]> {
+  const { data } = await api.patch<ChannelThread[]>(
+    `/workspaces/${workspaceId}/channels/${channelId}/threads/order`,
+    payload,
   );
   return data;
 }

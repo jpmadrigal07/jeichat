@@ -416,6 +416,70 @@ export class ChannelsService {
     return this.withThreadAttachments(sorted);
   }
 
+  /**
+   * Set the manual board order of one status column. Tickets not already in
+   * `status` are moved there first, so a cross-column drop is one request.
+   */
+  async reorderThreads(
+    workspaceId: string,
+    parentId: string,
+    userId: string,
+    data: { status: string; ticketIds: string[] },
+  ) {
+    const parent = await this.findOne(workspaceId, parentId, userId);
+    if (parent.parentId || parent.channelType === CHANNEL_TYPE.DM) {
+      throw new BadRequestException('Only channels have a ticket board');
+    }
+    await this.workspacePermissionsService.assertChannelPermission(
+      workspaceId,
+      parentId,
+      userId,
+      PERMISSIONS.SEND_MESSAGES,
+    );
+
+    const status = parseTicketStatus(data.status);
+    const ticketIds = Array.isArray(data.ticketIds) ? data.ticketIds : [];
+    if (
+      ticketIds.length === 0 ||
+      ticketIds.some((ticketId) => typeof ticketId !== 'string') ||
+      new Set(ticketIds).size !== ticketIds.length
+    ) {
+      throw new BadRequestException('Invalid ticket order');
+    }
+
+    const tickets = await this.drizzle.db
+      .select({ id: channels.id, status: channels.status })
+      .from(channels)
+      .where(
+        and(
+          eq(channels.workspaceId, workspaceId),
+          eq(channels.parentId, parentId),
+          isNull(channels.archivedAt),
+          inArray(channels.id, ticketIds),
+        ),
+      );
+    if (tickets.length !== ticketIds.length) {
+      throw new BadRequestException('Invalid ticket order');
+    }
+
+    for (const ticket of tickets) {
+      if (ticket.status !== status) {
+        await this.update(workspaceId, ticket.id, userId, { status });
+      }
+    }
+
+    await this.drizzle.db.transaction(async (tx) => {
+      for (const [index, ticketId] of ticketIds.entries()) {
+        await tx
+          .update(channels)
+          .set({ boardPosition: index })
+          .where(eq(channels.id, ticketId));
+      }
+    });
+
+    return this.listThreads(workspaceId, parentId, userId);
+  }
+
   async listEvents(workspaceId: string, id: string, userId: string) {
     const channel = await this.findOne(workspaceId, id, userId);
     if (channel.parentId) {
@@ -546,6 +610,7 @@ export class ChannelsService {
       dueAt?: Date | null;
       archivedAt?: Date | null;
       completedAt?: Date | null;
+      boardPosition?: number | null;
       updatedAt: Date;
     } = { updatedAt: new Date() };
 
@@ -608,6 +673,10 @@ export class ChannelsService {
       );
       if (completedAt !== undefined) {
         patch.completedAt = completedAt;
+      }
+      if (patch.status !== existing.status) {
+        // Land at the top of the new board column.
+        patch.boardPosition = null;
       }
     }
     if (data.priority !== undefined) {
@@ -1900,6 +1969,7 @@ export class ChannelsService {
         .set({
           status: patch.status,
           updatedAt: patch.updatedAt,
+          boardPosition: null,
           ...(patch.completedAt !== undefined
             ? { completedAt: patch.completedAt }
             : {}),

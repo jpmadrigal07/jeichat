@@ -1,6 +1,7 @@
 import type { Channel } from '../_libs/channels';
 import {
   TICKET_STATUSES,
+  compareTicketBoardPosition,
   isTicketArchived,
   ticketStatusOf,
   type TicketStatus,
@@ -31,6 +32,7 @@ export function groupChannelsByParent(channels: Channel[]) {
   for (const threads of threadsByParent.values()) {
     threads.sort(
       (a, b) =>
+        compareTicketBoardPosition(a, b) ||
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
   }

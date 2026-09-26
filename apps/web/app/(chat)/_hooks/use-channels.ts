@@ -48,6 +48,10 @@ export function applyChannelPatch<T extends Channel>(
     ticketKey:
       vars.ticketKey === undefined ? channel.ticketKey : vars.ticketKey,
     status: vars.status === undefined ? channel.status : vars.status,
+    boardPosition:
+      vars.status === undefined || vars.status === channel.status
+        ? channel.boardPosition
+        : null,
     priority: vars.priority === undefined ? channel.priority : vars.priority,
     assigneeId:
       vars.assigneeId === undefined ? channel.assigneeId : vars.assigneeId,

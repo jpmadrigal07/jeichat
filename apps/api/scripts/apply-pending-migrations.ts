@@ -55,6 +55,11 @@ const migrations = [
     table: 'bots',
     file: '../src/database/drizzle/0025_bots.sql',
   },
+  {
+    name: '0027_ticket_board_position',
+    column: { table: 'channels', name: 'board_position' },
+    file: '../src/database/drizzle/0027_ticket_board_position.sql',
+  },
 ] as const;
 
 try {

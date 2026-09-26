@@ -139,6 +139,19 @@ export function ticketStatusOf(value: string | null | undefined): TicketStatus {
     : DEFAULT_TICKET_STATUS;
 }
 
+/** Manual board order: unpositioned tickets first, then by position. */
+export function compareTicketBoardPosition(
+  a: { boardPosition?: number | null },
+  b: { boardPosition?: number | null },
+): number {
+  const aPosition = a.boardPosition ?? null;
+  const bPosition = b.boardPosition ?? null;
+  if (aPosition === bPosition) return 0;
+  if (aPosition === null) return -1;
+  if (bPosition === null) return 1;
+  return aPosition - bPosition;
+}
+
 export function ticketPriorityOf(
   value: string | null | undefined,
 ): TicketPriority {
