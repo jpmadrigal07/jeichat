@@ -453,7 +453,7 @@ function ChannelTicketFilterMenu({
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Status</DropdownMenuLabel>
+          <DropdownMenuLabel>Ticket status</DropdownMenuLabel>
           {TICKET_STATUSES.map((status) => {
             const meta = TICKET_STATUS_META[status];
             const Icon = meta.icon;
