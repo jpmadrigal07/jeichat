@@ -60,6 +60,7 @@ import {
   isTicketStatusOpenByDefault,
 } from '@chat/_helpers/group-channels';
 import { createThreadHref } from '@chat/_components/create-thread-dialog';
+import { UnreadBadge } from '@chat/_components/unread-badge';
 import { TicketFilterBar } from './ticket-filter-bar';
 import {
   TicketArchiveMenu,
@@ -538,7 +539,7 @@ function TicketMobileListItem({
           </span>
           <span className="min-w-0 flex-1 truncate font-medium">{thread.name}</span>
           {unreadLabel ? (
-            <Badge variant="destructive">{unreadLabel}</Badge>
+            <UnreadBadge>{unreadLabel}</UnreadBadge>
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
@@ -822,7 +823,7 @@ function TicketBoardCard({
                 {displayId}
               </span>
               {unreadLabel ? (
-                <Badge variant="destructive">{unreadLabel}</Badge>
+                <UnreadBadge>{unreadLabel}</UnreadBadge>
               ) : null}
             </div>
             <div className="flex shrink-0 items-center">
@@ -1064,7 +1065,7 @@ function TicketListRow({
             {thread.name}
           </Link>
           {unreadLabel ? (
-            <Badge variant="destructive">{unreadLabel}</Badge>
+            <UnreadBadge>{unreadLabel}</UnreadBadge>
           ) : null}
         </div>
       </TableCell>

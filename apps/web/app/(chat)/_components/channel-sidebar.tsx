@@ -92,6 +92,7 @@ import {
   createThreadHref,
 } from './create-thread-dialog';
 import { PresenceAvatar } from './presence-avatar';
+import { UnreadBadge } from './unread-badge';
 import { channelDisplayName } from '../_helpers/channel-display';
 import { UserBar } from './user-bar';
 import { ResizableSidebar } from './resizable-sidebar';
@@ -702,12 +703,9 @@ function DmNavLink({
           {name}
         </span>
         {unreadLabel ? (
-          <Badge
-            variant="destructive"
-            className="ml-auto h-3.5 min-w-3.5 shrink-0 px-1 text-[0.5625rem] font-semibold bg-destructive/10! text-destructive! [a]:hover:bg-destructive/10! [a]:hover:text-destructive!"
-          >
+          <UnreadBadge className="ml-auto h-3.5 min-w-3.5 shrink-0 px-1 text-[0.5625rem] font-semibold">
             {unreadLabel}
-          </Badge>
+          </UnreadBadge>
         ) : null}
       </Link>
     </Button>
@@ -774,12 +772,9 @@ function ChannelNavLink({
         ) : null}
         <span className="min-w-0 flex-1 truncate">{name}</span>
         {unreadLabel ? (
-          <Badge
-            variant="destructive"
-            className="ml-auto h-4 min-w-4 shrink-0 px-1 text-[0.625rem] font-semibold !bg-destructive/10 !text-destructive [a]:hover:!bg-destructive/10 [a]:hover:!text-destructive"
-          >
+          <UnreadBadge className="ml-auto h-4 min-w-4 shrink-0 px-1 text-[0.625rem] font-semibold">
             {unreadLabel}
-          </Badge>
+          </UnreadBadge>
         ) : null}
       </Link>
     </Button>

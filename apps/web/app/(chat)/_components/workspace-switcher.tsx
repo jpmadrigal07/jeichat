@@ -9,12 +9,12 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { useInactiveWorkspaceUnreadTotals } from '../_hooks/use-inactive-workspace-unread-totals';
 import { formatUnreadCount } from '../_helpers/format-unread-count';
 import { canCreateWorkspace } from '../_helpers/workspace-creation';
 import type { Workspace } from '../_libs/workspaces';
 import { CreateWorkspaceDialog } from './create-workspace-dialog';
+import { UnreadBadge } from './unread-badge';
 
 type User = {
   id: string;
@@ -75,12 +75,9 @@ export function WorkspaceSwitcher({
                   </AvatarFallback>
                 </Avatar>
                 {unreadLabel ? (
-                  <Badge
-                    variant="destructive"
-                    className="pointer-events-none absolute -right-1 -top-1 h-4 min-w-4 justify-center rounded-full border-2 border-sidebar px-1 text-[0.625rem] font-semibold !bg-destructive !text-destructive-foreground"
-                  >
+                  <UnreadBadge className="pointer-events-none absolute -right-1 -top-1 h-4 min-w-4 justify-center rounded-full border-2 border-sidebar px-1 text-[0.625rem] font-semibold">
                     {unreadLabel}
-                  </Badge>
+                  </UnreadBadge>
                 ) : null}
               </Link>
             </TooltipTrigger>

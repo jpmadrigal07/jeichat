@@ -24,6 +24,8 @@
     --color-input: var(--input);
     --color-border: var(--border);
     --color-destructive: var(--destructive);
+    --color-notification: var(--notification);
+    --color-notification-foreground: var(--notification-foreground);
     --color-ticket-in-progress: var(--ticket-in-progress);
     --color-ticket-in-review: var(--ticket-in-review);
     --color-ticket-done: var(--ticket-done);
@@ -78,6 +80,8 @@
     --accent: oklch(0.97 0 0);
     --accent-foreground: oklch(0.205 0 0);
     --destructive: oklch(0.577 0.245 27.325);
+    --notification: oklch(0.577 0.245 27.325);
+    --notification-foreground: oklch(1 0 0);
     --ticket-in-progress: oklch(0.79 0.14 85);
     --ticket-in-review: oklch(0.64 0.15 155);
     --ticket-done: oklch(0.55 0.16 275);
@@ -128,6 +132,8 @@
     --accent: oklch(0.269 0 0);
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
+    --notification: oklch(0.577 0.245 27.325);
+    --notification-foreground: oklch(1 0 0);
     --ticket-in-progress: oklch(0.82 0.13 85);
     --ticket-in-review: oklch(0.72 0.14 155);
     --ticket-done: oklch(0.68 0.12 275);
