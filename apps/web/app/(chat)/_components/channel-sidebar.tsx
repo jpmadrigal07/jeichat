@@ -681,7 +681,6 @@ function DmNavLink({
           : isActive
             ? 'font-medium'
             : 'font-normal',
-        hasUnread && !isActive && 'bg-muted/50 hover:bg-muted/70',
       )}
       asChild
     >
@@ -748,7 +747,6 @@ function ChannelNavLink({
           : isActive
             ? 'font-medium'
             : 'font-normal',
-        hasUnread && !isActive && 'bg-muted/50 hover:bg-muted/70',
         className,
       )}
       asChild
