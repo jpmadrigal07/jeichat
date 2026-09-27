@@ -20,6 +20,7 @@ import {
   wrapSelection,
 } from '../_helpers/markdown-shortcuts';
 import { messageReplySnippet } from '../_helpers/message-reply';
+import { useComposerTagHighlight } from '../_hooks/use-composer-tag-highlight';
 import { AttachmentPickerButton } from './attachment-picker-button';
 import { AttachmentPreviewTray } from './attachment-preview-tray';
 import type { PendingAttachment } from '../_hooks/use-attachment-uploads';
@@ -98,6 +99,12 @@ export function MessageInput({
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasSendDisabledRef = useRef(false);
   const [hasText, setHasText] = useState(false);
+  const highlight = useComposerTagHighlight({
+    textareaRef,
+    members,
+    tickets,
+    channels,
+  });
   const picker = useComposerTagPicker({
     textareaRef,
     workspaceId,
@@ -112,6 +119,7 @@ export function MessageInput({
       if (!textarea) return;
       textarea.style.height = 'auto';
       textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+      highlight.syncHighlight();
     },
   });
 
@@ -198,6 +206,7 @@ export function MessageInput({
     }
     setHasText(false);
     picker.syncFromTextarea();
+    highlight.syncHighlight();
     focusTextarea(textareaRef.current);
   }
 
@@ -252,21 +261,30 @@ export function MessageInput({
         />
         <div className="flex items-end gap-2">
           <AttachmentPickerButton onAdd={uploads.addFiles} />
-          <Textarea
-            ref={textareaRef}
-            placeholder={messageComposerPlaceholder(channelName, isMobile)}
-            className="h-6 min-h-6 max-h-[200px] field-sizing-fixed resize-none border-0 bg-transparent p-0 text-xs/relaxed shadow-none focus-visible:ring-0 dark:bg-transparent"
-            rows={1}
-            autoFocus
-            onKeyDown={handleKeyDown}
-            onSelect={picker.syncFromTextarea}
-            onInput={(e) => {
-              handleAutoResize(e);
-              handleInput();
-              setHasText(!!e.currentTarget.value.trim());
-              picker.syncFromTextarea();
-            }}
-          />
+          <div className="relative min-w-0 flex-1">
+            <div
+              ref={highlight.highlightRef}
+              aria-hidden
+              className="pointer-events-none absolute inset-0 overflow-hidden text-xs/relaxed wrap-break-word whitespace-pre-wrap text-transparent"
+            />
+            <Textarea
+              ref={textareaRef}
+              placeholder={messageComposerPlaceholder(channelName, isMobile)}
+              className="relative h-6 min-h-6 max-h-[200px] field-sizing-fixed resize-none border-0 bg-transparent p-0 text-xs/relaxed shadow-none focus-visible:ring-0 dark:bg-transparent"
+              rows={1}
+              autoFocus
+              onKeyDown={handleKeyDown}
+              onSelect={picker.syncFromTextarea}
+              onScroll={highlight.syncHighlightScroll}
+              onInput={(e) => {
+                handleAutoResize(e);
+                handleInput();
+                setHasText(!!e.currentTarget.value.trim());
+                picker.syncFromTextarea();
+                highlight.syncHighlight();
+              }}
+            />
+          </div>
           <Button
             size="icon"
             variant="ghost"

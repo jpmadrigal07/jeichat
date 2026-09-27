@@ -25,6 +25,10 @@ const EMPTY_MEMBERS: MentionableMember[] = [];
 const EMPTY_TICKETS: TaggableTicket[] = [];
 const EMPTY_CHANNELS: TaggableChannel[] = [];
 
+/** Discord-style pill for @user, #ticket, and #channel tags. */
+const TAG_PILL_CLASS =
+  'rounded-sm bg-tag px-0.5 font-medium text-tag-foreground box-decoration-clone';
+
 type MessageMarkdownProps = {
   content: string;
   className?: string;
@@ -40,11 +44,25 @@ function MarkdownLink({
   className,
   children,
 }: ComponentProps<'a'>) {
-  const classNames = className ?? '';
   if (!href || !isSafeHref(href)) {
     return <span>{children}</span>;
   }
-  if (href.startsWith('/w/') || classNames.includes('md-ticket')) {
+  if (className?.includes('md-tag')) {
+    return (
+      <Link
+        href={href}
+        title={title}
+        className={cn(
+          TAG_PILL_CLASS,
+          'transition-colors hover:bg-tag-hover hover:text-white',
+          className,
+        )}
+      >
+        {children}
+      </Link>
+    );
+  }
+  if (href.startsWith('/w/')) {
     return (
       <Link
         href={href}
@@ -108,8 +126,8 @@ function MarkdownInput({
 }
 
 function MarkdownSpan({ className, children }: ComponentProps<'span'>) {
-  if (className?.includes('md-mention')) {
-    return <span className="font-medium text-primary">{children}</span>;
+  if (className?.includes('md-tag')) {
+    return <span className={cn(TAG_PILL_CLASS, className)}>{children}</span>;
   }
   return <span className={className}>{children}</span>;
 }

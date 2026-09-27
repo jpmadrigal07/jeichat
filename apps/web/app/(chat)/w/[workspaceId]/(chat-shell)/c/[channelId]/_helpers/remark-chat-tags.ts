@@ -54,7 +54,7 @@ export function remarkChatTags(options: RemarkChatTagsOptions) {
               type: 'mention',
               data: {
                 hName: 'span',
-                hProperties: { className: ['md-mention'] },
+                hProperties: { className: ['md-tag'] },
               },
               children: [{ type: 'text', value: part.text }],
             };
@@ -65,7 +65,7 @@ export function remarkChatTags(options: RemarkChatTagsOptions) {
               url: ticketPageHref(workspaceId, part.parentId, part.ticketId),
               title: part.name,
               data: {
-                hProperties: { className: ['md-ticket'] },
+                hProperties: { className: ['md-tag'] },
               },
               children: [{ type: 'text', value: part.text }],
             };
@@ -76,7 +76,7 @@ export function remarkChatTags(options: RemarkChatTagsOptions) {
               url: channelPageHref(workspaceId, part.channelId),
               title: part.name,
               data: {
-                hProperties: { className: ['md-ticket'] },
+                hProperties: { className: ['md-tag'] },
               },
               children: [{ type: 'text', value: part.text }],
             };
