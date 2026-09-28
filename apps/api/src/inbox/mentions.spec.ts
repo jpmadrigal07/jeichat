@@ -1,4 +1,8 @@
-import { mentionedUserIds, type MentionableMember } from './mentions';
+import {
+  mentionedUserIds,
+  mentionsAll,
+  type MentionableMember,
+} from './mentions';
 
 const alice: MentionableMember = {
   userId: 'alice',
@@ -56,5 +60,24 @@ describe('mentionedUserIds', () => {
 
   it('returns nobody when the text has no mentions', () => {
     expect(mentionedUserIds('hello there', members, 'alice')).toEqual([]);
+  });
+});
+
+describe('mentionsAll', () => {
+  it('matches @all at the start or after whitespace', () => {
+    expect(mentionsAll('@all standup in 5')).toBe(true);
+    expect(mentionsAll('heads up @all')).toBe(true);
+    expect(mentionsAll('line one\n@all line two')).toBe(true);
+  });
+
+  it('is case-insensitive and allows trailing punctuation', () => {
+    expect(mentionsAll('hey @ALL!')).toBe(true);
+    expect(mentionsAll('ping @all, please')).toBe(true);
+  });
+
+  it('ignores emails and longer words', () => {
+    expect(mentionsAll('mail team@all.com')).toBe(false);
+    expect(mentionsAll('hi @alliance')).toBe(false);
+    expect(mentionsAll('no tag here')).toBe(false);
   });
 });

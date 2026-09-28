@@ -2,12 +2,19 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Archive, GitBranch, Info, Shield, Trash2, Users } from 'lucide-react';
+import {
+  Archive,
+  Bell,
+  GitBranch,
+  Info,
+  Shield,
+  Trash2,
+  Users,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChatPageHeader } from '@chat/_components/chat-page-header';
 import { useChannels } from '@chat/_hooks/use-channels';
-import { useWorkspaceRootCrumb } from '@chat/_hooks/use-workspace-root-crumb';
 import { channelBreadcrumbLabel, isDmChannel } from '@chat/_helpers/channel-display';
 import { channelPageHref } from '@chat/_libs/channels';
 
@@ -50,6 +57,12 @@ export function ChannelSettingsShell({
       visible: !channel?.parentId,
     },
     {
+      href: `/w/${workspaceId}/c/${channelId}/settings/notifications`,
+      label: 'Notifications',
+      icon: Bell,
+      visible: !channel?.parentId && !isDmChannel(channel),
+    },
+    {
       href: `/w/${workspaceId}/c/${channelId}/settings/github`,
       label: 'GitHub',
       icon: GitBranch,
@@ -71,14 +84,12 @@ export function ChannelSettingsShell({
 
   const settingsHome = `/w/${workspaceId}/c/${channelId}/settings`;
   const onSettingsHome = pathname === settingsHome;
-  const workspaceRoot = useWorkspaceRootCrumb(workspaceId);
   const visibleItems = navItems.filter((item) => item.visible !== false);
   const activeItem = visibleItems.find((item) => pathname === item.href);
   const channelHref = channelPageHref(workspaceId, channelId);
 
   const headerCrumbs = onSettingsHome
     ? [
-        { label: workspaceRoot.label, href: workspaceRoot.href },
         {
           label: channelBreadcrumbLabel(channel),
           href: channelHref,
@@ -86,7 +97,6 @@ export function ChannelSettingsShell({
         { label: 'Settings' },
       ]
     : [
-        { label: workspaceRoot.label, href: workspaceRoot.href },
         {
           label: channelBreadcrumbLabel(channel),
           href: channelHref,

@@ -42,6 +42,7 @@ type MessageInputProps = {
   tickets: TaggableTicket[];
   channels: TaggableChannel[];
   mentionMessages: TaggableMessage[];
+  allowAllMention: boolean;
   replyTo: ComposerReplyTo | null;
   onCancelReply: () => void;
   onSend: (content: string, attachmentIds: string[]) => void;
@@ -87,6 +88,7 @@ export function MessageInput({
   tickets,
   channels,
   mentionMessages,
+  allowAllMention,
   replyTo,
   onCancelReply,
   onSend,
@@ -113,6 +115,7 @@ export function MessageInput({
     tickets,
     channels,
     localMessages: mentionMessages,
+    allowAllMention,
     onValueChange: (value) => {
       setHasText(!!value.trim());
       const textarea = textareaRef.current;
@@ -221,12 +224,14 @@ export function MessageInput({
       <div className="relative flex w-full flex-col rounded-lg border bg-muted/30 px-3 py-2">
         <ComposerTagPicker
           mentionOpen={picker.mentionOpen}
+          mentionAll={picker.mentionAll}
           mentionMembers={picker.mentionMembers}
           hashOpen={picker.hashOpen}
           hashItems={picker.hashItems}
           selectedIndex={picker.selectedIndex}
           isSearching={picker.isSearching}
           onMention={picker.applyMention}
+          onMentionAll={picker.applyAllMention}
           onHashItem={picker.applyHashItem}
         />
         {replyTo ? (

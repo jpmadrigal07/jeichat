@@ -113,6 +113,40 @@ export class WorkspacePermissionsService {
     });
   }
 
+  /**
+   * Everyone a channel's messages notify: all workspace members for a public
+   * channel, channel members for a private channel or DM. Tickets follow
+   * their parent channel.
+   */
+  async listChannelAudienceUserIds(channelId: string): Promise<string[]> {
+    const permissionChannelId =
+      await this.resolvePermissionChannelId(channelId);
+    if (!permissionChannelId) return [];
+
+    const [channel] = await this.drizzle.db
+      .select({
+        workspaceId: channels.workspaceId,
+        isPrivate: channels.isPrivate,
+        channelType: channels.channelType,
+      })
+      .from(channels)
+      .where(eq(channels.id, permissionChannelId));
+    if (!channel) return [];
+
+    const rows =
+      channel.isPrivate || channel.channelType === 'dm'
+        ? await this.drizzle.db
+            .select({ userId: channelMembers.userId })
+            .from(channelMembers)
+            .where(eq(channelMembers.channelId, permissionChannelId))
+        : await this.drizzle.db
+            .select({ userId: workspaceMembers.userId })
+            .from(workspaceMembers)
+            .where(eq(workspaceMembers.workspaceId, channel.workspaceId));
+
+    return rows.map((row) => row.userId);
+  }
+
   async filterViewableChannelIds(
     workspaceId: string,
     userId: string,

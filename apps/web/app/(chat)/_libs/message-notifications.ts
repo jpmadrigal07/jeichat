@@ -16,4 +16,9 @@ export type MessageNotification = {
     ticketKey: string | null;
   } | null;
   message: Message;
+  /**
+   * Set for recipients who muted the channel (or only want mentions): update
+   * the unread count, but skip the sound, toast and desktop notification.
+   */
+  silent?: boolean;
 };

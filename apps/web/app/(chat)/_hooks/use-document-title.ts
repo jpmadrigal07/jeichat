@@ -4,9 +4,11 @@ import { usePathname } from 'next/navigation';
 import { useChannels } from './use-channels';
 import { useInboxUnreadCount } from './use-inbox';
 import { useInactiveWorkspaceUnreadTotals } from './use-inactive-workspace-unread-totals';
+import { useNotificationSettings } from './use-notification-settings';
 import { useUnreadCounts } from './use-unread-counts';
 import { useWorkspaces } from './use-workspaces';
 import { sumUnreadCounts } from '../_helpers/format-unread-count';
+import { loudUnreadCounts } from '../_helpers/notification-level';
 import {
   APP_TITLE,
   buildDocumentTitle,
@@ -26,6 +28,7 @@ export function useDocumentTitle() {
   const { data: workspaces } = useWorkspaces();
   const { data: channels } = useChannels(workspaceId);
   const { data: unreadCounts } = useUnreadCounts(workspaceId);
+  const { data: notificationSettings } = useNotificationSettings(workspaceId);
   const { data: inboxUnread } = useInboxUnreadCount(workspaceId);
   const otherWorkspaceTotals = useInactiveWorkspaceUnreadTotals(
     workspaceId ? (workspaces ?? NO_WORKSPACES) : NO_WORKSPACES,
@@ -49,7 +52,7 @@ export function useDocumentTitle() {
       channel,
       parentChannel,
       unreadCount: titleUnreadCount({
-        unreadCounts,
+        unreadCounts: loudUnreadCounts(unreadCounts, notificationSettings),
         currentChannelId: channelId,
         inboxUnread: inboxUnread?.unreadCount ?? 0,
         otherWorkspaceUnreads: sumUnreadCounts(otherWorkspaceTotals),

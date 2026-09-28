@@ -2,8 +2,10 @@
 
 import { useMemo, useState, type KeyboardEvent, type RefObject } from 'react';
 import {
+  ALL_MENTION,
   filterMentionMembers,
   insertMention,
+  matchesAllMention,
   type MentionableMember,
 } from '../_helpers/mentions';
 import {
@@ -32,6 +34,8 @@ type UseComposerTagPickerArgs = {
   tickets: TaggableTicket[];
   channels: TaggableChannel[];
   localMessages?: TaggableMessage[];
+  /** Offer `@all` as the first mention option. */
+  allowAllMention?: boolean;
   onValueChange?: (value: string) => void;
 };
 
@@ -43,6 +47,7 @@ export function useComposerTagPicker({
   tickets,
   channels,
   localMessages = [],
+  allowAllMention = false,
   onValueChange,
 }: UseComposerTagPickerArgs) {
   const [composerTag, setComposerTag] = useState<ComposerTag | null>(null);
@@ -70,15 +75,25 @@ export function useComposerTagPicker({
     hashQuery,
   );
 
+  const mentionAll =
+    allowAllMention &&
+    composerTag?.type === 'mention' &&
+    matchesAllMention(composerTag.query);
+  // `@all` takes index 0 when shown, so members shift down by one.
+  const mentionOffset = mentionAll ? 1 : 0;
+
   const mentionOpen =
-    composerTag?.type === 'mention' && mentionMembers.length > 0;
+    composerTag?.type === 'mention' &&
+    (mentionAll || mentionMembers.length > 0);
   const hashOpen =
     composerTag?.type === 'hash' &&
     (hashItems.length > 0 || Boolean(hashQuery && results.isFetching));
-  const pickerItems = mentionOpen ? mentionMembers : hashItems;
+  const pickerItemCount = mentionOpen
+    ? mentionMembers.length + mentionOffset
+    : hashItems.length;
   const pickerOpen = mentionOpen || hashOpen;
   const clampedIndex = pickerOpen
-    ? Math.min(selectedIndex, Math.max(pickerItems.length - 1, 0))
+    ? Math.min(selectedIndex, Math.max(pickerItemCount - 1, 0))
     : 0;
 
   function syncFromTextarea() {
@@ -109,17 +124,20 @@ export function useComposerTagPicker({
     });
   }
 
-  function applyMention(member: MentionableMember) {
+  function insertMentionName(name: string) {
     const textarea = textareaRef.current;
     if (!textarea || composerTag?.type !== 'mention') return;
     const cursor = textarea.selectionStart ?? textarea.value.length;
-    const next = insertMention(
-      textarea.value,
-      composerTag.start,
-      cursor,
-      member.name,
-    );
-    applyInsertedText(next, composerTag.start + member.name.length + 2);
+    const next = insertMention(textarea.value, composerTag.start, cursor, name);
+    applyInsertedText(next, composerTag.start + name.length + 2);
+  }
+
+  function applyMention(member: MentionableMember) {
+    insertMentionName(member.name);
+  }
+
+  function applyAllMention() {
+    insertMentionName(ALL_MENTION);
   }
 
   function applyTicketTag(ticket: TaggableTicket) {
@@ -180,23 +198,27 @@ export function useComposerTagPicker({
 
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      if (pickerItems.length === 0) return true;
-      setSelectedIndex((index) => (index + 1) % pickerItems.length);
+      if (pickerItemCount === 0) return true;
+      setSelectedIndex((index) => (index + 1) % pickerItemCount);
       return true;
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      if (pickerItems.length === 0) return true;
+      if (pickerItemCount === 0) return true;
       setSelectedIndex(
-        (index) => (index - 1 + pickerItems.length) % pickerItems.length,
+        (index) => (index - 1 + pickerItemCount) % pickerItemCount,
       );
       return true;
     }
     if (event.key === 'Enter' || event.key === 'Tab') {
       event.preventDefault();
       if (mentionOpen) {
-        const member = mentionMembers[clampedIndex];
-        if (member) applyMention(member);
+        if (mentionAll && clampedIndex === 0) {
+          applyAllMention();
+        } else {
+          const member = mentionMembers[clampedIndex - mentionOffset];
+          if (member) applyMention(member);
+        }
       } else {
         const item = hashItems[clampedIndex];
         if (item) applyHashItem(item);
@@ -213,6 +235,7 @@ export function useComposerTagPicker({
 
   return {
     mentionOpen,
+    mentionAll,
     mentionMembers,
     hashOpen,
     hashItems,
@@ -222,6 +245,7 @@ export function useComposerTagPicker({
     syncFromTextarea,
     handlePickerKeyDown,
     applyMention,
+    applyAllMention,
     applyHashItem,
   };
 }

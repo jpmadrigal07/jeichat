@@ -1,6 +1,6 @@
 'use client';
 
-import { Hash, MessageSquare } from 'lucide-react';
+import { Hash, MessageSquare, Users } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -19,6 +19,8 @@ import {
 
 type ComposerTagPickerProps = {
   mentionOpen: boolean;
+  /** Show `@all` as the first mention option (index 0). */
+  mentionAll?: boolean;
   mentionMembers: MentionableMember[];
   hashOpen: boolean;
   hashItems: HashPickerItem[];
@@ -26,11 +28,13 @@ type ComposerTagPickerProps = {
   isSearching?: boolean;
   placement?: 'above' | 'below';
   onMention: (member: MentionableMember) => void;
+  onMentionAll?: () => void;
   onHashItem: (item: HashPickerItem) => void;
 };
 
 export function ComposerTagPicker({
   mentionOpen,
+  mentionAll = false,
   mentionMembers,
   hashOpen,
   hashItems,
@@ -38,9 +42,12 @@ export function ComposerTagPicker({
   isSearching = false,
   placement = 'above',
   onMention,
+  onMentionAll,
   onHashItem,
 }: ComposerTagPickerProps) {
   if (!mentionOpen && !hashOpen) return null;
+
+  const mentionOffset = mentionAll ? 1 : 0;
 
   return (
     <div
@@ -49,6 +56,25 @@ export function ComposerTagPicker({
         placement === 'above' ? 'bottom-full mb-1' : 'top-full mt-1',
       )}
     >
+      {mentionOpen && mentionAll ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={cn(
+            'w-full justify-start text-left font-normal',
+            selectedIndex === 0 && 'bg-muted',
+          )}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onMentionAll?.()}
+        >
+          <Users data-icon="inline-start" />
+          <span className="shrink-0 font-medium">@all</span>
+          <span className="truncate text-xs text-muted-foreground">
+            Notify everyone in this channel
+          </span>
+        </Button>
+      ) : null}
       {mentionOpen
         ? mentionMembers.map((member, index) => (
             <Button
@@ -58,7 +84,7 @@ export function ComposerTagPicker({
               size="sm"
               className={cn(
                 'w-full justify-start text-left font-normal',
-                index === selectedIndex && 'bg-muted',
+                index + mentionOffset === selectedIndex && 'bg-muted',
               )}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => onMention(member)}

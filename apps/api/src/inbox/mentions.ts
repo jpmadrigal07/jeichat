@@ -4,6 +4,14 @@ export type MentionableMember = {
   email: string;
 };
 
+// `@all` must start the text or follow whitespace, so emails like
+// `team@all.com` don't notify the whole channel.
+const ALL_MENTION_PATTERN = /(^|\s)@all(?=$|[\s.,!?;:)'"])/i;
+
+export function mentionsAll(content: string): boolean {
+  return ALL_MENTION_PATTERN.test(content);
+}
+
 function mentionNeedles(
   member: MentionableMember,
   members: MentionableMember[],

@@ -11,7 +11,9 @@ import { ChatGateway } from '../src/gateway/chat.gateway';
 import { InboxService } from '../src/inbox/inbox.service';
 import { BotsService } from '../src/bots/bots.service';
 import { MessagesController } from '../src/messages/messages.controller';
+import { GithubIntegrationService } from '../src/integrations/github/github.service';
 import { MessagesService } from '../src/messages/messages.service';
+import { NotificationSettingsService } from '../src/notification-settings/notification-settings.service';
 import { PushService } from '../src/push/push.service';
 import type { StorageConfig } from '../src/storage/storage.config';
 import { StorageService } from '../src/storage/storage.service';
@@ -115,6 +117,7 @@ describe('Attachments API (e2e)', () => {
         {
           provide: InboxService,
           useValue: {
+            resolveMentionedUserIds: jest.fn().mockResolvedValue([]),
             notifyMentions: jest.fn().mockResolvedValue(undefined),
             notifyReaction: jest.fn().mockResolvedValue(undefined),
             notifyTicketComments: jest.fn().mockResolvedValue(undefined),
@@ -122,6 +125,14 @@ describe('Attachments API (e2e)', () => {
         },
         { provide: PushService, useValue: { notify: jest.fn() } },
         { provide: BotsService, useValue: {} },
+        {
+          provide: NotificationSettingsService,
+          useValue: { listLevels: jest.fn().mockResolvedValue(new Map()) },
+        },
+        {
+          provide: GithubIntegrationService,
+          useValue: { handleChatCommand: jest.fn() },
+        },
       ],
     }).compile();
 
