@@ -1,6 +1,7 @@
 // Navigation API isn't in TypeScript's DOM lib yet.
-type NavigationHistory = {
+type NavigationHistory = EventTarget & {
   canGoBack: boolean;
+  canGoForward: boolean;
   currentEntry: { index: number } | null;
   entries(): { url: string | null }[];
 };
@@ -16,6 +17,18 @@ function getNavigation() {
  */
 export function canGoBackInApp() {
   return getNavigation()?.canGoBack === true;
+}
+
+/** Same-origin counterpart of `canGoBackInApp` for the forward direction. */
+export function canGoForwardInApp() {
+  return getNavigation()?.canGoForward === true;
+}
+
+/** Calls `onChange` whenever the current history entry changes. */
+export function subscribeToNavigation(onChange: () => void) {
+  const navigation = getNavigation();
+  navigation?.addEventListener('currententrychange', onChange);
+  return () => navigation?.removeEventListener('currententrychange', onChange);
 }
 
 /** Whether the previous history entry is `href` (path + query, hash ignored). */

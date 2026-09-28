@@ -95,6 +95,7 @@ import { PresenceAvatar } from './presence-avatar';
 import { UnreadBadge } from './unread-badge';
 import { channelDisplayName } from '../_helpers/channel-display';
 import { UserBar } from './user-bar';
+import { HistoryNavButtons } from './history-nav-buttons';
 import { ResizableSidebar } from './resizable-sidebar';
 import { WorkspaceSwitcher } from './workspace-switcher';
 
@@ -189,6 +190,7 @@ export function ChannelSidebar({ user }: { user: User }) {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        <HistoryNavButtons />
       </div>
 
       <ScrollArea className="min-h-0 min-w-0 flex-1 overflow-hidden [&_[data-slot=scroll-area-viewport]>div]:block! [&_[data-slot=scroll-area-viewport]>div]:min-w-0! [&_[data-slot=scroll-area-viewport]>div]:w-full!">
