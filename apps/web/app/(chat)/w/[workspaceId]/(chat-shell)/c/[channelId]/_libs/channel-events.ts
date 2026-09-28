@@ -9,6 +9,11 @@ export const TICKET_EVENT_TYPES = [
   'labels_changed',
   'watchers_changed',
   'archived_changed',
+  'github_repo_linked',
+  'github_repo_unlinked',
+  'github_setup_started',
+  'github_status_changed',
+  'github_pull_request',
 ] as const;
 
 export const PARENT_CHANNEL_EVENT_TYPES = [
@@ -17,6 +22,7 @@ export const PARENT_CHANNEL_EVENT_TYPES = [
   'priority_changed',
   'assignee_changed',
   'archived_changed',
+  'github_status_changed',
 ] as const;
 
 export type TicketEventType = (typeof TICKET_EVENT_TYPES)[number];

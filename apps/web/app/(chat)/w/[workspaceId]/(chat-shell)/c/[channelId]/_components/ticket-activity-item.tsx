@@ -6,9 +6,12 @@ import {
   Calendar,
   CircleDot,
   Eye,
+  GitBranch,
+  Link2,
   Plus,
   SignalMedium,
   Tag,
+  Unlink,
   UserRound,
 } from 'lucide-react';
 import {
@@ -68,6 +71,15 @@ function EventIcon({ type }: { type: TicketEvent['type'] }) {
       return <Eye className={className} />;
     case 'archived_changed':
       return <Archive className={className} />;
+    case 'github_status_changed':
+      return <CircleDot className={className} />;
+    case 'github_repo_linked':
+    case 'github_setup_started':
+      return <Link2 className={className} />;
+    case 'github_repo_unlinked':
+      return <Unlink className={className} />;
+    case 'github_pull_request':
+      return <GitBranch className={className} />;
   }
 }
 

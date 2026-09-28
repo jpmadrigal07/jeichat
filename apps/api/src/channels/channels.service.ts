@@ -1847,11 +1847,43 @@ export class ChannelsService {
     return row?.id ?? null;
   }
 
+  async recordAndPublishChannelEvents(
+    channelId: string,
+    parentId: string | null,
+    events: Array<{
+      type: TicketEventType;
+      actorId: string | null;
+      fromValue: unknown;
+      toValue: unknown;
+      createdAt?: Date;
+    }>,
+  ): Promise<TicketEvent[]> {
+    if (events.length === 0) return [];
+
+    const eventRows = events.map((event) => ({
+      id: crypto.randomUUID(),
+      channelId,
+      actorId: event.actorId,
+      type: event.type,
+      fromValue: event.fromValue,
+      toValue: event.toValue,
+      createdAt: event.createdAt ?? new Date(),
+    }));
+
+    await this.drizzle.db.insert(channelEvents).values(eventRows);
+    const published = await this.loadTicketEventsByIds(
+      eventRows.map((row) => row.id),
+    );
+    this.publishTicketEvents(channelId, parentId, published);
+    return published;
+  }
+
   async applyIntegrationTicketStatus(
     workspaceId: string,
     ticketChannelId: string,
     status: string,
-    actorUserId: string,
+    actorUserId: string | null,
+    options?: { source?: 'github' },
   ) {
     const nextStatus = parseTicketStatus(status);
     const [row] = await this.drizzle.db
@@ -1893,6 +1925,15 @@ export class ChannelsService {
       },
       next: { status: nextStatus },
     });
+
+    if (options?.source === 'github') {
+      for (const row of eventRows) {
+        if (row.type === 'status_changed') {
+          row.type = 'github_status_changed';
+          row.actorId = null;
+        }
+      }
+    }
 
     await this.drizzle.db.transaction(async (tx) => {
       await tx

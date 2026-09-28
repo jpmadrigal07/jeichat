@@ -12,11 +12,8 @@ import {
   channels,
   githubInstallations,
   githubPrLinks,
-  messages,
 } from '../../database/schema';
-import { user } from '../../database/schema/auth';
 import { ChannelsService } from '../../channels/channels.service';
-import { ChatGateway } from '../../gateway/chat.gateway';
 import { WorkspacePermissionsService } from '../../workspaces/workspace-permissions.service';
 import { WorkspacesService } from '../../workspaces/workspaces.service';
 import {
@@ -37,7 +34,6 @@ import {
 import { ticketPrefixOf } from '../../channels/ticket-fields';
 import { PERMISSIONS } from '../../workspaces/permissions';
 
-const GITHUB_BOT_EMAIL = 'github@integrations.jeichat.invalid';
 const PROCESSED_DELIVERY_TTL_MS = 15 * 60 * 1000;
 
 type PullRequestPayload = {
@@ -80,14 +76,12 @@ type InstallationPayload = {
 export class GithubIntegrationService {
   private readonly logger = new Logger(GithubIntegrationService.name);
   private readonly processedDeliveries = new Map<string, number>();
-  private githubBotUserId: string | null = null;
 
   constructor(
     private readonly drizzle: DrizzleService,
     private readonly channelsService: ChannelsService,
     private readonly workspacesService: WorkspacesService,
     private readonly workspacePermissionsService: WorkspacePermissionsService,
-    private readonly chatGateway: ChatGateway,
   ) {}
 
   isConfigured(): boolean {
@@ -123,38 +117,6 @@ export class GithubIntegrationService {
     if (explicit) return explicit.replace(/\/+$/, '');
     const port = process.env.PORT ?? '3001';
     return `http://localhost:${port}`;
-  }
-
-  async ensureGithubBotUserId(): Promise<string> {
-    if (this.githubBotUserId) return this.githubBotUserId;
-    const configured = process.env.GITHUB_BOT_USER_ID?.trim();
-    if (configured) {
-      this.githubBotUserId = configured;
-      return configured;
-    }
-
-    const [existing] = await this.drizzle.db
-      .select({ id: user.id })
-      .from(user)
-      .where(eq(user.email, GITHUB_BOT_EMAIL))
-      .limit(1);
-    if (existing) {
-      this.githubBotUserId = existing.id;
-      return existing.id;
-    }
-
-    const id = crypto.randomUUID();
-    const now = new Date();
-    await this.drizzle.db.insert(user).values({
-      id,
-      name: 'GitHub',
-      email: GITHUB_BOT_EMAIL,
-      emailVerified: true,
-      createdAt: now,
-      updatedAt: now,
-    });
-    this.githubBotUserId = id;
-    return id;
   }
 
   private pruneDeliveries() {
@@ -339,11 +301,18 @@ export class GithubIntegrationService {
         });
     });
 
-    const botUserId = await this.ensureGithubBotUserId();
-    await this.postBotMessage(
+    await this.channelsService.recordAndPublishChannelEvents(
       state.channelId,
-      botUserId,
-      `Connected this channel to **${owner}/${repo}**. Include ticket ids like \`${ticketKey}-42\` in branch or PR titles.`,
+      null,
+      [
+        {
+          type: 'github_repo_linked',
+          actorId: state.userId,
+          fromValue: null,
+          toValue: { owner, repo, ticketKey },
+          createdAt: now,
+        },
+      ],
     );
 
     const redirect = `${this.webOrigin()}/w/${state.workspaceId}/c/${state.channelId}/settings/github?connected=1`;
@@ -373,12 +342,14 @@ export class GithubIntegrationService {
       .returning();
 
     if (removed) {
-      const botUserId = await this.ensureGithubBotUserId();
-      await this.postBotMessage(
-        channelId,
-        botUserId,
-        `Disconnected GitHub repo **${removed.owner}/${removed.repo}**.`,
-      );
+      await this.channelsService.recordAndPublishChannelEvents(channelId, null, [
+        {
+          type: 'github_repo_unlinked',
+          actorId: userId,
+          fromValue: { owner: removed.owner, repo: removed.repo },
+          toValue: null,
+        },
+      ]);
     }
 
     return { disconnected: Boolean(removed) };
@@ -545,8 +516,6 @@ export class GithubIntegrationService {
       payload.pull_request.draft,
     );
 
-    const botUserId = await this.ensureGithubBotUserId();
-
     for (const ticketNumber of numbers) {
       const ticketChannelId =
         await this.channelsService.findTicketThreadByNumber(
@@ -558,17 +527,33 @@ export class GithubIntegrationService {
 
       await this.upsertPrLink(ticketChannelId, owner, repo, payload);
 
+      await this.channelsService.recordAndPublishChannelEvents(
+        ticketChannelId,
+        ctx.board.id,
+        [
+          {
+            type: 'github_pull_request',
+            actorId: null,
+            fromValue: { action: payload.action },
+            toValue: {
+              number: payload.pull_request.number,
+              title: payload.pull_request.title,
+              htmlUrl: payload.pull_request.html_url,
+              state: payload.pull_request.state,
+              merged: payload.pull_request.merged,
+              draft: payload.pull_request.draft,
+            },
+          },
+        ],
+      );
+
       if (nextStatus) {
         await this.channelsService.applyIntegrationTicketStatus(
           ctx.link.workspaceId,
           ticketChannelId,
           nextStatus,
-          botUserId,
-        );
-        await this.postBotMessage(
-          ticketChannelId,
-          botUserId,
-          `Pull request [#${payload.pull_request.number}](${payload.pull_request.html_url}) → **${nextStatus.replace(/_/g, ' ')}**`,
+          null,
+          { source: 'github' },
         );
       }
     }
@@ -600,7 +585,6 @@ export class GithubIntegrationService {
     }
 
     const nextStatus = resolvePushAutomation();
-    const botUserId = await this.ensureGithubBotUserId();
 
     for (const ticketNumber of numbers) {
       const ticketChannelId =
@@ -642,18 +626,13 @@ export class GithubIntegrationService {
         continue;
       }
 
-      await this.channelsService.applyIntegrationTicketStatus(
-        ctx.link.workspaceId,
-        ticketChannelId,
-        nextStatus,
-        botUserId,
-      );
-
       if (before && before.status !== nextStatus) {
-        await this.postBotMessage(
+        await this.channelsService.applyIntegrationTicketStatus(
+          ctx.link.workspaceId,
           ticketChannelId,
-          botUserId,
-          `Push to \`${branch}\` → **in progress**`,
+          nextStatus,
+          null,
+          { source: 'github' },
         );
       }
     }
@@ -697,41 +676,6 @@ export class GithubIntegrationService {
       });
   }
 
-  async postBotMessage(
-    channelId: string,
-    senderId: string,
-    content: string,
-  ) {
-    const messageId = crypto.randomUUID();
-    const now = new Date();
-    await this.drizzle.db.insert(messages).values({
-      id: messageId,
-      channelId,
-      senderId,
-      content,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    this.chatGateway.emitNewMessage(channelId, {
-      id: messageId,
-      channelId,
-      senderId,
-      content,
-      replyToId: null,
-      createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
-      sender: {
-        name: 'GitHub',
-        image: null,
-        isBot: true,
-      },
-      attachments: [],
-      replyTo: null,
-      reactions: [],
-    });
-  }
-
   async handleChatCommand(
     workspaceId: string,
     channelId: string,
@@ -744,38 +688,8 @@ export class GithubIntegrationService {
 
     const args = (match[1] ?? '').trim().split(/\s+/).filter(Boolean);
     const command = (args[0] ?? 'help').toLowerCase();
-    const botUserId = await this.ensureGithubBotUserId();
 
-    if (command === 'help') {
-      await this.postBotMessage(
-        channelId,
-        botUserId,
-        'Commands: `@github status`, `@github repos`, `@github connect owner repo` (admin), `@github disconnect` (admin). Put ticket ids in branch/PR names.',
-      );
-      return { handled: true };
-    }
-
-    if (command === 'status') {
-      const link = await this.getChannelLink(workspaceId, channelId, userId);
-      const text = link
-        ? `Linked repo: **${link.owner}/${link.repo}**`
-        : 'No GitHub repo linked to this channel. Admins: use channel Settings → GitHub or `@github connect owner repo`.';
-      await this.postBotMessage(channelId, botUserId, text);
-      return { handled: true };
-    }
-
-    if (command === 'repos') {
-      const links = await this.listWorkspaceLinks(workspaceId, userId);
-      const text =
-        links.length === 0
-          ? 'No GitHub repos linked in this workspace.'
-          : links
-              .map(
-                (row) =>
-                  `#${row.channelName} → ${row.owner}/${row.repo}${row.ticketKey ? ` (${row.ticketKey})` : ''}`,
-              )
-              .join('\n');
-      await this.postBotMessage(channelId, botUserId, text);
+    if (command === 'help' || command === 'status' || command === 'repos') {
       return { handled: true };
     }
 
@@ -783,11 +697,6 @@ export class GithubIntegrationService {
       const owner = args[1];
       const repo = args[2];
       if (!owner || !repo) {
-        await this.postBotMessage(
-          channelId,
-          botUserId,
-          'Usage: `@github connect owner repo` (admin only). Or use channel Settings → GitHub.',
-        );
         return { handled: true };
       }
       const { beginUrl } = await this.startInstall(
@@ -797,11 +706,14 @@ export class GithubIntegrationService {
         owner,
         repo,
       );
-      await this.postBotMessage(
-        channelId,
-        botUserId,
-        `Continue GitHub setup: ${beginUrl}`,
-      );
+      await this.channelsService.recordAndPublishChannelEvents(channelId, null, [
+        {
+          type: 'github_setup_started',
+          actorId: userId,
+          fromValue: null,
+          toValue: { owner, repo, beginUrl },
+        },
+      ]);
       return { handled: true };
     }
 
@@ -810,11 +722,6 @@ export class GithubIntegrationService {
       return { handled: true };
     }
 
-    await this.postBotMessage(
-      channelId,
-      botUserId,
-      'Unknown command. Try `@github help`.',
-    );
     return { handled: true };
   }
 }

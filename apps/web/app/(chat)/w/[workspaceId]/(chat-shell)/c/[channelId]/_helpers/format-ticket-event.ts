@@ -80,6 +80,59 @@ function joinNames(names: string[]): string {
   return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
 }
 
+function asGithubRepo(value: unknown): { owner: string; repo: string } | null {
+  if (!value || typeof value !== 'object') return null;
+  if (!('owner' in value) || !('repo' in value)) return null;
+  const owner = value.owner;
+  const repo = value.repo;
+  if (typeof owner !== 'string' || typeof repo !== 'string') return null;
+  return { owner, repo };
+}
+
+function asGithubPullRequest(value: unknown): {
+  number: number;
+  title: string;
+  htmlUrl: string;
+} | null {
+  if (!value || typeof value !== 'object') return null;
+  if (
+    !('number' in value) ||
+    !('title' in value) ||
+    !('htmlUrl' in value)
+  ) {
+    return null;
+  }
+  const number = value.number;
+  const title = value.title;
+  const htmlUrl = value.htmlUrl;
+  if (
+    typeof number !== 'number' ||
+    typeof title !== 'string' ||
+    typeof htmlUrl !== 'string'
+  ) {
+    return null;
+  }
+  return { number, title, htmlUrl };
+}
+
+function githubPullRequestVerb(action: unknown): string {
+  if (typeof action !== 'string') return 'updated';
+  switch (action) {
+    case 'opened':
+      return 'opened';
+    case 'closed':
+      return 'closed';
+    case 'reopened':
+      return 'reopened';
+    case 'ready_for_review':
+      return 'marked ready for review';
+    case 'converted_to_draft':
+      return 'converted to draft';
+    default:
+      return 'updated';
+  }
+}
+
 export function formatTicketEvent(event: TicketEvent): TicketEventCopy {
   const actorName = event.actor?.name ?? 'Someone';
 
@@ -195,6 +248,70 @@ export function formatTicketEvent(event: TicketEvent): TicketEventCopy {
         text: archived ? 'archived this ticket' : 'restored this ticket',
         verb: archived ? 'archived' : 'restored',
         detail: null,
+      };
+    }
+    case 'github_status_changed': {
+      const detail = `${asStatusLabel(event.fromValue)} → ${asStatusLabel(event.toValue)}`;
+      return {
+        actorName: 'GitHub',
+        text: `moved ${detail}`,
+        verb: 'moved',
+        detail,
+      };
+    }
+    case 'github_repo_linked': {
+      const repo = asGithubRepo(event.toValue);
+      const label = repo ? `${repo.owner}/${repo.repo}` : 'a repository';
+      return {
+        actorName,
+        text: `linked GitHub repository ${label}`,
+        verb: 'linked',
+        detail: label,
+      };
+    }
+    case 'github_repo_unlinked': {
+      const repo = asGithubRepo(event.fromValue);
+      const label = repo ? `${repo.owner}/${repo.repo}` : 'a repository';
+      return {
+        actorName,
+        text: `unlinked GitHub repository ${label}`,
+        verb: 'unlinked',
+        detail: label,
+      };
+    }
+    case 'github_setup_started': {
+      const repo = asGithubRepo(event.toValue);
+      const label = repo ? `${repo.owner}/${repo.repo}` : 'a repository';
+      return {
+        actorName,
+        text: `started GitHub setup for ${label}`,
+        verb: 'started setup for',
+        detail: label,
+      };
+    }
+    case 'github_pull_request': {
+      const pr = asGithubPullRequest(event.toValue);
+      const verb = githubPullRequestVerb(
+        event.fromValue &&
+          typeof event.fromValue === 'object' &&
+          'action' in event.fromValue
+          ? event.fromValue.action
+          : null,
+      );
+      if (!pr) {
+        return {
+          actorName: 'GitHub',
+          text: `${verb} a pull request`,
+          verb,
+          detail: null,
+        };
+      }
+      const text = `${verb} pull request #${pr.number}${pr.title ? ` ${pr.title}` : ''}`;
+      return {
+        actorName: 'GitHub',
+        text,
+        verb,
+        detail: pr.title || null,
       };
     }
   }
