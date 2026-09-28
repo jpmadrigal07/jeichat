@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { GatewayModule } from '../gateway/gateway.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { BotsModule } from '../bots/bots.module';
+import { NotificationSettingsModule } from '../notification-settings/notification-settings.module';
 import { InboxController } from './inbox.controller';
 import { InboxService } from './inbox.service';
 
@@ -10,6 +11,7 @@ import { InboxService } from './inbox.service';
     forwardRef(() => WorkspacesModule),
     forwardRef(() => GatewayModule),
     forwardRef(() => BotsModule),
+    NotificationSettingsModule,
   ],
   controllers: [InboxController],
   providers: [InboxService],

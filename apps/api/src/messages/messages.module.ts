@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { GatewayModule } from '../gateway/gateway.module';
 import { InboxModule } from '../inbox/inbox.module';
 import { PushModule } from '../push/push.module';
+import { NotificationSettingsModule } from '../notification-settings/notification-settings.module';
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { BotsModule } from '../bots/bots.module';
 import { GithubIntegrationModule } from '../integrations/github/github.module';
@@ -14,6 +15,7 @@ import { MessagesService } from './messages.service';
     forwardRef(() => WorkspacesModule),
     forwardRef(() => GatewayModule),
     InboxModule,
+    NotificationSettingsModule,
     PushModule,
     forwardRef(() => BotsModule),
     forwardRef(() => GithubIntegrationModule),

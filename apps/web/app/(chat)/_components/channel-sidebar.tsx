@@ -10,6 +10,8 @@ import {
   type DragEvent,
 } from 'react';
 import {
+  AtSign,
+  BellOff,
   Plus,
   ChevronDown,
   ChevronRight,
@@ -60,8 +62,14 @@ import { useChannels } from '../_hooks/use-channels';
 import { ChannelTypeIcon } from './channel-type-icon';
 import { useUnreadCounts } from '../_hooks/use-unread-counts';
 import { useInboxSocket, useInboxUnreadCount } from '../_hooks/use-inbox';
+import { useNotificationSettings } from '../_hooks/use-notification-settings';
 import { useWorkspaces } from '../_hooks/use-workspaces';
 import { formatUnreadCount } from '../_helpers/format-unread-count';
+import { notificationLevelOf } from '../_helpers/notification-level';
+import type {
+  NotificationLevel,
+  NotificationSettings,
+} from '../_libs/notification-settings';
 import {
   SIDEBAR_TICKETS_PER_STATUS,
   groupChannelsByParent,
@@ -102,6 +110,7 @@ import {
   conversationPageHref,
   type Channel,
 } from '../_libs/channels';
+import { ChannelNotificationSubMenu } from './channel-notification-menu';
 import { CreateChannelDialog } from './create-channel-dialog';
 import { CreateDmDialog } from './create-dm-dialog';
 import {
@@ -135,6 +144,9 @@ export function ChannelSidebar({ user }: { user: User }) {
   const { data: workspaces } = useWorkspaces();
   const { data: channels, isLoading } = useChannels(workspaceId ?? '');
   const { data: unreadCounts } = useUnreadCounts(workspaceId ?? '');
+  const { data: notificationSettings } = useNotificationSettings(
+    workspaceId ?? '',
+  );
   const { data: inboxUnread } = useInboxUnreadCount(workspaceId ?? '');
   useInboxSocket(workspaceId ?? '');
   const { filters: sidebarFilters, setChannelFilter } =
@@ -391,6 +403,7 @@ export function ChannelSidebar({ user }: { user: User }) {
                       currentUserId={user.id}
                       activeChannelId={activeChannelId}
                       unreadCounts={unreadCounts}
+                      notificationSettings={notificationSettings}
                       reorderActive={liftedChannelId !== null}
                       reorderLifted={liftedChannelId === channel.id}
                       onReorderLift={() => setLiftedChannelId(channel.id)}
@@ -432,6 +445,7 @@ function ChannelFolder({
   currentUserId,
   activeChannelId,
   unreadCounts,
+  notificationSettings,
   reorderActive,
   reorderLifted,
   onReorderLift,
@@ -450,6 +464,7 @@ function ChannelFolder({
   currentUserId: string;
   activeChannelId: string | undefined;
   unreadCounts: Record<string, number> | undefined;
+  notificationSettings: NotificationSettings | undefined;
   reorderActive: boolean;
   reorderLifted: boolean;
   onReorderLift: () => void;
@@ -468,13 +483,20 @@ function ChannelFolder({
   const hasTickets = tickets.length > 0;
   const [collapseEpoch, setCollapseEpoch] = useState(0);
   const channelUnread = unreadCounts?.[channel.id] ?? 0;
-  const unreadCount =
+  const notificationLevel = notificationLevelOf(
+    notificationSettings,
+    channel.id,
+  );
+  // Quiet channels stay bold when unread but never show the red count badge.
+  const isQuiet = notificationLevel !== 'all';
+  const ticketUnread =
     collapsed && hasTickets
       ? tickets.reduce(
           (total, ticket) => total + (unreadCounts?.[ticket.id] ?? 0),
-          channelUnread,
+          0,
         )
-      : channelUnread;
+      : 0;
+  const unreadCount = (isQuiet ? 0 : channelUnread) + ticketUnread;
   const collapseLabel = `Collapse tickets in ${channel.name}`;
 
   const touchReorderRef = useRef(false);
@@ -608,6 +630,8 @@ function ChannelFolder({
           isActive={isActive}
           showActiveBackground={false}
           unreadCount={unreadCount}
+          quietUnread={isQuiet && channelUnread > 0}
+          notificationLevel={notificationLevel}
           className={cn(
             'min-w-0 flex-1 hover:bg-transparent dark:hover:bg-transparent',
             reorderLifted && 'pointer-events-none',
@@ -670,6 +694,10 @@ function ChannelFolder({
                   Channel Settings
                 </Link>
               </DropdownMenuItem>
+              <ChannelNotificationSubMenu
+                workspaceId={workspaceId}
+                channelId={channel.id}
+              />
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -996,6 +1024,8 @@ function ChannelNavLink({
   isPrivate,
   isActive,
   unreadCount,
+  quietUnread = false,
+  notificationLevel = 'all',
   className,
   showActiveBackground = true,
 }: {
@@ -1006,12 +1036,16 @@ function ChannelNavLink({
   isPrivate?: boolean;
   isActive: boolean;
   unreadCount: number;
+  /** Unread messages that shouldn't show a badge (mentions only / muted). */
+  quietUnread?: boolean;
+  notificationLevel?: NotificationLevel;
   className?: string;
   showActiveBackground?: boolean;
 }) {
-  const hasUnread = unreadCount > 0;
+  const hasUnread = unreadCount > 0 || quietUnread;
   const unreadLabel = formatUnreadCount(unreadCount);
   const iconClass = hasUnread ? 'text-foreground' : 'text-muted-foreground';
+  const isMuted = notificationLevel === 'muted';
 
   return (
     <Button
@@ -1024,6 +1058,7 @@ function ChannelNavLink({
           : isActive
             ? 'font-medium'
             : 'font-normal',
+        isMuted && !hasUnread && 'text-muted-foreground',
         className,
       )}
       asChild
@@ -1046,6 +1081,11 @@ function ChannelNavLink({
           <Icon className={cn('size-4.5', iconClass)} />
         ) : null}
         <span className="min-w-0 flex-1 truncate">{name}</span>
+        {notificationLevel === 'muted' ? (
+          <BellOff className="size-3 shrink-0 text-muted-foreground" />
+        ) : notificationLevel === 'mentions' ? (
+          <AtSign className="size-3 shrink-0 text-muted-foreground" />
+        ) : null}
         {unreadLabel ? (
           <UnreadBadge className="ml-auto h-4 min-w-4 shrink-0 px-1 text-[0.625rem] font-semibold">
             {unreadLabel}

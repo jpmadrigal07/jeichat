@@ -60,6 +60,11 @@ const migrations = [
     column: { table: 'channels', name: 'board_position' },
     file: '../src/database/drizzle/0027_ticket_board_position.sql',
   },
+  {
+    name: '0028_channel_notification_settings',
+    table: 'channel_notification_settings',
+    file: '../src/database/drizzle/0028_channel_notification_settings.sql',
+  },
 ] as const;
 
 try {

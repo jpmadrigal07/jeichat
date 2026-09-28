@@ -4,6 +4,11 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getSocket } from '@/lib/socket';
 import { playInboxNotificationSound } from '@chat/_helpers/inbox-notification-sound';
+import { notificationLevelOf } from '@chat/_helpers/notification-level';
+import {
+  notificationSettingsQueryKey,
+  type NotificationSettings,
+} from '@chat/_libs/notification-settings';
 import {
   addMessageToCache,
   updateMessageInCache,
@@ -54,7 +59,12 @@ export function useSocket(
     const handleNewMessage = (message: Message) => {
       if (message.channelId !== channelIdRef.current) return;
       addMessageToCache(queryClient, channelIdRef.current, message);
-      if (message.senderId !== currentUserIdRef.current) {
+      const settings = queryClient.getQueryData<NotificationSettings>(
+        notificationSettingsQueryKey(workspaceIdRef.current),
+      );
+      const isQuiet =
+        notificationLevelOf(settings, channelIdRef.current) !== 'all';
+      if (message.senderId !== currentUserIdRef.current && !isQuiet) {
         playInboxNotificationSound();
       }
     };

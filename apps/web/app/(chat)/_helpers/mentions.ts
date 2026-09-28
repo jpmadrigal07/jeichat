@@ -11,6 +11,25 @@ export type MentionRange = {
   end: number;
 };
 
+/** Tag that notifies everyone who can see the channel. */
+export const ALL_MENTION = 'all';
+
+// Mirrors the API rule: `@all` must start the text or follow whitespace.
+const ALL_MENTION_PATTERN = /(^|\s)@all(?=$|[\s.,!?;:)'"])/gi;
+
+export function matchesAllMention(query: string) {
+  return ALL_MENTION.startsWith(query.trim().toLowerCase());
+}
+
+function allMentionRanges(content: string): MentionRange[] {
+  const ranges: MentionRange[] = [];
+  for (const match of content.matchAll(ALL_MENTION_PATTERN)) {
+    const start = (match.index ?? 0) + (match[1]?.length ?? 0);
+    ranges.push({ start, end: start + ALL_MENTION.length + 1 });
+  }
+  return ranges;
+}
+
 export function activeMention(
   text: string,
   cursor: number,
@@ -69,7 +88,7 @@ export function mentionRanges(
   members: MentionableMember[],
 ): MentionRange[] {
   const lower = content.toLowerCase();
-  const ranges: MentionRange[] = [];
+  const ranges: MentionRange[] = allMentionRanges(content);
 
   for (const member of members) {
     for (const needle of mentionNeedles(member, members)) {

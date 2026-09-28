@@ -15,6 +15,7 @@ import { MessagesModule } from './messages/messages.module';
 import { StorageModule } from './storage/storage.module';
 import { AttachmentsModule } from './attachments/attachments.module';
 import { InboxModule } from './inbox/inbox.module';
+import { NotificationSettingsModule } from './notification-settings/notification-settings.module';
 import { UsersModule } from './users/users.module';
 import { SearchModule } from './search/search.module';
 import { PushModule } from './push/push.module';
@@ -46,6 +47,7 @@ const envFilePath =
     ExportModule,
     AttachmentsModule,
     InboxModule,
+    NotificationSettingsModule,
     UsersModule,
     SearchModule,
     PushModule,

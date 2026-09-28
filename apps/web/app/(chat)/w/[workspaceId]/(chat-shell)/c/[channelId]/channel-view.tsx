@@ -376,6 +376,7 @@ export function ChannelView({
           tickets={tickets}
           channels={hashChannels}
           mentionMessages={mentionMessages}
+          allowAllMention={!isDm}
           replyTo={replyTo}
           onCancelReply={cancelReply}
           onSend={handleSend}

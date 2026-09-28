@@ -10,10 +10,12 @@ import {
 } from '../database/schema';
 import { user } from '../database/schema/auth';
 import { ChatGateway } from '../gateway/chat.gateway';
+import { WorkspacePermissionsService } from '../workspaces/workspace-permissions.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import type { InboxNotification, InboxNotificationType } from './inbox.types';
 import { BotsService } from '../bots/bots.service';
-import { mentionedUserIds } from './mentions';
+import { NotificationSettingsService } from '../notification-settings/notification-settings.service';
+import { mentionedUserIds, mentionsAll } from './mentions';
 
 const parentChannels = alias(channels, 'parent_channels');
 const actorUser = alias(user, 'actor_user');
@@ -23,8 +25,10 @@ export class InboxService {
   constructor(
     private readonly drizzle: DrizzleService,
     private readonly workspacesService: WorkspacesService,
+    private readonly workspacePermissionsService: WorkspacePermissionsService,
     private readonly chatGateway: ChatGateway,
     private readonly botsService: BotsService,
+    private readonly notificationSettings: NotificationSettingsService,
   ) {}
 
   async list(workspaceId: string, userId: string) {
@@ -102,13 +106,15 @@ export class InboxService {
     return { unreadCount: 0 };
   }
 
-  async notifyMentions(input: {
+  /** Users tagged by name, plus the whole channel audience for `@all`. */
+  async resolveMentionedUserIds(input: {
     workspaceId: string;
     channelId: string;
-    messageId: string;
     actorId: string;
     content: string;
-  }) {
+  }): Promise<string[]> {
+    if (!input.content.trim()) return [];
+
     const members = await this.drizzle.db
       .select({
         userId: workspaceMembers.userId,
@@ -119,9 +125,34 @@ export class InboxService {
       .innerJoin(user, eq(workspaceMembers.userId, user.id))
       .where(eq(workspaceMembers.workspaceId, input.workspaceId));
 
-    const userIds = await this.botsService.excludeBots(
-      mentionedUserIds(input.content, members, input.actorId),
+    const ids = mentionedUserIds(input.content, members, input.actorId);
+    if (!mentionsAll(input.content)) return ids;
+
+    const audience =
+      await this.workspacePermissionsService.listChannelAudienceUserIds(
+        input.channelId,
+      );
+    return [...new Set([...ids, ...audience])].filter(
+      (id) => id !== input.actorId,
     );
+  }
+
+  async notifyMentions(input: {
+    workspaceId: string;
+    channelId: string;
+    messageId: string;
+    actorId: string;
+    content: string;
+  }) {
+    const mentionedIds = await this.botsService.excludeBots(
+      await this.resolveMentionedUserIds(input),
+    );
+    // A muted channel stays silent, even for direct mentions and `@all`.
+    const levels = await this.notificationSettings.listLevels(
+      input.channelId,
+      mentionedIds,
+    );
+    const userIds = mentionedIds.filter((id) => levels.get(id) !== 'muted');
     if (userIds.length === 0) return;
 
     const now = new Date();

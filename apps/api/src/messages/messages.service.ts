@@ -12,20 +12,19 @@ import { DrizzleService } from '../database/drizzle.service';
 import {
   attachments,
   bots,
-  channelMembers,
   channelWatchers,
   channels,
   messages,
   messageReactions,
   pinnedMessages,
-  workspaceMembers,
 } from '../database/schema';
 import { user } from '../database/schema/auth';
 import { ChatGateway } from '../gateway/chat.gateway';
 import { InboxService } from '../inbox/inbox.service';
 import { PushService } from '../push/push.service';
 import { toPushNotificationPayload } from '../push/push-payload';
-import { mentionedUserIds } from '../inbox/mentions';
+import { splitRecipientsByLevel } from '../notification-settings/notification-level';
+import { NotificationSettingsService } from '../notification-settings/notification-settings.service';
 import { StorageService } from '../storage/storage.service';
 import {
   ATTACHMENT_PURPOSE,
@@ -99,6 +98,7 @@ export class MessagesService {
     private readonly inboxService: InboxService,
     private readonly pushService: PushService,
     private readonly botsService: BotsService,
+    private readonly notificationSettings: NotificationSettingsService,
     @Inject(forwardRef(() => GithubIntegrationService))
     private readonly githubIntegration: GithubIntegrationService,
   ) {}
@@ -935,10 +935,14 @@ export class MessagesService {
     },
     content: string,
   ) {
-    const { toastRecipientIds, commentInboxRecipientIds } =
+    const { toastRecipientIds, quietRecipientIds, commentInboxRecipientIds } =
       await this.listMessageNotificationRecipients(channel, senderId, content);
 
-    if (toastRecipientIds.length === 0 && commentInboxRecipientIds.length === 0) {
+    if (
+      toastRecipientIds.length === 0 &&
+      quietRecipientIds.length === 0 &&
+      commentInboxRecipientIds.length === 0
+    ) {
       return;
     }
 
@@ -960,7 +964,7 @@ export class MessagesService {
       parent = parentRow ?? null;
     }
 
-    if (toastRecipientIds.length > 0) {
+    if (toastRecipientIds.length > 0 || quietRecipientIds.length > 0) {
       const payload = {
         workspaceId: channel.workspaceId,
         channel: {
@@ -978,10 +982,20 @@ export class MessagesService {
       for (const userId of toastRecipientIds) {
         this.chatGateway.emitMessageNotification(userId, payload);
       }
-      void this.pushService.notifyUsers(
-        toastRecipientIds,
-        toPushNotificationPayload(payload),
-      );
+      // Quiet recipients only need their unread count bumped: the client skips
+      // sound and popups for `silent`, and no push is sent.
+      for (const userId of quietRecipientIds) {
+        this.chatGateway.emitMessageNotification(userId, {
+          ...payload,
+          silent: true,
+        });
+      }
+      if (toastRecipientIds.length > 0) {
+        void this.pushService.notifyUsers(
+          toastRecipientIds,
+          toPushNotificationPayload(payload),
+        );
+      }
     }
 
     if (commentInboxRecipientIds.length > 0) {
@@ -1000,11 +1014,12 @@ export class MessagesService {
     senderId: string,
     content: string,
   ) {
-    const mentionedIds = await this.listMentionedUserIds(
-      channel.workspaceId,
-      senderId,
+    const mentionedIds = await this.inboxService.resolveMentionedUserIds({
+      workspaceId: channel.workspaceId,
+      channelId: channel.id,
+      actorId: senderId,
       content,
-    );
+    });
     const senderIsBot = await this.botsService.isBotUser(senderId);
 
     if (channel.parentId) {
@@ -1033,21 +1048,19 @@ export class MessagesService {
         }),
       );
 
-      return { toastRecipientIds, commentInboxRecipientIds };
+      return {
+        toastRecipientIds,
+        quietRecipientIds: [] as string[],
+        commentInboxRecipientIds,
+      };
     }
 
-    const memberRows =
-      channel.isPrivate || channel.channelType === 'dm'
-        ? await this.drizzle.db
-            .select({ userId: channelMembers.userId })
-            .from(channelMembers)
-            .where(eq(channelMembers.channelId, channel.id))
-        : await this.drizzle.db
-            .select({ userId: workspaceMembers.userId })
-            .from(workspaceMembers)
-            .where(eq(workspaceMembers.workspaceId, channel.workspaceId));
+    const memberIds =
+      await this.workspacePermissionsService.listChannelAudienceUserIds(
+        channel.id,
+      );
 
-    const toastRecipientIds = await this.botsService.excludeBots(
+    const recipientIds = await this.botsService.excludeBots(
       senderIsBot
         ? mentionedIds.filter((id) => id !== senderId)
         : messageNotificationRecipientIds({
@@ -1055,34 +1068,34 @@ export class MessagesService {
             senderId,
             assigneeId: null,
             watcherIds: [],
-            memberIds: memberRows.map((row) => row.userId),
+            memberIds,
             mentionedUserIds: mentionedIds,
           }),
     );
 
+    // DMs are always loud; per-channel settings only apply to channels.
+    if (channel.channelType === 'dm') {
+      return {
+        toastRecipientIds: recipientIds,
+        quietRecipientIds: [] as string[],
+        commentInboxRecipientIds: [] as string[],
+      };
+    }
+
+    const levels = await this.notificationSettings.listLevels(
+      channel.id,
+      recipientIds,
+    );
+    const { loudIds, quietIds } = splitRecipientsByLevel({
+      recipientIds,
+      mentionedIds,
+      levels,
+    });
+
     return {
-      toastRecipientIds,
-      commentInboxRecipientIds: [],
+      toastRecipientIds: loudIds,
+      quietRecipientIds: quietIds,
+      commentInboxRecipientIds: [] as string[],
     };
-  }
-
-  private async listMentionedUserIds(
-    workspaceId: string,
-    senderId: string,
-    content: string,
-  ) {
-    if (!content.trim()) return [];
-
-    const members = await this.drizzle.db
-      .select({
-        userId: workspaceMembers.userId,
-        name: user.name,
-        email: user.email,
-      })
-      .from(workspaceMembers)
-      .innerJoin(user, eq(workspaceMembers.userId, user.id))
-      .where(eq(workspaceMembers.workspaceId, workspaceId));
-
-    return mentionedUserIds(content, members, senderId);
   }
 }

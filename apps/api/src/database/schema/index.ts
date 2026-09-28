@@ -17,6 +17,7 @@ export * from './notifications';
 export * from './pinned-messages';
 export * from './message-reactions';
 export * from './channel-members';
+export * from './channel-notification-settings';
 export * from './push-subscriptions';
 export * from './bots';
 export * from './github-integration';

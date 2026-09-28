@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   Check,
   Pencil,
@@ -202,6 +202,20 @@ export function MessageItem({
     else onPin(message.id);
   }
 
+  // Focus the edit box with the caret after the existing text (autoFocus
+  // leaves it at the start). Stable identity so re-renders while editing
+  // don't re-run this and yank the caret back to the end mid-typing.
+  const attachEditTextarea = useCallback(
+    (node: HTMLTextAreaElement | null) => {
+      textareaRef.current = node;
+      if (!node) return;
+      const end = node.value.length;
+      node.focus();
+      node.setSelectionRange(end, end);
+    },
+    [],
+  );
+
   function handleSaveEdit() {
     const value = textareaRef.current?.value.trim();
     if (value && value !== message.content) {
@@ -272,11 +286,10 @@ export function MessageItem({
           {isEditing ? (
             <div className="mt-1">
               <Textarea
-                ref={textareaRef}
+                ref={attachEditTextarea}
                 defaultValue={message.content}
                 onKeyDown={handleEditKeyDown}
                 className="min-h-[60px] text-sm resize-none"
-                autoFocus
               />
               <div className="flex gap-1 mt-1">
                 <Button size="sm" variant="ghost" onClick={onCancelEdit}>

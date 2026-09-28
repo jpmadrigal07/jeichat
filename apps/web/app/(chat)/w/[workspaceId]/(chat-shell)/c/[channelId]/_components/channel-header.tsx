@@ -32,6 +32,7 @@ import {
   ChannelHeaderOverflowMenu,
   type ChannelHeaderOverflowMenuProps,
 } from './channel-header-overflow-menu';
+import { ChannelNotificationMenu } from '@chat/_components/channel-notification-menu';
 import { MembersSidebarToggle } from '@chat/_components/members-sidebar-toggle';
 import { WorkspaceSearch } from '@chat/_components/workspace-search';
 import { ChannelTypeIcon } from '@chat/_components/channel-type-icon';
@@ -149,6 +150,12 @@ export function ChannelHeader({
             </Suspense>
           ) : null}
           <div className="hidden shrink-0 items-center gap-1 md:flex">
+            {!isThread && channel && !isDm ? (
+              <ChannelNotificationMenu
+                workspaceId={workspaceId}
+                channelId={channelId}
+              />
+            ) : null}
             <ExportDialog channelId={channelId} channel={channel} />
             <PinnedMessagesPopoverHost channelId={channelId} />
           </div>

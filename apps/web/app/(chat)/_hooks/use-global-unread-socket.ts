@@ -111,6 +111,9 @@ export function useGlobalUnreadSocket({
         );
       }
 
+      // Muted or mentions-only: the unread count is updated, nothing else.
+      if (notification.silent) return;
+
       if (inForeground) {
         playInboxNotificationSound();
         showMessageNotificationToast(notification);
