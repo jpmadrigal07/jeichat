@@ -1,5 +1,6 @@
 # Local / VPS: web + API + Postgres.
-# Coolify / Railway: do not use this file — create two apps from docker/web and docker/api.
+# Web starts only after API /health succeeds (migrate ran and API is up).
+# Coolify: disable git auto-deploy on web + API; use .github/workflows/deploy.yml.
 
 services:
   postgres:
@@ -31,6 +32,12 @@ services:
       BETTER_AUTH_URL: http://localhost:3001
       WEB_ORIGIN: http://localhost:3000
       NEXT_PUBLIC_API_CREDENTIALS: 'true'
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:3001/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,7 +54,8 @@ services:
     environment:
       PORT: 3000
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
 volumes:
   jeichat_pg:

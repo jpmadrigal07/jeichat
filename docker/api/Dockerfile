@@ -59,6 +59,9 @@ RUN apt-get update \
 ENV PATH="/root/.bun/bin:$PATH"
 ENV NODE_ENV=production
 
+ARG GIT_SHA
+ENV GIT_SHA=${GIT_SHA}
+
 COPY package.json bun.lock turbo.json ./
 COPY docker/bunfig.toml ./bunfig.toml
 COPY packages ./packages
@@ -73,5 +76,8 @@ WORKDIR /app/apps/api
 ARG PORT=3001
 ENV PORT=${PORT}
 EXPOSE ${PORT}
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=90s --retries=6 \
+  CMD curl -fsS "http://127.0.0.1:${PORT}/health" || exit 1
 
 CMD ["sh", "-c", "bun run db:migrate && bun dist/main.js"]

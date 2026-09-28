@@ -1,0 +1,107 @@
+# Production (develop): tests → API → wait for /health on this commit → web.
+# Web does not deploy if migrate or the API failed.
+
+name: Deploy
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-develop
+  cancel-in-progress: false
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  deploy-api:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Trigger API deploy
+        env:
+          WEBHOOK: ${{ secrets.COOLIFY_API_DEPLOY_WEBHOOK }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "Missing secret COOLIFY_API_DEPLOY_WEBHOOK"
+            exit 1
+          fi
+          extra_headers=()
+          if [ -n "${COOLIFY_TOKEN:-}" ]; then
+            extra_headers+=(-H "Authorization: Bearer $COOLIFY_TOKEN")
+          fi
+          curl -fsSL -X GET "$WEBHOOK" "${extra_headers[@]}"
+
+  wait-api:
+    needs: deploy-api
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Wait until this commit's API is healthy
+        env:
+          API_HEALTH_URL: ${{ vars.API_HEALTH_URL }}
+          EXPECTED_REVISION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "${API_HEALTH_URL:-}" ]; then
+            echo "Missing variable API_HEALTH_URL"
+            exit 1
+          fi
+          url="$API_HEALTH_URL"
+          case "$url" in
+            */health) ;;
+            *) url="${url%/}/health" ;;
+          esac
+          echo "Waiting for $url revision=$EXPECTED_REVISION"
+          python3 - "$url" "$EXPECTED_REVISION" <<'PY'
+          import json, sys, time, urllib.request
+
+          url, expected = sys.argv[1], sys.argv[2]
+          attempts = 90
+          delay = 10
+
+          for i in range(1, attempts + 1):
+              try:
+                  with urllib.request.urlopen(url, timeout=5) as response:
+                      body = json.loads(response.read().decode())
+                  revision = body.get("revision")
+                  if body.get("ok") is True and revision == expected:
+                      print(f"API healthy at revision {revision}")
+                      sys.exit(0)
+                  print(
+                      f"attempt {i}/{attempts}: ok={body.get('ok')} revision={revision}"
+                  )
+              except Exception as error:
+                  print(f"attempt {i}/{attempts}: {error}")
+              time.sleep(delay)
+
+          print(
+              "API did not become healthy on this commit. Web will not deploy."
+          )
+          sys.exit(1)
+          PY
+
+  deploy-web:
+    needs: wait-api
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Trigger web deploy
+        env:
+          WEBHOOK: ${{ secrets.COOLIFY_WEB_DEPLOY_WEBHOOK }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "Missing secret COOLIFY_WEB_DEPLOY_WEBHOOK"
+            exit 1
+          fi
+          extra_headers=()
+          if [ -n "${COOLIFY_TOKEN:-}" ]; then
+            extra_headers+=(-H "Authorization: Bearer $COOLIFY_TOKEN")
+          fi
+          curl -fsSL -X GET "$WEBHOOK" "${extra_headers[@]}"
