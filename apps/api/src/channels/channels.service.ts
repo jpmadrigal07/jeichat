@@ -102,6 +102,7 @@ export class ChannelsService {
     if (!trimmed) {
       throw new BadRequestException('Channel name is required');
     }
+    await this.assertChannelNameAvailable(workspaceId, trimmed);
 
     const key =
       ticketKey !== undefined && ticketKey !== null && ticketKey.trim()
@@ -638,6 +639,8 @@ export class ChannelsService {
               'A ticket with this title already exists in this channel',
             );
           }
+        } else {
+          await this.assertChannelNameAvailable(workspaceId, trimmed, id);
         }
         patch.name = trimmed;
       }
@@ -1527,6 +1530,31 @@ export class ChannelsService {
   ) {
     if (await this.channelKeyTaken(workspaceId, key, excludeId)) {
       throw new BadRequestException('A channel with this key already exists');
+    }
+  }
+
+  /** Mirrors the `channels_workspace_id_name_unq` partial unique index. */
+  private async assertChannelNameAvailable(
+    workspaceId: string,
+    name: string,
+    excludeId?: string,
+  ) {
+    const [existing] = await this.drizzle.db
+      .select({ id: channels.id })
+      .from(channels)
+      .where(
+        and(
+          eq(channels.workspaceId, workspaceId),
+          isNull(channels.parentId),
+          eq(channels.channelType, CHANNEL_TYPE.CHANNEL),
+          eq(channels.name, name),
+          excludeId ? ne(channels.id, excludeId) : undefined,
+        ),
+      )
+      .limit(1);
+
+    if (existing) {
+      throw new BadRequestException('A channel with this name already exists');
     }
   }
 
