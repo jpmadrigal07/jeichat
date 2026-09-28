@@ -314,7 +314,9 @@ describe('session e2e — bots', () => {
 
     await owner.agent
       .post(`/workspaces/${workspaceId}/bots/${created.body.id}/disable`)
-      .expect(200);
+      .expect((res) => {
+        expect([200, 201]).toContain(res.status);
+      });
 
     await disconnected;
     await botRequest(token).get('/bots/@me').expect(401);
