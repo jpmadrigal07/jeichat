@@ -180,7 +180,7 @@ export function ThreadIssueHeader({
             </Tooltip>
             <div
               className={cn(
-                'grid w-full gap-x-4',
+                'grid w-full gap-4',
                 detailsOpen
                   ? 'grid-cols-1 sm:grid-cols-[2fr_1fr]'
                   : 'grid-cols-1',
@@ -228,7 +228,7 @@ export function ThreadIssueHeader({
                 ) : null}
               </div>
               {detailsOpen ? (
-                <div className="flex min-w-0 flex-col gap-3">
+                <div className="flex min-w-0 flex-col gap-3 border-t pt-4 sm:border-t-0 sm:pt-0">
                   <TicketProperties
                     workspaceId={workspaceId}
                     channel={channel}

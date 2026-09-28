@@ -53,14 +53,7 @@ export function InboxView({
           backHref={workspaceRoot.href}
           backLabel="Back to channels"
           linearTitle="Inbox"
-          linearParent={{
-            label: workspaceRoot.label,
-            href: workspaceRoot.href,
-          }}
-          crumbs={[
-            { label: workspaceRoot.label, href: workspaceRoot.href },
-            { label: 'Inbox' },
-          ]}
+          crumbs={[{ label: 'Inbox' }]}
           actions={
             <>
               {unreadCount > 0 ? (
@@ -112,7 +105,7 @@ export function InboxView({
                 variant="ghost"
                 asChild
                 className={cn(
-                  'h-auto min-h-12 w-full justify-start rounded-none border-b px-4 py-3 font-normal',
+                  'h-auto min-h-12 w-full items-start justify-start gap-3 rounded-none border-b px-4 py-3 font-normal',
                   unread && 'bg-muted/50',
                 )}
               >
@@ -143,7 +136,7 @@ export function InboxView({
                       </span>
                     ) : null}
                   </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
+                  <span className="mt-0.5 shrink-0 text-xs text-muted-foreground">
                     {formatInboxTime(item.createdAt)}
                   </span>
                 </Link>

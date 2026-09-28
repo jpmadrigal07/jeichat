@@ -10,6 +10,7 @@ import { isTicketArchived, ticketDisplayId, ticketPrefixOf } from './ticket-fiel
 
 export type TaggableTicket = {
   id: string;
+  parentId: string;
   displayId: string;
   name: string;
   status: string | null;
@@ -23,6 +24,7 @@ export type TaggableChannel = {
 export type TaggableMessage = {
   id: string;
   channelId: string;
+  parentId: string | null;
   senderName: string;
   content: string;
   channelName?: string;
@@ -36,10 +38,20 @@ export type HashPickerItem =
 export type MessageContentPart =
   | { kind: 'text'; text: string }
   | { kind: 'mention'; text: string }
-  | { kind: 'ticket'; text: string; ticketId: string; name: string }
+  | {
+      kind: 'ticket';
+      text: string;
+      ticketId: string;
+      parentId: string;
+      name: string;
+    }
   | { kind: 'channel'; text: string; channelId: string; name: string };
 
-type TicketTagRange = MentionRange & { ticketId: string; name: string };
+type TicketTagRange = MentionRange & {
+  ticketId: string;
+  parentId: string;
+  name: string;
+};
 type ChannelTagRange = MentionRange & { channelId: string; name: string };
 
 const HASH_PICKER_GROUP_LIMIT = 6;
@@ -66,6 +78,7 @@ export function taggableTicketsForChannel(
       return [
         {
           id: item.id,
+          parentId: parent.id,
           displayId: ticketDisplayId(prefix, item.ticketNumber),
           name: item.name,
           status: item.status,
@@ -99,17 +112,21 @@ export function taggableMessages(
     channelId: string;
     content: string;
     sender: { name: string } | null;
-    channel?: { name: string } | null;
+    channel?: { name: string; parentId: string | null } | null;
   }>,
-  channelName?: string,
+  fallbackChannel?: { name: string; parentId: string | null },
 ): TaggableMessage[] {
-  return messages.map((message) => ({
-    id: message.id,
-    channelId: message.channelId,
-    senderName: message.sender?.name ?? 'Unknown',
-    content: message.content,
-    channelName: message.channel?.name ?? channelName,
-  }));
+  return messages.map((message) => {
+    const channel = message.channel ?? fallbackChannel;
+    return {
+      id: message.id,
+      channelId: message.channelId,
+      parentId: channel?.parentId ?? null,
+      senderName: message.sender?.name ?? 'Unknown',
+      content: message.content,
+      channelName: channel?.name,
+    };
+  });
 }
 
 export function mergeTaggableMessages(
@@ -284,6 +301,7 @@ export function ticketTagRanges(
           start: index,
           end,
           ticketId: ticket.id,
+          parentId: ticket.parentId,
           name: ticket.name,
         });
       }
@@ -392,6 +410,7 @@ export function splitMessageContent(
         kind: 'ticket',
         text,
         ticketId: range.ticketId,
+        parentId: range.parentId,
         name: range.name,
       });
     } else if (range.kind === 'channel') {

@@ -59,6 +59,15 @@ export function parseDocumentTitleRoute(pathname: string): DocumentTitleRoute {
     return { kind: 'my-tickets', workspaceId: myTickets[1] };
   }
 
+  const ticket = pathname.match(/^\/w\/([^/]+)\/c\/[^/]+\/b\/([^/]+)(?:\/|$)/);
+  if (ticket?.[1] && ticket[2]) {
+    return {
+      kind: 'channel',
+      workspaceId: ticket[1],
+      channelId: ticket[2],
+    };
+  }
+
   const channel = pathname.match(/^\/w\/([^/]+)\/c\/([^/]+)(?:\/|$)/);
   if (channel?.[1] && channel[2]) {
     return {

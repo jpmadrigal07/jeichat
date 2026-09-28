@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useRef } from 'react';
+import { Suspense, useRef, type DragEvent } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
@@ -51,7 +51,7 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useChannels, useUpdateChannel } from '@chat/_hooks/use-channels';
+import { useChannels } from '@chat/_hooks/use-channels';
 import { useUnreadCounts } from '@chat/_hooks/use-unread-counts';
 import { useWorkspaceMembers } from '@chat/_hooks/use-workspaces';
 import { formatUnreadCount } from '@chat/_helpers/format-unread-count';
@@ -60,6 +60,7 @@ import {
   isTicketStatusOpenByDefault,
 } from '@chat/_helpers/group-channels';
 import { createThreadHref } from '@chat/_components/create-thread-dialog';
+import { UnreadBadge } from '@chat/_components/unread-badge';
 import { TicketFilterBar } from './ticket-filter-bar';
 import {
   TicketArchiveMenu,
@@ -70,17 +71,26 @@ import {
   type TicketMenuMember,
 } from './ticket-property-menus';
 import {
-  channelPageHref,
+  conversationPageHref,
   type ChannelThread,
   type TicketLayout,
 } from '@chat/_libs/channels';
 import { useChannelThreads } from '../_hooks/use-channel-threads';
+import { useReorderChannelThreads } from '../_hooks/use-reorder-channel-threads';
 import {
   formatMessageCount,
   formatThreadActivity,
 } from '../_helpers/format-thread-activity';
 import {
+  clearTicketDropIndicator,
+  reorderedTicketIds,
+  showTicketDropIndicator,
+  ticketBelowPointer,
+  ticketDragTargets,
+} from '../_helpers/ticket-drag-order';
+import {
   TICKET_STATUSES,
+  compareTicketBoardPosition,
   isTicketArchived,
   ticketDisplayId,
   ticketPrefixOf,
@@ -145,8 +155,10 @@ function ChannelThreadCardsInner({
   const parentChannel = channels?.find((channel) => channel.id === channelId);
   const ticketPrefix = ticketPrefixOf(parentChannel ?? { name: '' });
   const numbers = ticketNumberById(threads ?? []);
-  const visibleThreads = (threads ?? []).filter((thread) => {
-    if (isTicketArchived(thread)) return false;
+  const activeThreads = (threads ?? []).filter(
+    (thread) => !isTicketArchived(thread),
+  );
+  const visibleThreads = activeThreads.filter((thread) => {
     const displayId = ticketDisplayId(
       ticketPrefix,
       numbers.get(thread.id) ?? 0,
@@ -159,6 +171,23 @@ function ChannelThreadCardsInner({
       ticketMatchesFilters(thread, filters, userId)
     );
   });
+  visibleThreads.sort(compareTicketBoardPosition);
+  const reorderThreads = useReorderChannelThreads(workspaceId, channelId);
+
+  function moveTicket(
+    ticketId: string,
+    status: TicketStatus,
+    beforeTicketId: string | null,
+  ) {
+    const ticketIds = reorderedTicketIds({
+      activeThreads,
+      visibleThreads,
+      ticketId,
+      status,
+      beforeTicketId,
+    });
+    if (ticketIds) reorderThreads.mutate({ status, ticketIds });
+  }
   const boardStatuses =
     filters.completed === 'none'
       ? TICKET_STATUSES.filter(
@@ -241,6 +270,7 @@ function ChannelThreadCardsInner({
           threads={visibleThreads}
           unreadCounts={unreadCounts}
           membersById={membersById}
+          onMove={moveTicket}
         />
       ) : (
         <TicketBoardView
@@ -253,6 +283,7 @@ function ChannelThreadCardsInner({
           unreadCounts={unreadCounts}
           membersById={membersById}
           searchParams={searchParams}
+          onMove={moveTicket}
         />
       )}
     </div>
@@ -487,7 +518,7 @@ function TicketMobileListItem({
   unreadLabel: string | null;
   members: TicketMenuMember[];
 }) {
-  const href = channelPageHref(workspaceId, thread.id);
+  const href = conversationPageHref(workspaceId, thread);
   const priority = ticketPriorityOf(thread.priority);
   const PriorityIcon = TICKET_PRIORITY_META[priority].icon;
   const status = ticketStatusOf(thread.status);
@@ -508,7 +539,7 @@ function TicketMobileListItem({
           </span>
           <span className="min-w-0 flex-1 truncate font-medium">{thread.name}</span>
           {unreadLabel ? (
-            <Badge variant="destructive">{unreadLabel}</Badge>
+            <UnreadBadge>{unreadLabel}</UnreadBadge>
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
@@ -540,6 +571,21 @@ function TicketMobileListItem({
   );
 }
 
+type TicketMoveHandler = (
+  ticketId: string,
+  status: TicketStatus,
+  beforeTicketId: string | null,
+) => void;
+
+function startTicketDrag(event: DragEvent, ticketId: string) {
+  if (event.target instanceof Element && event.target.closest('button')) {
+    event.preventDefault();
+    return;
+  }
+  event.dataTransfer.setData('text/plain', ticketId);
+  event.dataTransfer.effectAllowed = 'move';
+}
+
 function TicketBoardView({
   workspaceId,
   channelId,
@@ -550,6 +596,7 @@ function TicketBoardView({
   unreadCounts,
   membersById,
   searchParams,
+  onMove,
 }: {
   workspaceId: string;
   channelId: string;
@@ -560,8 +607,8 @@ function TicketBoardView({
   unreadCounts: Record<string, number> | undefined;
   membersById: Map<string, { name: string; image: string | null; isBot?: boolean }>;
   searchParams: Pick<URLSearchParams, 'toString'>;
+  onMove: TicketMoveHandler;
 }) {
-  const updateChannel = useUpdateChannel(workspaceId);
   const members: TicketMenuMember[] = Array.from(
     membersById,
     ([userId, member]) => ({
@@ -576,14 +623,6 @@ function TicketBoardView({
   );
   for (const thread of threads) {
     ticketsByStatus.get(ticketStatusOf(thread.status))?.push(thread);
-  }
-  const statusByTicketId = new Map(
-    threads.map((thread) => [thread.id, ticketStatusOf(thread.status)]),
-  );
-
-  function moveTicket(ticketId: string, status: TicketStatus) {
-    if (statusByTicketId.get(ticketId) === status) return;
-    updateChannel.mutate({ channelId: ticketId, status });
   }
 
   return (
@@ -602,7 +641,7 @@ function TicketBoardView({
             unreadCounts={unreadCounts}
             members={members}
             searchParams={searchParams}
-            onMove={moveTicket}
+            onMove={onMove}
           />
         ))}
         </div>
@@ -632,7 +671,7 @@ function TicketBoardColumn({
   unreadCounts: Record<string, number> | undefined;
   members: TicketMenuMember[];
   searchParams: Pick<URLSearchParams, 'toString'>;
-  onMove: (ticketId: string, status: TicketStatus) => void;
+  onMove: TicketMoveHandler;
 }) {
   const columnRef = useRef<HTMLDivElement>(null);
   const dragDepthRef = useRef(0);
@@ -649,6 +688,7 @@ function TicketBoardColumn({
       return;
     }
     columnRef.current?.removeAttribute('data-drop');
+    clearTicketDropIndicator(columnRef.current);
   }
 
   return (
@@ -682,6 +722,11 @@ function TicketBoardColumn({
         onDragOver={(event) => {
           event.preventDefault();
           event.dataTransfer.dropEffect = 'move';
+          showTicketDropIndicator(
+            columnRef.current,
+            ticketDragTargets(columnRef.current),
+            event.clientY,
+          );
         }}
         onDragEnter={(event) => {
           event.preventDefault();
@@ -697,10 +742,15 @@ function TicketBoardColumn({
         }}
         onDrop={(event) => {
           event.preventDefault();
+          const beforeTicketId =
+            ticketBelowPointer(
+              ticketDragTargets(columnRef.current),
+              event.clientY,
+            )?.dataset.ticketId ?? null;
           dragDepthRef.current = 0;
           setDropTarget(false);
           const ticketId = event.dataTransfer.getData('text/plain');
-          if (ticketId) onMove(ticketId, status);
+          if (ticketId) onMove(ticketId, status, beforeTicketId);
         }}
       >
         {tickets.map((thread) => (
@@ -751,25 +801,17 @@ function TicketBoardCard({
 
   return (
     <Link
-      href={channelPageHref(workspaceId, thread.id)}
+      href={conversationPageHref(workspaceId, thread)}
       draggable={enableDrag}
+      data-ticket-id={enableDrag ? thread.id : undefined}
       className={cn(
-        'group/card min-w-0',
-        enableDrag && 'active:cursor-grabbing',
+        'group/card relative min-w-0',
+        enableDrag &&
+          'active:cursor-grabbing data-drop-before:before:absolute data-drop-before:before:inset-x-0 data-drop-before:before:-top-1 data-drop-before:before:h-0.5 data-drop-before:before:rounded-full data-drop-before:before:bg-primary data-drop-after:after:absolute data-drop-after:after:inset-x-0 data-drop-after:after:-bottom-1 data-drop-after:after:h-0.5 data-drop-after:after:rounded-full data-drop-after:after:bg-primary',
       )}
       onDragStart={
         enableDrag
-          ? (event) => {
-              if (
-                event.target instanceof Element &&
-                event.target.closest('button')
-              ) {
-                event.preventDefault();
-                return;
-              }
-              event.dataTransfer.setData('text/plain', thread.id);
-              event.dataTransfer.effectAllowed = 'move';
-            }
+          ? (event) => startTicketDrag(event, thread.id)
           : undefined
       }
     >
@@ -781,7 +823,7 @@ function TicketBoardCard({
                 {displayId}
               </span>
               {unreadLabel ? (
-                <Badge variant="destructive">{unreadLabel}</Badge>
+                <UnreadBadge>{unreadLabel}</UnreadBadge>
               ) : null}
             </div>
             <div className="flex shrink-0 items-center">
@@ -839,15 +881,62 @@ function TicketListView({
   threads,
   unreadCounts,
   membersById,
+  onMove,
 }: {
   workspaceId: string;
   threads: ChannelThread[];
   unreadCounts: Record<string, number> | undefined;
   membersById: Map<string, { name: string; image: string | null; isBot?: boolean }>;
+  onMove: TicketMoveHandler;
 }) {
+  const tableRef = useRef<HTMLTableElement>(null);
+
+  /** Status group under the pointer and its visible rows. */
+  function dropGroup(target: EventTarget) {
+    const group =
+      target instanceof Element
+        ? target.closest<HTMLElement>('tbody[data-status]')
+        : null;
+    const status = group?.dataset.status as TicketStatus | undefined;
+    if (!status) return null;
+    return {
+      status,
+      rows: ticketDragTargets(tableRef.current, `tbody[data-status="${status}"]`),
+    };
+  }
+
   return (
     <ScrollArea className="min-h-0 flex-1 overflow-hidden">
-      <Table>
+      <Table
+        ref={tableRef}
+        onDragOver={(event) => {
+          const group = dropGroup(event.target);
+          if (!group) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'move';
+          showTicketDropIndicator(tableRef.current, group.rows, event.clientY);
+        }}
+        onDragLeave={(event) => {
+          if (
+            event.relatedTarget instanceof Node &&
+            tableRef.current?.contains(event.relatedTarget)
+          ) {
+            return;
+          }
+          clearTicketDropIndicator(tableRef.current);
+        }}
+        onDrop={(event) => {
+          const group = dropGroup(event.target);
+          clearTicketDropIndicator(tableRef.current);
+          if (!group) return;
+          event.preventDefault();
+          const ticketId = event.dataTransfer.getData('text/plain');
+          const beforeTicketId =
+            ticketBelowPointer(group.rows, event.clientY)?.dataset.ticketId ??
+            null;
+          if (ticketId) onMove(ticketId, group.status, beforeTicketId);
+        }}
+      >
         <TableHeader>
           <TableRow>
             <TableHead>Title</TableHead>
@@ -900,7 +989,7 @@ function TicketListStatusGroup({
       defaultOpen={isTicketStatusOpenByDefault(status, false)}
       className="group/status contents"
     >
-      <TableBody>
+      <TableBody data-status={status}>
         <TableRow className="hover:bg-transparent">
           <TableCell colSpan={6} className="p-0">
             <CollapsibleTrigger asChild>
@@ -922,7 +1011,7 @@ function TicketListStatusGroup({
         </TableRow>
       </TableBody>
       <CollapsibleContent asChild>
-        <TableBody>
+        <TableBody data-status={status}>
           {tickets.map((thread) => (
             <TicketListRow
               key={thread.id}
@@ -949,7 +1038,7 @@ function TicketListRow({
   unreadLabel: string | null;
   membersById: Map<string, { name: string; image: string | null; isBot?: boolean }>;
 }) {
-  const href = channelPageHref(workspaceId, thread.id);
+  const href = conversationPageHref(workspaceId, thread);
   const priority = ticketPriorityOf(thread.priority);
   const PriorityIcon = TICKET_PRIORITY_META[priority].icon;
   const assignee = thread.assigneeId
@@ -958,7 +1047,12 @@ function TicketListRow({
   const dueDate = thread.dueAt ? new Date(thread.dueAt) : undefined;
 
   return (
-    <TableRow className="group/row relative">
+    <TableRow
+      draggable
+      data-ticket-id={thread.id}
+      className="group/row relative active:cursor-grabbing data-drop-before:before:absolute data-drop-before:before:inset-x-0 data-drop-before:before:top-0 data-drop-before:before:h-0.5 data-drop-before:before:bg-primary data-drop-after:after:absolute data-drop-after:after:inset-x-0 data-drop-after:after:bottom-0 data-drop-after:after:h-0.5 data-drop-after:after:bg-primary"
+      onDragStart={(event) => startTicketDrag(event, thread.id)}
+    >
       <TableCell className="max-w-0">
         <Link href={href} className="absolute inset-0" tabIndex={-1}>
           <span className="sr-only">{thread.name}</span>
@@ -971,7 +1065,7 @@ function TicketListRow({
             {thread.name}
           </Link>
           {unreadLabel ? (
-            <Badge variant="destructive">{unreadLabel}</Badge>
+            <UnreadBadge>{unreadLabel}</UnreadBadge>
           ) : null}
         </div>
       </TableCell>

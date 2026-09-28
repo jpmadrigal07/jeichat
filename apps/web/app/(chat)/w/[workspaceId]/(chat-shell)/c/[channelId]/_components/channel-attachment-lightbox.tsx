@@ -11,6 +11,7 @@ import {
   DialogContent,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { isPreviousEntry } from '@chat/_helpers/navigation-history';
 import { attachmentFileUrl } from '../_helpers/attachment-file-url';
 
 export function ChannelAttachmentLightbox() {
@@ -24,14 +25,21 @@ export function ChannelAttachmentLightbox() {
     const params = new URLSearchParams(searchParams.toString());
     params.delete('lightbox');
     const qs = params.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    const href = qs ? `${pathname}?${qs}` : pathname;
+    // Opening pushed an entry — pop it so the preview doesn't stay in history
+    // (the back button would reopen it). Deep links have nothing to pop.
+    if (isPreviousEntry(href)) {
+      router.back();
+    } else {
+      router.replace(href, { scroll: false });
+    }
   }, [pathname, router, searchParams]);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && closeLightbox()}>
       <DialogContent
         showCloseButton={false}
-        className="flex h-dvh w-screen max-w-none flex-col overflow-hidden rounded-none border-0 bg-zinc-950 p-0 text-zinc-100 ring-0 shadow-2xl sm:h-auto sm:w-full sm:max-w-[min(90vw,1200px)] sm:rounded-xl sm:p-4"
+        className="flex h-dvh w-screen max-w-none flex-col overflow-hidden rounded-none border-0 bg-zinc-950 p-0 text-zinc-100 ring-0 shadow-2xl sm:h-[85vh] sm:w-full sm:max-w-[min(90vw,1200px)] sm:rounded-xl sm:p-4"
       >
         <DialogClose asChild>
           <Button
@@ -46,7 +54,8 @@ export function ChannelAttachmentLightbox() {
         </DialogClose>
         <DialogTitle className="sr-only">Attachment preview</DialogTitle>
         {attachmentId ? (
-          /* Pinch / double-tap / wheel zoom — page zoom is disabled in the root viewport. Keyed so each image opens unzoomed. */
+          /* Pinch / double-tap / wheel zoom — page zoom is disabled in the root viewport. Keyed so each image opens unzoomed.
+             The dialog needs a definite height at every breakpoint so flex-1 can bound the image; with an auto height, tall images overflow. */
           <TransformWrapper
             key={attachmentId}
             minScale={1}
@@ -55,7 +64,7 @@ export function ChannelAttachmentLightbox() {
             doubleClick={{ mode: 'toggle', step: 1.5 }}
           >
             <TransformComponent
-              wrapperClass="size-full! min-h-0 flex-1 touch-none sm:h-[85vh]!"
+              wrapperClass="size-full! min-h-0 flex-1 touch-none"
               contentClass="size-full!"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}

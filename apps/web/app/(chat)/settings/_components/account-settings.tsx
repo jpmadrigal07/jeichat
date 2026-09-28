@@ -13,6 +13,7 @@ import {
 import { PwaInstallButton } from '@/app/_components/pwa-install-button';
 import { DesktopNotificationsToggle } from './desktop-notifications-toggle';
 import { InboxNotificationSoundToggle } from './inbox-notification-sound-toggle';
+import { useHistoryBack } from '@chat/_hooks/use-history-back';
 
 type User = {
   id: string;
@@ -22,11 +23,13 @@ type User = {
 };
 
 export function AccountSettings({ user }: { user: User }) {
+  const handleBack = useHistoryBack();
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <header className="flex h-14 items-center gap-3 border-b px-4">
         <Button variant="ghost" size="icon-sm" asChild>
-          <Link href="/w">
+          <Link href="/w" onClick={handleBack}>
             <ArrowLeft />
             <span className="sr-only">Back</span>
           </Link>

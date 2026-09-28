@@ -1,4 +1,4 @@
-import { ArchivedTicketGate } from './_components/archived-ticket-gate';
+import { TicketRouteGate } from './_components/ticket-route-gate';
 
 export default async function ChannelLayout({
   children,
@@ -10,8 +10,8 @@ export default async function ChannelLayout({
   const { workspaceId, channelId } = await params;
 
   return (
-    <ArchivedTicketGate workspaceId={workspaceId} channelId={channelId}>
+    <TicketRouteGate workspaceId={workspaceId} channelId={channelId}>
       {children}
-    </ArchivedTicketGate>
+    </TicketRouteGate>
   );
 }

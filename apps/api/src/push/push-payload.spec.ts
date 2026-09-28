@@ -28,4 +28,26 @@ describe('toPushNotificationPayload', () => {
       icon: undefined,
     });
   });
+
+  it('links ticket messages under their parent channel board', () => {
+    const payload = toPushNotificationPayload({
+      workspaceId: 'ws_1',
+      channel: {
+        id: 'tk_1',
+        name: 'Test ticket',
+        parentId: 'ch_1',
+        ticketNumber: 1,
+        ticketKey: null,
+        channelType: 'channel',
+      },
+      parent: { id: 'ch_1', name: 'es-dev-chat', ticketKey: 'ESD' },
+      message: {
+        id: 'msg_1',
+        content: 'Hello there',
+        sender: { name: 'Ada', image: null },
+      },
+    });
+
+    expect(payload.href).toBe('/w/ws_1/c/ch_1/b/tk_1?message=msg_1');
+  });
 });

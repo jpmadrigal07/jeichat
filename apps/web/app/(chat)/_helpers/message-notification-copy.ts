@@ -2,7 +2,7 @@ import {
   ticketDisplayId,
   ticketPrefixOf,
 } from './ticket-fields';
-import { channelPageHref } from '../_libs/channels';
+import { conversationPageHref } from '../_libs/channels';
 import type { MessageNotification } from '../_libs/message-notifications';
 import { MESSAGE_HIGHLIGHT_PARAM } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_libs/messages';
 
@@ -46,5 +46,5 @@ export function messageNotificationHref(
 ) {
   const params = new URLSearchParams();
   params.set(MESSAGE_HIGHLIGHT_PARAM, notification.message.id);
-  return `${channelPageHref(notification.workspaceId, notification.channel.id)}?${params.toString()}`;
+  return `${conversationPageHref(notification.workspaceId, notification.channel)}?${params.toString()}`;
 }

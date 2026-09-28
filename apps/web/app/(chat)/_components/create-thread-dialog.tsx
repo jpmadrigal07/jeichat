@@ -35,6 +35,7 @@ import {
   ticketStatusOf,
 } from '../_helpers/ticket-fields';
 import { useChannels, useCreateThread } from '../_hooks/use-channels';
+import { ticketPageHref } from '../_libs/channels';
 import { useWorkspaceMembers } from '../_hooks/use-workspaces';
 import { taggableTicketsForChannel, taggableChannels } from '../_helpers/ticket-mentions';
 import { useAttachmentUploads } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_hooks/use-attachment-uploads';
@@ -161,7 +162,7 @@ function CreateThreadDialog({
       {
         onSuccess: (thread) => {
           uploads.reset();
-          router.push(`/w/${workspaceId}/c/${thread.id}`);
+          router.push(ticketPageHref(workspaceId, channelId, thread.id));
         },
       },
     );

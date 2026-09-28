@@ -41,7 +41,6 @@ import {
   channelDisplayName,
   isDmChannel,
 } from '@chat/_helpers/channel-display';
-import { useWorkspaceRootCrumb } from '@chat/_hooks/use-workspace-root-crumb';
 import { TicketArchiveMenu } from './ticket-property-menus';
 
 type ChannelViewMode = 'messages' | 'threads';
@@ -63,7 +62,6 @@ export function ChannelHeader({
   view,
   layout,
 }: ChannelHeaderProps) {
-  const workspaceRoot = useWorkspaceRootCrumb(workspaceId);
   const isThread = Boolean(channel?.parentId);
   const isDm = isDmChannel(channel);
   const onBoard = view === 'threads' && !isThread;
@@ -79,7 +77,6 @@ export function ChannelHeader({
       : 'Back to channels';
 
   const crumbs = buildChannelHeaderCrumbs({
-    workspaceRoot,
     channel,
     parentChannel,
     onBoard,
@@ -93,6 +90,8 @@ export function ChannelHeader({
     workspaceId,
   });
 
+  // Tickets lead with their parent channel, so the # / lock icon belongs to it.
+  const crumbChannel = isThread ? parentChannel : channel;
   const leading =
     isDm && channel?.dmPeer ? (
       <PresenceAvatar
@@ -103,9 +102,9 @@ export function ChannelHeader({
         showOffline
         className="shrink-0"
       />
-    ) : !isThread && !isDm && channel ? (
+    ) : !isDm && crumbChannel ? (
       <ChannelTypeIcon
-        isPrivate={channel.isPrivate}
+        isPrivate={crumbChannel.isPrivate}
         className="h-4 w-4 shrink-0 text-muted-foreground max-md:hidden"
       />
     ) : null;
@@ -121,29 +120,14 @@ export function ChannelHeader({
       actions={
         <>
           {isThread && channel ? (
-            <>
-              {parentChannel ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  asChild
-                  className="max-md:hidden"
-                >
-                  <Link href={channelBoardHref(workspaceId, parentChannel.id)}>
-                    <Columns3 data-icon="inline-start" />
-                    Board
-                  </Link>
-                </Button>
-              ) : null}
-              <TicketArchiveMenu
-                workspaceId={workspaceId}
-                channelId={channel.id}
-                parentChannelId={channel.parentId}
-                archivedAt={channel.archivedAt}
-                variant="button"
-                className="max-md:hidden"
-              />
-            </>
+            <TicketArchiveMenu
+              workspaceId={workspaceId}
+              channelId={channel.id}
+              parentChannelId={channel.parentId}
+              archivedAt={channel.archivedAt}
+              variant="button"
+              className="max-md:hidden"
+            />
           ) : null}
           {!isThread && channel && !isDm ? (
             <Suspense
@@ -213,14 +197,20 @@ function buildChannelHeaderLinear({
   parentChannel: Channel | undefined;
   onBoard: boolean;
   workspaceId: string;
-}): { linearTitle: string; linearParent?: ChatLinearParent } {
+}): { linearTitle: string; linearParent?: ChatLinearParent[] } {
   if (channel?.parentId && parentChannel) {
     return {
       linearTitle: channel ? channelDisplayName(channel) : 'Ticket',
-      linearParent: {
-        label: channelBreadcrumbLabel(parentChannel),
-        href: channelPageHref(workspaceId, parentChannel.id),
-      },
+      linearParent: [
+        {
+          label: channelBreadcrumbLabel(parentChannel),
+          href: channelPageHref(workspaceId, parentChannel.id),
+        },
+        {
+          label: 'Board',
+          href: channelBoardHref(workspaceId, parentChannel.id),
+        },
+      ],
     };
   }
 
@@ -231,10 +221,12 @@ function buildChannelHeaderLinear({
   if (onBoard && !isDmChannel(channel)) {
     return {
       linearTitle: 'Board',
-      linearParent: {
-        label: channelBreadcrumbLabel(channel),
-        href: channelPageHref(workspaceId, channel.id),
-      },
+      linearParent: [
+        {
+          label: channelBreadcrumbLabel(channel),
+          href: channelPageHref(workspaceId, channel.id),
+        },
+      ],
     };
   }
 
@@ -244,29 +236,26 @@ function buildChannelHeaderLinear({
 }
 
 function buildChannelHeaderCrumbs({
-  workspaceRoot,
   channel,
   parentChannel,
   onBoard,
   workspaceId,
 }: {
-  workspaceRoot: ChatCrumb;
   channel: Channel | undefined;
   parentChannel: Channel | undefined;
   onBoard: boolean;
   workspaceId: string;
 }): ChatCrumb[] {
-  const root: ChatCrumb = {
-    label: workspaceRoot.label,
-    href: workspaceRoot.href,
-  };
-
   if (channel?.parentId && parentChannel) {
+    // The leading ChannelTypeIcon already renders the # / lock, so use the bare name.
     return [
-      root,
       {
-        label: channelBreadcrumbLabel(parentChannel),
+        label: channelDisplayName(parentChannel),
         href: channelPageHref(workspaceId, parentChannel.id),
+      },
+      {
+        label: 'Board',
+        href: channelBoardHref(workspaceId, parentChannel.id),
       },
       {
         label: channel ? channelDisplayName(channel) : 'Ticket',
@@ -275,26 +264,21 @@ function buildChannelHeaderCrumbs({
   }
 
   if (!channel) {
-    return [root, { label: 'Loading…' }];
+    return [{ label: 'Loading…' }];
   }
 
+  // The leading ChannelTypeIcon already renders the # / lock, so use the bare name.
   if (onBoard && !isDmChannel(channel)) {
     return [
-      root,
       {
-        label: channelBreadcrumbLabel(channel),
+        label: channelDisplayName(channel),
         href: channelPageHref(workspaceId, channel.id),
       },
       { label: 'Board' },
     ];
   }
 
-  return [
-    root,
-    {
-      label: channelBreadcrumbLabel(channel),
-    },
-  ];
+  return [{ label: channelDisplayName(channel) }];
 }
 
 function ChannelHeaderTicketActionsFromSearch(

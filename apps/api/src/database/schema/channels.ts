@@ -32,6 +32,8 @@ export const channels = pgTable(
     completedAt: timestamp('completed_at', { withTimezone: true }),
     ticketNumber: integer('ticket_number'),
     ticketKey: text('ticket_key'),
+    /** Manual order within a board status column; null sorts first. */
+    boardPosition: integer('board_position'),
     channelType: text('channel_type').notNull().default('channel'),
     dmPairKey: text('dm_pair_key'),
     isPrivate: boolean('is_private').notNull().default(false),

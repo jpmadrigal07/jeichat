@@ -444,7 +444,7 @@ function SearchHitRow({
       asChild
     >
       <Link
-        href={messagePageHref(workspaceId, hit.channelId, hit.id)}
+        href={messagePageHref(workspaceId, hit.channel, hit.id)}
         onClick={onSelect}
       >
         <Avatar size="sm">

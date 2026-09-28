@@ -24,6 +24,8 @@
     --color-input: var(--input);
     --color-border: var(--border);
     --color-destructive: var(--destructive);
+    --color-notification: var(--notification);
+    --color-notification-foreground: var(--notification-foreground);
     --color-ticket-in-progress: var(--ticket-in-progress);
     --color-ticket-in-review: var(--ticket-in-review);
     --color-ticket-done: var(--ticket-done);
@@ -35,6 +37,9 @@
     --color-label-green: var(--label-green);
     --color-label-orange: var(--label-orange);
     --color-label-yellow: var(--label-yellow);
+    --color-tag: var(--tag);
+    --color-tag-foreground: var(--tag-foreground);
+    --color-tag-hover: var(--tag-hover);
     --color-accent-foreground: var(--accent-foreground);
     --color-accent: var(--accent);
     --color-muted-foreground: var(--muted-foreground);
@@ -75,6 +80,8 @@
     --accent: oklch(0.97 0 0);
     --accent-foreground: oklch(0.205 0 0);
     --destructive: oklch(0.577 0.245 27.325);
+    --notification: oklch(0.577 0.245 27.325);
+    --notification-foreground: oklch(1 0 0);
     --ticket-in-progress: oklch(0.79 0.14 85);
     --ticket-in-review: oklch(0.64 0.15 155);
     --ticket-done: oklch(0.55 0.16 275);
@@ -86,6 +93,9 @@
     --label-green: oklch(0.64 0.15 155);
     --label-orange: oklch(0.7 0.17 55);
     --label-yellow: oklch(0.79 0.14 85);
+    --tag: oklch(0.55 0.2 268 / 14%);
+    --tag-foreground: oklch(0.46 0.19 268);
+    --tag-hover: oklch(0.55 0.2 268);
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
     --ring: oklch(0.708 0 0);
@@ -122,6 +132,8 @@
     --accent: oklch(0.269 0 0);
     --accent-foreground: oklch(0.985 0 0);
     --destructive: oklch(0.704 0.191 22.216);
+    --notification: oklch(0.577 0.245 27.325);
+    --notification-foreground: oklch(1 0 0);
     --ticket-in-progress: oklch(0.82 0.13 85);
     --ticket-in-review: oklch(0.72 0.14 155);
     --ticket-done: oklch(0.68 0.12 275);
@@ -133,6 +145,9 @@
     --label-green: oklch(0.72 0.14 155);
     --label-orange: oklch(0.76 0.15 55);
     --label-yellow: oklch(0.82 0.13 85);
+    --tag: oklch(0.62 0.17 268 / 30%);
+    --tag-foreground: oklch(0.86 0.07 268);
+    --tag-hover: oklch(0.58 0.2 268);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.556 0 0);
@@ -170,35 +185,6 @@
   body {
     @apply overscroll-none;
     }
-  /* Scale rem-based type, icons, and controls on small screens. */
-  @media (width < 48rem) {
-    html {
-      font-size: 125%;
-    }
-  }
-}
-
-/*
- * iOS Safari zooms the viewport when a focused field is under 16px.
- * `!important` is required so this wins over `text-sm` / `text-xs` utilities.
- */
-@media (pointer: coarse), (hover: none) {
-  input:not(
-    [type="button"],
-    [type="submit"],
-    [type="reset"],
-    [type="checkbox"],
-    [type="radio"],
-    [type="file"],
-    [type="image"],
-    [type="range"],
-    [type="hidden"],
-    [type="color"]
-  ),
-  textarea,
-  select {
-    font-size: max(16px, 1rem) !important;
-  }
 }
 
 .md-chat {
@@ -233,13 +219,13 @@
   margin: 0.25rem 0;
 }
 
-.md-chat a {
+.md-chat a:not(.md-tag) {
   color: var(--primary);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
-.md-chat a:hover {
+.md-chat a:not(.md-tag):hover {
   text-decoration-thickness: 2px;
 }
 

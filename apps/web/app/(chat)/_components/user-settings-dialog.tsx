@@ -127,7 +127,7 @@ function UserSettingsDialog({
         </aside>
 
         <ScrollArea className="h-full min-h-0 min-w-0 flex-1">
-          <div className="flex flex-col gap-6 p-4 md:p-6 md:pr-12">
+          <div className="flex flex-col gap-6 p-6 md:pr-12">
             {tab === 'account' ? (
               <>
                 <div>

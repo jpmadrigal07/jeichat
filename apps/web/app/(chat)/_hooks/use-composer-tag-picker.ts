@@ -153,7 +153,11 @@ export function useComposerTagPicker({
     if (!textarea || composerTag?.type !== 'hash') return;
     const cursor = textarea.selectionStart ?? textarea.value.length;
     const label = messageMentionLabel(message);
-    const href = messagePageHref(workspaceId, message.channelId, message.id);
+    const href = messagePageHref(
+      workspaceId,
+      { id: message.channelId, parentId: message.parentId },
+      message.id,
+    );
     const token = `[${label}](${href}) `;
     const next = insertMessageLink(
       textarea.value,
