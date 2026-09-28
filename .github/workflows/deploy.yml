@@ -22,20 +22,13 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      - uses: actions/checkout@v4
+
       - name: Trigger API deploy
         env:
           WEBHOOK: ${{ secrets.COOLIFY_API_DEPLOY_WEBHOOK }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
-        run: |
-          if [ -z "$WEBHOOK" ]; then
-            echo "Missing secret COOLIFY_API_DEPLOY_WEBHOOK"
-            exit 1
-          fi
-          extra_headers=()
-          if [ -n "${COOLIFY_TOKEN:-}" ]; then
-            extra_headers+=(-H "Authorization: Bearer $COOLIFY_TOKEN")
-          fi
-          curl -fsSL -X GET "$WEBHOOK" "${extra_headers[@]}"
+        run: bash .github/scripts/trigger-coolify-deploy.sh "$WEBHOOK"
 
   wait-api:
     needs: deploy-api
@@ -91,17 +84,10 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      - uses: actions/checkout@v4
+
       - name: Trigger web deploy
         env:
           WEBHOOK: ${{ secrets.COOLIFY_WEB_DEPLOY_WEBHOOK }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
-        run: |
-          if [ -z "$WEBHOOK" ]; then
-            echo "Missing secret COOLIFY_WEB_DEPLOY_WEBHOOK"
-            exit 1
-          fi
-          extra_headers=()
-          if [ -n "${COOLIFY_TOKEN:-}" ]; then
-            extra_headers+=(-H "Authorization: Bearer $COOLIFY_TOKEN")
-          fi
-          curl -fsSL -X GET "$WEBHOOK" "${extra_headers[@]}"
+        run: bash .github/scripts/trigger-coolify-deploy.sh "$WEBHOOK"
