@@ -26,12 +26,18 @@ export function AttachmentImage({
     router.push(`${pathname}?${params.toString()}`, { scroll: false });
   }, [attachment.id, pathname, router, searchParams]);
 
+  // The default size reserves a fixed-height slot before the image loads.
+  // Attachments carry no dimensions, so an unloaded <img> would be ~0px tall
+  // and then grow, shifting the virtualized message list after the initial
+  // scroll-to-bottom has already settled.
   return (
     <button
       type="button"
       className={cn(
-        'relative block overflow-hidden rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-        compact ? 'size-16' : 'max-h-40 max-w-full sm:max-w-60',
+        'relative overflow-hidden rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        compact
+          ? 'block size-16'
+          : 'flex h-40 min-w-24 max-w-full items-center justify-center bg-muted sm:max-w-60',
       )}
       onClick={openLightbox}
     >
@@ -41,7 +47,9 @@ export function AttachmentImage({
         alt={attachment.filename}
         className={cn(
           'text-xs text-muted-foreground',
-          compact ? 'size-full object-cover' : 'max-h-40 max-w-60 object-contain',
+          compact
+            ? 'size-full object-cover'
+            : 'max-h-full max-w-full object-contain',
         )}
       />
     </button>

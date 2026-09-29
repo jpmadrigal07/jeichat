@@ -22,7 +22,7 @@ function AttachmentVideo({ attachment }: { attachment: MessageAttachment }) {
       controls
       preload="metadata"
       src={attachmentFileUrl(attachment.id)}
-      className="max-h-[300px] max-w-full rounded-lg sm:max-w-[400px]"
+      className="aspect-video w-100 max-w-full rounded-lg bg-black"
     />
   );
 }
