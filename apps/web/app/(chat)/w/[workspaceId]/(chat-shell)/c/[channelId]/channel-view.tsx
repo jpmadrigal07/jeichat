@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useChannels } from '@chat/_hooks/use-channels';
 import { useWorkspaceMembers } from '@chat/_hooks/use-workspaces';
+import { useChannelMembers } from '@chat/_hooks/use-channel-members';
 import { useMarkChannelRead } from '@chat/_hooks/use-unread-counts';
 import {
   useMessages,
@@ -67,6 +68,22 @@ export function ChannelView({
     : undefined;
   const isThread = Boolean(channel?.parentId);
   const isDm = isDmChannel(channel);
+  // Tickets inherit access from their parent. In a private channel or DM only
+  // its members (and workspace owners) can open it, so only they get tagged.
+  const accessChannel = parentChannel ?? channel;
+  const restrictMentions = Boolean(accessChannel?.isPrivate);
+  const { data: accessMembers } = useChannelMembers(
+    workspaceId,
+    accessChannel?.id ?? '',
+    restrictMentions,
+  );
+  const mentionableMembers = useMemo(() => {
+    if (!restrictMentions) return members ?? [];
+    const memberIds = new Set(accessMembers?.data.map((m) => m.userId));
+    return (members ?? []).filter(
+      (m) => memberIds.has(m.userId) || m.role === 'owner',
+    );
+  }, [restrictMentions, members, accessMembers]);
   const showThreadCards = view === 'threads' && !isThread && !isDm;
   const tickets = useMemo(
     () => taggableTicketsForChannel(channels ?? [], channel),
@@ -372,7 +389,7 @@ export function ChannelView({
           channelName={channel?.name}
           currentUserId={userId}
           workspaceId={workspaceId}
-          members={members ?? []}
+          members={mentionableMembers}
           tickets={tickets}
           channels={hashChannels}
           mentionMessages={mentionMessages}

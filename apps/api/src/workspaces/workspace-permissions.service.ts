@@ -16,6 +16,7 @@ import {
 import {
   isChannelMemberPermission,
   parsePermissions,
+  PERMISSIONS,
   resolveChannelPermission,
   withDefaultMemberRole,
   type ChannelPermissionOverride,
@@ -111,6 +112,26 @@ export class WorkspacePermissionsService {
     return resolveChannelPermission(roles, overrides, permission, {
       privateChannel: access.isPrivate.get(permissionChannelId) ?? false,
     });
+  }
+
+  /** Keeps the users who can open the channel; tickets follow their parent. */
+  async filterUsersWhoCanViewChannel(
+    workspaceId: string,
+    channelId: string,
+    userIds: string[],
+  ): Promise<string[]> {
+    const uniqueIds = [...new Set(userIds)];
+    const allowed = await Promise.all(
+      uniqueIds.map((userId) =>
+        this.hasChannelPermission(
+          workspaceId,
+          channelId,
+          userId,
+          PERMISSIONS.VIEW_CHANNEL,
+        ),
+      ),
+    );
+    return uniqueIds.filter((_, index) => allowed[index]);
   }
 
   /**

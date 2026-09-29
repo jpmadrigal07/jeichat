@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { and, count, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { DrizzleService } from '../database/drizzle.service';
@@ -22,6 +22,8 @@ const actorUser = alias(user, 'actor_user');
 
 @Injectable()
 export class InboxService {
+  private readonly logger = new Logger(InboxService.name);
+
   constructor(
     private readonly drizzle: DrizzleService,
     private readonly workspacesService: WorkspacesService,
@@ -34,6 +36,9 @@ export class InboxService {
   async list(workspaceId: string, userId: string) {
     await this.workspacesService.verifyMembership(workspaceId, userId);
 
+    const channelIds = await this.listViewableChannelIds(workspaceId, userId);
+    if (channelIds.length === 0) return { items: [], unreadCount: 0 };
+
     const rows = await this.drizzle.db
       .select({ id: notifications.id })
       .from(notifications)
@@ -41,19 +46,23 @@ export class InboxService {
         and(
           eq(notifications.workspaceId, workspaceId),
           eq(notifications.userId, userId),
+          inArray(notifications.channelId, channelIds),
         ),
       )
       .orderBy(desc(notifications.createdAt), desc(notifications.id))
       .limit(50);
 
     const items = await this.loadByIds(rows.map((row) => row.id));
-    const unreadCount = await this.countUnread(workspaceId, userId);
+    const unreadCount = await this.countUnread(workspaceId, userId, channelIds);
     return { items, unreadCount };
   }
 
   async unreadCount(workspaceId: string, userId: string) {
     await this.workspacesService.verifyMembership(workspaceId, userId);
-    return { unreadCount: await this.countUnread(workspaceId, userId) };
+    const channelIds = await this.listViewableChannelIds(workspaceId, userId);
+    return {
+      unreadCount: await this.countUnread(workspaceId, userId, channelIds),
+    };
   }
 
   async markRead(workspaceId: string, notificationId: string, userId: string) {
@@ -125,7 +134,21 @@ export class InboxService {
       .innerJoin(user, eq(workspaceMembers.userId, user.id))
       .where(eq(workspaceMembers.workspaceId, input.workspaceId));
 
-    const ids = mentionedUserIds(input.content, members, input.actorId);
+    // Workspace membership only says who can be matched by name; a tag must
+    // not notify someone who can't open the channel (private channels, DMs).
+    const tagged = mentionedUserIds(input.content, members, input.actorId);
+    const ids =
+      await this.workspacePermissionsService.filterUsersWhoCanViewChannel(
+        input.workspaceId,
+        input.channelId,
+        tagged,
+      );
+    if (ids.length < tagged.length) {
+      const skipped = tagged.filter((id) => !ids.includes(id));
+      this.logger.log(
+        `Skipped ${skipped.length} mention(s) in channel ${input.channelId}: user(s) cannot view it (${skipped.join(', ')})`,
+      );
+    }
     if (!mentionsAll(input.content)) return ids;
 
     const audience =
@@ -341,7 +364,44 @@ export class InboxService {
     if (inserted) await this.emitInserted([inserted]);
   }
 
-  private async countUnread(workspaceId: string, userId: string) {
+  /**
+   * Channels the user can still open among those they have notifications
+   * for. Anything from a channel they can't see (removed from a private
+   * channel, channel made private later, tagged before this check existed)
+   * stays hidden.
+   */
+  private async listViewableChannelIds(workspaceId: string, userId: string) {
+    const rows = await this.drizzle.db
+      .selectDistinct({ channelId: notifications.channelId })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.workspaceId, workspaceId),
+          eq(notifications.userId, userId),
+        ),
+      );
+
+    const viewable =
+      await this.workspacePermissionsService.filterViewableChannelIds(
+        workspaceId,
+        userId,
+        rows.map((row) => row.channelId),
+      );
+    if (viewable.size < rows.length) {
+      this.logger.debug(
+        `Hiding notifications from ${rows.length - viewable.size} channel(s) user ${userId} cannot view in workspace ${workspaceId}`,
+      );
+    }
+    return [...viewable];
+  }
+
+  private async countUnread(
+    workspaceId: string,
+    userId: string,
+    channelIds: string[],
+  ) {
+    if (channelIds.length === 0) return 0;
+
     const [row] = await this.drizzle.db
       .select({ value: count() })
       .from(notifications)
@@ -349,6 +409,7 @@ export class InboxService {
         and(
           eq(notifications.workspaceId, workspaceId),
           eq(notifications.userId, userId),
+          inArray(notifications.channelId, channelIds),
           isNull(notifications.readAt),
         ),
       );
