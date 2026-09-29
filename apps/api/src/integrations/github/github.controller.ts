@@ -14,6 +14,7 @@ import {
 import { AllowAnonymous, Session, type UserSession } from '@thallesp/nestjs-better-auth';
 import type { Request, Response } from 'express';
 import type { auth } from '../../auth/auth';
+import { Actor, BotAllowed, type RequestActor } from '../../auth/actor';
 import { GithubIntegrationService } from './github.service';
 import { verifyGithubInstallState, verifyGithubWebhookSignature } from './github-crypto';
 
@@ -157,12 +158,13 @@ export class GithubIntegrationController {
   }
 
   @Get('workspaces/:workspaceId/channels/:channelId/link')
+  @BotAllowed()
   getChannelLink(
     @Param('workspaceId') workspaceId: string,
     @Param('channelId') channelId: string,
-    @Session() session: UserSession<typeof auth>,
+    @Actor() actor: RequestActor,
   ) {
-    return this.github.getChannelLink(workspaceId, channelId, session.user.id);
+    return this.github.getChannelLink(workspaceId, channelId, actor.userId);
   }
 
   @Delete('workspaces/:workspaceId/channels/:channelId/link')
