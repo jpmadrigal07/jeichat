@@ -17,7 +17,6 @@ import {
   ChevronRight,
   FolderMinus,
   Settings,
-  MoreHorizontal,
   Inbox,
   LayoutGrid,
   ListFilter,
@@ -110,7 +109,7 @@ import {
   conversationPageHref,
   type Channel,
 } from '../_libs/channels';
-import { ChannelNotificationSubMenu } from './channel-notification-menu';
+import { ChannelOptionsMenu } from './channel-options-menu';
 import { CreateChannelDialog } from './create-channel-dialog';
 import { CreateDmDialog } from './create-dm-dialog';
 import {
@@ -676,30 +675,11 @@ function ChannelFolder({
               <span className="sr-only">Create ticket</span>
             </Link>
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="hover:bg-transparent dark:hover:bg-transparent"
-              >
-                <MoreHorizontal className="size-3.5" />
-                <span className="sr-only">Channel options</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem asChild>
-                <Link href={`/w/${workspaceId}/c/${channel.id}/settings`}>
-                  <Settings />
-                  Channel Settings
-                </Link>
-              </DropdownMenuItem>
-              <ChannelNotificationSubMenu
-                workspaceId={workspaceId}
-                channelId={channel.id}
-              />
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <ChannelOptionsMenu
+            workspaceId={workspaceId}
+            channelId={channel.id}
+            channelName={channel.name}
+          />
         </div>
       </div>
       {visibleTickets.length > 0 ? (
