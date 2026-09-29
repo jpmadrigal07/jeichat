@@ -68,7 +68,9 @@ export function ComposerTagPicker({
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => onMentionAll?.()}
         >
-          <Users data-icon="inline-start" />
+          <span className="flex size-6 shrink-0 items-center justify-center text-muted-foreground">
+            <Users className="size-4" />
+          </span>
           <span className="shrink-0 font-medium">@all</span>
           <span className="truncate text-xs text-muted-foreground">
             Notify everyone in this channel
