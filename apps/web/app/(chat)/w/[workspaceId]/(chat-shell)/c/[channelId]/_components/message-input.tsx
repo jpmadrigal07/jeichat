@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useCallback, useEffect, useState } from 'react';
-import { SendHorizonal, X } from 'lucide-react';
+import { SendHorizonal, Smile, X } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { chatMessageFooterClass } from '@chat/_helpers/chat-footer-classes';
@@ -16,6 +16,7 @@ import { useComposerTagPicker } from '@chat/_hooks/use-composer-tag-picker';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   markdownShortcutForKey,
+  replaceSelection,
   wrapAsMarkdownLink,
   wrapSelection,
 } from '../_helpers/markdown-shortcuts';
@@ -23,6 +24,7 @@ import { messageReplySnippet } from '../_helpers/message-reply';
 import { useComposerTagHighlight } from '../_hooks/use-composer-tag-highlight';
 import { AttachmentPickerButton } from './attachment-picker-button';
 import { AttachmentPreviewTray } from './attachment-preview-tray';
+import { ReactionEmojiPicker } from './reaction-emoji-picker';
 import type { PendingAttachment } from '../_hooks/use-attachment-uploads';
 
 export type ComposerReplyTo = {
@@ -100,6 +102,7 @@ export function MessageInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wasSendDisabledRef = useRef(false);
+  const emojiCaretRef = useRef<number | null>(null);
   const [hasText, setHasText] = useState(false);
   const highlight = useComposerTagHighlight({
     textareaRef,
@@ -196,6 +199,30 @@ export function MessageInput({
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
+  function insertEmoji(emoji: string) {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart ?? textarea.value.length;
+    const end = textarea.selectionEnd ?? start;
+    const next = replaceSelection(textarea.value, start, end, emoji);
+    textarea.value = next.value;
+    textarea.setSelectionRange(next.selectionStart, next.selectionEnd);
+    emojiCaretRef.current = next.selectionEnd;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  /** The unfocused textarea can lose its caret while the picker is open, so re-apply it on refocus. */
+  function refocusAfterEmojiPicker() {
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      const caret = emojiCaretRef.current;
+      emojiCaretRef.current = null;
+      if (caret !== null) textarea.setSelectionRange(caret, caret);
+    });
+  }
+
   function submit() {
     const value = textareaRef.current?.value.trim() ?? '';
     const hasAttachments = uploads.readyServerIds.length > 0;
@@ -290,6 +317,26 @@ export function MessageInput({
               }}
             />
           </div>
+          <ReactionEmojiPicker
+            align="end"
+            side="top"
+            showQuickReactions={false}
+            onSelect={insertEmoji}
+            onCloseAutoFocus={(e) => {
+              e.preventDefault();
+              refocusAfterEmojiPicker();
+            }}
+          >
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 shrink-0"
+              aria-label="Add emoji"
+            >
+              <Smile />
+            </Button>
+          </ReactionEmojiPicker>
           <Button
             size="icon"
             variant="ghost"

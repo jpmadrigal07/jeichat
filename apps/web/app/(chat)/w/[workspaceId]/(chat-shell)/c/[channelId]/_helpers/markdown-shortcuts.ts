@@ -25,6 +25,23 @@ export function wrapSelection(
   return { value: next, selectionStart: caret, selectionEnd: caret };
 }
 
+/** Replaces the current selection with `text` and places the caret after it. */
+export function replaceSelection(
+  value: string,
+  selectionStart: number,
+  selectionEnd: number,
+  text: string,
+): WrapResult {
+  const start = Math.min(selectionStart, selectionEnd);
+  const end = Math.max(selectionStart, selectionEnd);
+  const caret = start + text.length;
+  return {
+    value: `${value.slice(0, start)}${text}${value.slice(end)}`,
+    selectionStart: caret,
+    selectionEnd: caret,
+  };
+}
+
 export function wrapAsMarkdownLink(
   value: string,
   selectionStart: number,
