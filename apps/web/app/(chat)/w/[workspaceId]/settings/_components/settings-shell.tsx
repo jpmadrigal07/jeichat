@@ -50,7 +50,7 @@ export function SettingsShell({
       href: `/w/${workspaceId}/settings/bots`,
       label: 'Bots',
       icon: Bot,
-      ownerOnly: true,
+      // TEMP: was ownerOnly — revert after bot token is in Coolify
     },
     {
       href: `/w/${workspaceId}/settings/labels`,

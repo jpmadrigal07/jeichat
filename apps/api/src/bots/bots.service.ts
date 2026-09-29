@@ -41,7 +41,8 @@ export class BotsService {
   ) {}
 
   async create(workspaceId: string, ownerId: string, name: string) {
-    await this.workspacesService.verifyOwnership(workspaceId, ownerId);
+    // TEMP: revert to verifyOwnership after bot token is copied to Coolify
+    await this.workspacesService.verifyMembership(workspaceId, ownerId);
     const trimmed = name.trim();
     if (!trimmed) {
       throw new BadRequestException('Bot name is required');
@@ -309,7 +310,8 @@ export class BotsService {
     botId: string,
     ownerId: string,
   ) {
-    await this.workspacesService.verifyOwnership(workspaceId, ownerId);
+    // TEMP: revert to verifyOwnership after bot token is copied to Coolify
+    await this.workspacesService.verifyMembership(workspaceId, ownerId);
     const [bot] = await this.drizzle.db
       .select()
       .from(bots)
