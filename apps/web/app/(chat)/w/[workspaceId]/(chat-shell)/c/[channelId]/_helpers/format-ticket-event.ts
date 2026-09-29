@@ -47,7 +47,13 @@ function asWatchers(value: unknown): TicketEventWatcher[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
     const watcher = asAssignee(item);
-    return watcher ? [watcher] : [];
+    if (!watcher) return [];
+    // Events recorded before watchers carried an image don't have one.
+    const image =
+      item && typeof item === 'object' && 'image' in item
+        ? item.image
+        : null;
+    return [{ ...watcher, image: typeof image === 'string' ? image : null }];
   });
 }
 

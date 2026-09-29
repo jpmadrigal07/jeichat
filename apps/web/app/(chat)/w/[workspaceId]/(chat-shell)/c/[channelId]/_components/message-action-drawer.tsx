@@ -11,7 +11,7 @@ import {
   DrawerTitle,
 } from '@/components/ui/drawer';
 import { Separator } from '@/components/ui/separator';
-import { cn } from '@/lib/utils';
+import { DrawerAction } from '@chat/_components/drawer-action';
 import type { Message } from '../_libs/messages';
 import { messageReplySnippet } from '../_helpers/message-reply';
 import { QUICK_REACTIONS } from './reaction-emoji-picker';
@@ -30,32 +30,6 @@ type MessageActionDrawerProps = {
   onStartEdit: () => void;
   onRequestDelete: () => void;
 };
-
-function DrawerAction({
-  onClick,
-  destructive = false,
-  children,
-}: {
-  onClick: () => void;
-  destructive?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="lg"
-      className={cn(
-        'h-11 w-full justify-start gap-3 px-3 text-sm',
-        destructive &&
-          'text-destructive hover:bg-destructive/10 hover:text-destructive',
-      )}
-      onClick={onClick}
-    >
-      {children}
-    </Button>
-  );
-}
 
 /** Mobile replacement for the hover toolbar, opened by long-pressing a message. */
 export function MessageActionDrawer({

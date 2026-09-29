@@ -96,7 +96,7 @@ export function CreateChannelDialog({
         </TooltipTrigger>
         <TooltipContent side="right">Create channel</TooltipContent>
       </Tooltip>
-      <DialogContent>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create a channel</DialogTitle>
         </DialogHeader>
@@ -157,8 +157,8 @@ export function CreateChannelDialog({
                 this channel.
               </FieldDescription>
               {inviteableMembers.length > 0 ? (
-                <ScrollArea className="max-h-48">
-                  <FieldGroup className="gap-1">
+                <ScrollArea className="rounded-md border [&_[data-slot=scroll-area-viewport]]:max-h-48">
+                  <FieldGroup className="gap-1 p-1 pr-3">
                     {inviteableMembers.map((member) => (
                       <Field
                         key={member.userId}

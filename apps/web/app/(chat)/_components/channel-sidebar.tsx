@@ -17,11 +17,8 @@ import {
   ChevronRight,
   FolderMinus,
   Settings,
-  MoreHorizontal,
   Inbox,
   LayoutGrid,
-  ListFilter,
-  UserRound,
   MessagesSquare,
   StickyNotes,
   GripVertical,
@@ -45,12 +42,8 @@ import {
 } from '@/components/ui/collapsible';
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -77,19 +70,14 @@ import {
   isTicketStatusOpenByDefault,
 } from '../_helpers/group-channels';
 import {
-  TICKET_STATUSES,
   TICKET_STATUS_META,
   personInitials,
   type TicketStatus,
 } from '../_helpers/ticket-fields';
 import { isAssignedTicket } from '../_helpers/ticket-filters';
 import {
-  DEFAULT_SIDEBAR_TICKET_FILTER,
   channelSidebarTicketFilter,
   filterSidebarTickets,
-  hasActiveSidebarTicketFilter,
-  isSidebarStatusChecked,
-  toggleSidebarStatus,
   type SidebarTicketFilter,
 } from '../_helpers/sidebar-ticket-filter';
 import { isChannelFolderCollapsed } from '../_helpers/sidebar-channel-collapse';
@@ -110,7 +98,8 @@ import {
   conversationPageHref,
   type Channel,
 } from '../_libs/channels';
-import { ChannelNotificationSubMenu } from './channel-notification-menu';
+import { ChannelOptionsMenu } from './channel-options-menu';
+import { ChannelTicketFilterMenu } from './channel-ticket-filter-menu';
 import { CreateChannelDialog } from './create-channel-dialog';
 import { CreateDmDialog } from './create-dm-dialog';
 import {
@@ -643,7 +632,11 @@ function ChannelFolder({
             reorderLifted && 'pointer-events-none',
           )}
         >
-          <ChannelTicketFilterMenu filter={filter} onChange={onFilterChange} />
+          <ChannelTicketFilterMenu
+            channelName={channel.name}
+            filter={filter}
+            onChange={onFilterChange}
+          />
           {hasTickets ? (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -676,30 +669,11 @@ function ChannelFolder({
               <span className="sr-only">Create ticket</span>
             </Link>
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="hover:bg-transparent dark:hover:bg-transparent"
-              >
-                <MoreHorizontal className="size-3.5" />
-                <span className="sr-only">Channel options</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem asChild>
-                <Link href={`/w/${workspaceId}/c/${channel.id}/settings`}>
-                  <Settings />
-                  Channel Settings
-                </Link>
-              </DropdownMenuItem>
-              <ChannelNotificationSubMenu
-                workspaceId={workspaceId}
-                channelId={channel.id}
-              />
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <ChannelOptionsMenu
+            workspaceId={workspaceId}
+            channelId={channel.id}
+            channelName={channel.name}
+          />
         </div>
       </div>
       {visibleTickets.length > 0 ? (
@@ -719,79 +693,6 @@ function ChannelFolder({
         </div>
       ) : null}
     </div>
-  );
-}
-
-function ChannelTicketFilterMenu({
-  filter,
-  onChange,
-}: {
-  filter: SidebarTicketFilter;
-  onChange: (filter: SidebarTicketFilter) => void;
-}) {
-  const active = hasActiveSidebarTicketFilter(filter);
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant={active ? 'secondary' : 'ghost'}
-          size="icon-sm"
-          className="hover:bg-transparent dark:hover:bg-transparent"
-          aria-pressed={active}
-        >
-          <ListFilter className="size-3.5" />
-          <span className="sr-only">Filter tickets</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuGroup>
-          <DropdownMenuCheckboxItem
-            checked={filter.assignedToMe}
-            onCheckedChange={(checked) =>
-              onChange({ ...filter, assignedToMe: checked === true })
-            }
-            onSelect={(event) => event.preventDefault()}
-          >
-            <UserRound />
-            Assigned to me
-          </DropdownMenuCheckboxItem>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Ticket status</DropdownMenuLabel>
-          {TICKET_STATUSES.map((status) => {
-            const meta = TICKET_STATUS_META[status];
-            const Icon = meta.icon;
-            return (
-              <DropdownMenuCheckboxItem
-                key={status}
-                checked={isSidebarStatusChecked(filter, status)}
-                onCheckedChange={() =>
-                  onChange(toggleSidebarStatus(filter, status))
-                }
-                onSelect={(event) => event.preventDefault()}
-              >
-                <Icon className={meta.iconClassName} />
-                {meta.label}
-              </DropdownMenuCheckboxItem>
-            );
-          })}
-        </DropdownMenuGroup>
-        {active ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem
-                onSelect={() => onChange(DEFAULT_SIDEBAR_TICKET_FILTER)}
-              >
-                Reset filters
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-          </>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 

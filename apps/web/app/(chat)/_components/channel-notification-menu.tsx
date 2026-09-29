@@ -1,7 +1,8 @@
 'use client';
 
-import { Bell } from 'lucide-react';
+import { Bell, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { DrawerClose } from '@/components/ui/drawer';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +19,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { DrawerAction } from './drawer-action';
 import {
   NOTIFICATION_LEVELS,
   NOTIFICATION_LEVEL_META,
@@ -122,5 +124,51 @@ export function ChannelNotificationSubMenu({
         />
       </DropdownMenuSubContent>
     </DropdownMenuSub>
+  );
+}
+
+/** Notification level picker for the mobile channel options drawer. */
+export function ChannelNotificationDrawerItems({
+  workspaceId,
+  channelId,
+}: ChannelNotificationProps) {
+  const { data: settings } = useNotificationSettings(workspaceId);
+  const setLevel = useSetNotificationLevel(workspaceId);
+  const current = notificationLevelOf(settings, channelId);
+
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Notify me about"
+      className="flex flex-col"
+    >
+      <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">
+        Notify me about
+      </p>
+      {NOTIFICATION_LEVELS.map((level) => {
+        const meta = NOTIFICATION_LEVEL_META[level];
+        const Icon = meta.icon;
+        const selected = level === current;
+        return (
+          <DrawerClose key={level} asChild>
+            <DrawerAction
+              role="radio"
+              aria-checked={selected}
+              className="h-auto py-2"
+              onClick={() => setLevel.mutate({ channelId, level })}
+            >
+              <Icon />
+              <div className="flex min-w-0 flex-1 flex-col items-start text-left">
+                <span>{meta.label}</span>
+                <span className="text-[0.6875rem] font-normal whitespace-normal text-muted-foreground">
+                  {meta.description}
+                </span>
+              </div>
+              {selected ? <Check className="text-foreground" /> : null}
+            </DrawerAction>
+          </DrawerClose>
+        );
+      })}
+    </div>
   );
 }

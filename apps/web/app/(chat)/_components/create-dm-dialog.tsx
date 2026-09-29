@@ -50,7 +50,7 @@ export function CreateDmDialog({
         <DialogHeader>
           <DialogTitle>Start a direct message</DialogTitle>
         </DialogHeader>
-        <ScrollArea className="max-h-72">
+        <ScrollArea className="[&_[data-slot=scroll-area-viewport]]:max-h-72">
           <div className="flex flex-col gap-1 pr-3">
             {inviteableMembers.length === 0 ? (
               <p className="px-2 py-4 text-sm text-muted-foreground">
