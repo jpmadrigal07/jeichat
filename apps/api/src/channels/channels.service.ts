@@ -1737,7 +1737,7 @@ export class ChannelsService {
   private async loadWatcherBriefs(watcherIds: string[]) {
     if (watcherIds.length === 0) return [];
     const rows = await this.drizzle.db
-      .select({ id: user.id, name: user.name })
+      .select({ id: user.id, name: user.name, image: user.image })
       .from(user)
       .where(inArray(user.id, watcherIds));
     const byId = new Map(rows.map((row) => [row.id, row]));
