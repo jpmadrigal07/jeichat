@@ -270,12 +270,12 @@ export function MessageInput({
             <div
               ref={highlight.highlightRef}
               aria-hidden
-              className="pointer-events-none absolute inset-0 overflow-hidden text-sm/relaxed wrap-break-word whitespace-pre-wrap text-transparent"
+              className="pointer-events-none absolute inset-0 overflow-hidden py-0.5 text-sm/relaxed wrap-break-word whitespace-pre-wrap text-transparent"
             />
             <Textarea
               ref={textareaRef}
               placeholder={messageComposerPlaceholder(channelName, isMobile)}
-              className="relative h-6 min-h-6 max-h-[200px] field-sizing-fixed resize-none border-0 bg-transparent p-0 text-sm/relaxed shadow-none md:text-sm/relaxed focus-visible:ring-0 dark:bg-transparent"
+              className="relative h-7 min-h-7 max-h-[200px] field-sizing-fixed resize-none border-0 bg-transparent px-0 py-0.5 text-sm/relaxed shadow-none md:text-sm/relaxed focus-visible:ring-0 dark:bg-transparent"
               rows={1}
               autoFocus
               onKeyDown={handleKeyDown}
