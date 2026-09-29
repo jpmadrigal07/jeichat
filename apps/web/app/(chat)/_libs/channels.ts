@@ -122,6 +122,7 @@ export async function createThread(
     description?: string;
     attachmentIds?: string[];
     status?: string;
+    assigneeId?: string | null;
   },
 ): Promise<Channel> {
   const { data } = await api.post<Channel>(

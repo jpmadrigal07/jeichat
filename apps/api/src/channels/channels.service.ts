@@ -226,6 +226,7 @@ export class ChannelsService {
     description: string | null,
     attachmentIds: string[] = [],
     status?: string,
+    assigneeId?: string | null,
   ) {
     const parent = await this.findOne(workspaceId, parentId, userId);
     if (parent.parentId) {
@@ -250,6 +251,10 @@ export class ChannelsService {
     }
 
     const trimmedDescription = parseTicketDescription(description);
+
+    if (assigneeId) {
+      await this.assertTicketAssignee(workspaceId, assigneeId);
+    }
 
     if (attachmentIds.length > MAX_THREAD_ATTACHMENTS) {
       throw new BadRequestException(
@@ -300,6 +305,7 @@ export class ChannelsService {
         status: threadStatus,
         completedAt: threadStatus === 'done' ? now : null,
         priority: DEFAULT_TICKET_PRIORITY,
+        assigneeId: assigneeId || null,
         ticketNumber: (lastTicket?.last ?? 0) + 1,
         createdAt: now,
         updatedAt: now,
@@ -339,6 +345,15 @@ export class ChannelsService {
     });
     const published = await this.loadTicketEventsByIds([createdEventId]);
     this.publishTicketEvents(threadId, parentId, published);
+
+    if (assigneeId) {
+      await this.inboxService.notifyAssigned({
+        workspaceId,
+        channelId: threadId,
+        actorId: userId,
+        assigneeId,
+      });
+    }
 
     const [enriched] = await this.withThreadAttachments([thread]);
     void this.chatGateway.resyncBotChannelRooms(workspaceId);

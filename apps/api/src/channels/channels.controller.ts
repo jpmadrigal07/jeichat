@@ -113,6 +113,7 @@ export class ChannelsController {
       description?: string;
       attachmentIds?: string[];
       status?: string;
+      assigneeId?: string | null;
     },
     @Actor() actor: RequestActor,
   ) {
@@ -124,6 +125,7 @@ export class ChannelsController {
       body.description ?? null,
       body.attachmentIds ?? [],
       body.status,
+      body.assigneeId,
     );
   }
 

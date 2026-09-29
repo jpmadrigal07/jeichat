@@ -2,7 +2,12 @@
 
 import { Suspense, useRef } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Paperclip } from 'lucide-react';
+import { Paperclip, UserRound } from 'lucide-react';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from '@/components/ui/avatar';
 import {
   Dialog,
   DialogContent,
@@ -32,8 +37,10 @@ import {
   MAX_TICKET_DESCRIPTION_LENGTH,
   TICKET_STATUSES,
   TICKET_STATUS_META,
+  personInitials,
   ticketStatusOf,
 } from '../_helpers/ticket-fields';
+import { BotBadge } from './bot-badge';
 import { useChannels, useCreateThread } from '../_hooks/use-channels';
 import { ticketPageHref } from '../_libs/channels';
 import { useWorkspaceMembers } from '../_hooks/use-workspaces';
@@ -44,6 +51,8 @@ import { MarkdownWritePreview } from '../w/[workspaceId]/(chat-shell)/c/[channel
 
 export const CREATE_THREAD_PARAM = 'create-thread';
 export const CREATE_STATUS_PARAM = 'create-status';
+
+const UNASSIGNED = 'unassigned';
 
 export function createThreadHref(
   channelId: string,
@@ -128,6 +137,7 @@ function CreateThreadDialog({
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const statusInputRef = useRef<HTMLInputElement>(null);
+  const assigneeInputRef = useRef<HTMLInputElement>(null);
   const uploads = useAttachmentUploads(channelId ?? '');
   const uploadCounts = countAttachmentKinds(
     uploads.items.map((item) => item.file),
@@ -150,6 +160,7 @@ function CreateThreadDialog({
     const description =
       (formData.get('description') as string).trim() || undefined;
     if (!name) return;
+    const assignee = formData.get('assignee') as string | null;
 
     createThread.mutate(
       {
@@ -158,6 +169,7 @@ function CreateThreadDialog({
         description,
         attachmentIds: uploads.readyServerIds,
         status: ticketStatusOf(formData.get('status') as string | null),
+        assigneeId: assignee && assignee !== UNASSIGNED ? assignee : null,
       },
       {
         onSuccess: (thread) => {
@@ -224,6 +236,47 @@ function CreateThreadDialog({
                       </SelectItem>
                     );
                   })}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="thread-assignee">Assignee</Label>
+            <input
+              ref={assigneeInputRef}
+              type="hidden"
+              name="assignee"
+              defaultValue={UNASSIGNED}
+            />
+            <Select
+              defaultValue={UNASSIGNED}
+              onValueChange={(value) => {
+                if (assigneeInputRef.current) {
+                  assigneeInputRef.current.value = value;
+                }
+              }}
+            >
+              <SelectTrigger id="thread-assignee" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="start" position="popper">
+                <SelectGroup>
+                  <SelectItem value={UNASSIGNED}>
+                    <UserRound />
+                    Unassigned
+                  </SelectItem>
+                  {members?.map((member) => (
+                    <SelectItem key={member.userId} value={member.userId}>
+                      <Avatar size="sm" className="size-4">
+                        <AvatarImage src={member.image ?? undefined} alt="" />
+                        <AvatarFallback className="text-[8px] leading-none">
+                          {personInitials(member.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      {member.name}
+                      {member.isBot ? <BotBadge /> : null}
+                    </SelectItem>
+                  ))}
                 </SelectGroup>
               </SelectContent>
             </Select>
