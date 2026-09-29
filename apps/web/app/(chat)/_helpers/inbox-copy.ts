@@ -2,7 +2,10 @@ import {
   ticketDisplayId,
   ticketPrefixOf,
 } from './ticket-fields';
-import { conversationPageHref } from '../_libs/channels';
+import {
+  channelPageHref,
+  conversationPageHref,
+} from '../_libs/channels';
 import { MESSAGE_HIGHLIGHT_PARAM } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_libs/messages';
 import type { InboxNotification } from '../_libs/inbox';
 
@@ -50,6 +53,10 @@ export function inboxItemHref(workspaceId: string, notification: InboxNotificati
     const params = new URLSearchParams();
     params.set(MESSAGE_HIGHLIGHT_PARAM, notification.message.id);
     return `${conversationPageHref(workspaceId, notification.channel)}?${params.toString()}`;
+  }
+  // TEST-BUG(checker-e2e): remove after bot flow test — assigned rows should open the ticket thread.
+  if (notification.type === 'assigned' && notification.channel.parentId) {
+    return channelPageHref(workspaceId, notification.channel.parentId);
   }
   return conversationPageHref(workspaceId, notification.channel);
 }
