@@ -1,7 +1,7 @@
 'use client';
 
 import type { DragEvent, FormEvent, MouseEvent, PointerEvent } from 'react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Archive, Check, Eye, MoreHorizontal, RotateCcw, Tag, UserRound } from 'lucide-react';
 import {
@@ -425,6 +425,16 @@ export function TicketWatchersMenu({
   const updateChannel = useUpdateChannel(workspaceId);
   const { data: members } = useWorkspaceMembers(workspaceId);
   const selectedIds = new Set(selected.map((watcher) => watcher.id));
+  const displaySelected = useMemo(() => {
+    const imageByUserId = new Map(
+      (members ?? []).map((member) => [member.userId, member.image] as const),
+    );
+    return selected.map((watcher) =>
+      watcher.image
+        ? watcher
+        : { ...watcher, image: imageByUserId.get(watcher.id) ?? null },
+    );
+  }, [members, selected]);
   const trimmed = query.trim().toLowerCase();
   const options: TicketWatcher[] = [
     ...selected,
@@ -473,34 +483,34 @@ export function TicketWatchersMenu({
             className,
           )}
           aria-label={
-            selected.length > 0
-              ? `Watchers: ${selected.map((watcher) => watcher.name).join(', ')}`
+            displaySelected.length > 0
+              ? `Watchers: ${displaySelected.map((watcher) => watcher.name).join(', ')}`
               : 'Change watchers'
           }
           title={
-            selected.length > 1
-              ? selected.map((watcher) => watcher.name).join(', ')
+            displaySelected.length > 1
+              ? displaySelected.map((watcher) => watcher.name).join(', ')
               : undefined
           }
         >
-          {selected.length === 0 ? (
+          {displaySelected.length === 0 ? (
             <>
               <Eye data-icon="inline-start" />
               Watchers
             </>
-          ) : selected.length === 1 ? (
+          ) : displaySelected.length === 1 ? (
             <>
               <Avatar className="size-4">
-                <AvatarImage src={selected[0]?.image ?? undefined} alt="" />
+                <AvatarImage src={displaySelected[0]?.image ?? undefined} alt="" />
                 <AvatarFallback className="text-[8px] leading-none">
-                  {personInitials(selected[0]?.name ?? '')}
+                  {personInitials(displaySelected[0]?.name ?? '')}
                 </AvatarFallback>
               </Avatar>
-              <span className="truncate">{selected[0]?.name}</span>
+              <span className="truncate">{displaySelected[0]?.name}</span>
             </>
           ) : (
             <AvatarGroup>
-              {selected.slice(0, MAX_VISIBLE_WATCHERS).map((watcher) => (
+              {displaySelected.slice(0, MAX_VISIBLE_WATCHERS).map((watcher) => (
                 <Avatar
                   key={watcher.id}
                   className="size-4 [&_svg]:size-2.5"
@@ -511,9 +521,9 @@ export function TicketWatchersMenu({
                   </AvatarFallback>
                 </Avatar>
               ))}
-              {selected.length > MAX_VISIBLE_WATCHERS ? (
+              {displaySelected.length > MAX_VISIBLE_WATCHERS ? (
                 <AvatarGroupCount className="size-4 text-[8px] leading-none">
-                  +{selected.length - MAX_VISIBLE_WATCHERS}
+                  +{displaySelected.length - MAX_VISIBLE_WATCHERS}
                 </AvatarGroupCount>
               ) : null}
             </AvatarGroup>
