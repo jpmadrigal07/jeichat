@@ -37,9 +37,14 @@ export function groupChannelsByParent(channels: Channel[]) {
     );
   }
 
-  dms.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  dms.sort((a, b) => dmActivityTime(b) - dmActivityTime(a));
 
   return { topLevel, dms, threadsByParent };
+}
+
+/** Latest message time, or creation time for a DM with no messages yet. */
+export function dmActivityTime(channel: Channel) {
+  return Date.parse(channel.lastMessageAt ?? channel.createdAt);
 }
 
 export const SIDEBAR_TICKETS_PER_STATUS = 9;

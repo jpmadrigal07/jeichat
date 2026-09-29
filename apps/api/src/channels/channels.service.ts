@@ -512,7 +512,8 @@ export class ChannelsService {
   async findAll(workspaceId: string, userId: string) {
     const visible = await this.listViewableChannels(workspaceId, userId);
     const withPeers = await this.withDmPeers(visible, userId);
-    return this.withThreadAttachments(withPeers);
+    const withActivity = await this.withDmLastMessageAt(withPeers);
+    return this.withThreadAttachments(withActivity);
   }
 
   async findOne(workspaceId: string, id: string, userId: string) {
@@ -1340,6 +1341,50 @@ export class ChannelsService {
         row.channelType === CHANNEL_TYPE.DM
           ? (peerByChannel.get(row.id) ?? null)
           : null,
+    }));
+  }
+
+  /**
+   * Time of the newest message in each DM, for ordering the sidebar list.
+   * A correlated `max()` subquery per DM resolves to one backward lookup on
+   * `messages_channel_id_created_at_idx`, so cost scales with the number of
+   * DMs rather than with message history.
+   */
+  private async withDmLastMessageAt<
+    T extends { id: string; channelType: string },
+  >(rows: T[]): Promise<Array<T & { lastMessageAt: Date | null }>> {
+    const dmChannelIds = rows
+      .filter((row) => row.channelType === CHANNEL_TYPE.DM)
+      .map((row) => row.id);
+
+    if (dmChannelIds.length === 0) {
+      return rows.map((row) => ({ ...row, lastMessageAt: null }));
+    }
+
+    // Drizzle drops table qualifiers for columns interpolated directly into a
+    // single-table select, which would turn `channels.id` below into a bare
+    // `id` that binds to `messages.id` inside the subquery. Identifiers are
+    // not stripped, so the outer reference is spelled out explicitly.
+    const outerChannelId = sql`${sql.identifier('channels')}.${sql.identifier('id')}`;
+    const activity = await this.drizzle.db
+      .select({
+        channelId: channels.id,
+        lastMessageAt: sql<Date | null>`(
+          select max(${messages.createdAt})
+          from ${messages}
+          where ${messages.channelId} = ${outerChannelId}
+        )`.mapWith(messages.createdAt),
+      })
+      .from(channels)
+      .where(inArray(channels.id, dmChannelIds));
+
+    const lastMessageAtByChannel = new Map(
+      activity.map((row) => [row.channelId, row.lastMessageAt]),
+    );
+
+    return rows.map((row) => ({
+      ...row,
+      lastMessageAt: lastMessageAtByChannel.get(row.id) ?? null,
     }));
   }
 

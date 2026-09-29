@@ -46,6 +46,8 @@ export type Channel = {
   isPrivate: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Newest message time; only populated for DMs, null until the first message. */
+  lastMessageAt?: string | null;
   attachments?: ThreadAttachment[];
   labels?: TicketLabel[];
   watchers?: TicketWatcher[];
