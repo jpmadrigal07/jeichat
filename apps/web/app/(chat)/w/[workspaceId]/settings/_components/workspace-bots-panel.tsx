@@ -37,8 +37,7 @@ export function WorkspaceBotsPanel({ workspaceId }: { workspaceId: string }) {
   const disableBot = useDisableWorkspaceBot(workspaceId);
   const nameRef = useRef<HTMLInputElement>(null);
   const revealedToken = createBot.data?.token ?? regenerate.data?.token ?? null;
-  // TEMP: revert to `workspace?.role === 'owner'` after bot token is in Coolify
-  const canManageBots = true;
+  const isOwner = workspace?.role === 'owner';
 
   if (workspaceLoading) {
     return (
@@ -74,7 +73,7 @@ export function WorkspaceBotsPanel({ workspaceId }: { workspaceId: string }) {
         </AlertDescription>
       </Alert>
 
-      {canManageBots ? (
+      {isOwner ? (
         <form
           className="mb-6 flex flex-col gap-2 sm:flex-row"
           onSubmit={(event) => {
@@ -138,7 +137,7 @@ export function WorkspaceBotsPanel({ workspaceId }: { workspaceId: string }) {
                   Token {bot.tokenPrefix}…
                 </p>
               </div>
-              {canManageBots && !bot.disabledAt ? (
+              {isOwner && !bot.disabledAt ? (
                 <div className="flex items-center gap-1">
                   <Button
                     type="button"
