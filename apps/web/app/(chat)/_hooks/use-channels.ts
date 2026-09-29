@@ -169,6 +169,26 @@ export function patchChannelFromTicketEvent(
   );
 }
 
+/** Move a DM to the top of the sidebar as soon as a message arrives in it. */
+export function bumpDmLastMessageAt(
+  queryClient: QueryClient,
+  workspaceId: string,
+  channelId: string,
+  messageCreatedAt: string,
+) {
+  queryClient.setQueryData<Channel[]>(channelsQueryKey(workspaceId), (old) => {
+    const target = old?.find((channel) => channel.id === channelId);
+    if (!old || target?.channelType !== 'dm') return old;
+    const known = target.lastMessageAt;
+    if (known && Date.parse(known) >= Date.parse(messageCreatedAt)) return old;
+    return old.map((channel) =>
+      channel.id === channelId
+        ? { ...channel, lastMessageAt: messageCreatedAt }
+        : channel,
+    );
+  });
+}
+
 export function useChannels(workspaceId: string) {
   return useQuery({
     queryKey: channelsQueryKey(workspaceId),

@@ -13,6 +13,7 @@ import { playInboxNotificationSound } from '../_helpers/inbox-notification-sound
 import { channelsQueryKey, fetchChannels } from '../_libs/channels';
 import type { MessageNotification } from '../_libs/message-notifications';
 import type { Workspace } from '../_libs/workspaces';
+import { bumpDmLastMessageAt } from './use-channels';
 import { incrementUnreadCount } from './use-unread-counts';
 
 type UseGlobalUnreadSocketOptions = {
@@ -56,6 +57,11 @@ export function useGlobalUnreadSocket({
   const channelIds = useMemo(
     () => channelEntries.map((entry) => entry.channelId),
     [channelEntries],
+  );
+
+  const workspaceIdByChannelRef = useRef(new Map<string, string>());
+  workspaceIdByChannelRef.current = new Map(
+    channelEntries.map((entry) => [entry.channelId, entry.workspaceId]),
   );
 
   useEffect(() => {
@@ -125,10 +131,30 @@ export function useGlobalUnreadSocket({
       });
     };
 
+    // Every channel room is joined, so this fires for your own sends and for
+    // muted DMs too, which `message_notification` does not cover.
+    const handleNewMessage = (message: {
+      channelId: string;
+      createdAt: string;
+    }) => {
+      const messageWorkspaceId = workspaceIdByChannelRef.current.get(
+        message.channelId,
+      );
+      if (!messageWorkspaceId) return;
+      bumpDmLastMessageAt(
+        queryClient,
+        messageWorkspaceId,
+        message.channelId,
+        message.createdAt,
+      );
+    };
+
     socket.on('message_notification', handleMessageNotification);
+    socket.on('new_message', handleNewMessage);
 
     return () => {
       socket.off('message_notification', handleMessageNotification);
+      socket.off('new_message', handleNewMessage);
     };
   }, [queryClient, router, userId]);
 
