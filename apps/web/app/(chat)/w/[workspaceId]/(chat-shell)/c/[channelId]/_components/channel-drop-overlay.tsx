@@ -63,7 +63,7 @@ export function ChannelDropZone({
     >
       {children}
       {isDragging && (
-        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[inherit] bg-background/80 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-primary px-12 py-8">
             <Upload className="h-8 w-8 text-primary" />
             <p className="text-sm font-medium">Drop to upload</p>

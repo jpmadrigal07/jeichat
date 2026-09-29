@@ -46,6 +46,7 @@ import { ticketPageHref } from '../_libs/channels';
 import { useWorkspaceMembers } from '../_hooks/use-workspaces';
 import { taggableTicketsForChannel, taggableChannels } from '../_helpers/ticket-mentions';
 import { useAttachmentUploads } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_hooks/use-attachment-uploads';
+import { ChannelDropZone } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_components/channel-drop-overlay';
 import { AttachmentPreviewTray } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_components/attachment-preview-tray';
 import { MarkdownWritePreview } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_components/markdown-write-preview';
 
@@ -183,167 +184,176 @@ function CreateThreadDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>
-            Create a ticket in #{parentChannel?.name ?? 'channel'}
-          </DialogTitle>
-          <DialogDescription>
-            Give it a title, optional description, and files.
-          </DialogDescription>
-        </DialogHeader>
-        <form
-          key={`${channelId ?? 'closed'}-${initialStatus}`}
-          onSubmit={handleSubmit}
-          className="flex flex-col gap-4"
+        <ChannelDropZone
+          onAdd={uploads.addFiles}
+          className="relative -m-4 flex flex-col gap-4 rounded-xl p-4"
         >
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="thread-title">Title</Label>
-            <Input
-              id="thread-title"
-              name="name"
-              placeholder="e.g. Fix login timeout on staging"
-              required
-              autoFocus
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="thread-status">Status</Label>
-            <input
-              ref={statusInputRef}
-              type="hidden"
-              name="status"
-              defaultValue={initialStatus}
-            />
-            <Select
-              defaultValue={initialStatus}
-              onValueChange={(value) => {
-                if (statusInputRef.current) statusInputRef.current.value = value;
-              }}
-            >
-              <SelectTrigger id="thread-status" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="start" position="popper">
-                <SelectGroup>
-                  {TICKET_STATUSES.map((value) => {
-                    const Icon = TICKET_STATUS_META[value].icon;
-                    return (
-                      <SelectItem key={value} value={value}>
-                        <Icon
-                          className={TICKET_STATUS_META[value].iconClassName}
-                        />
-                        {TICKET_STATUS_META[value].label}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="thread-assignee">Assignee</Label>
-            <input
-              ref={assigneeInputRef}
-              type="hidden"
-              name="assignee"
-              defaultValue={UNASSIGNED}
-            />
-            <Select
-              defaultValue={UNASSIGNED}
-              onValueChange={(value) => {
-                if (assigneeInputRef.current) {
-                  assigneeInputRef.current.value = value;
-                }
-              }}
-            >
-              <SelectTrigger id="thread-assignee" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="start" position="popper">
-                <SelectGroup>
-                  <SelectItem value={UNASSIGNED}>
-                    <UserRound />
-                    Unassigned
-                  </SelectItem>
-                  {members?.map((member) => (
-                    <SelectItem key={member.userId} value={member.userId}>
-                      <Avatar size="sm" className="size-4">
-                        <AvatarImage src={member.image ?? undefined} alt="" />
-                        <AvatarFallback className="text-[8px] leading-none">
-                          {personInitials(member.name)}
-                        </AvatarFallback>
-                      </Avatar>
-                      {member.name}
-                      {member.isBot ? <BotBadge /> : null}
+          <DialogHeader>
+            <DialogTitle>
+              Create a ticket in #{parentChannel?.name ?? 'channel'}
+            </DialogTitle>
+            <DialogDescription>
+              Give it a title, optional description, and files.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            key={`${channelId ?? 'closed'}-${initialStatus}`}
+            onSubmit={handleSubmit}
+            className="flex flex-col gap-4"
+          >
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="thread-title">Title</Label>
+              <Input
+                id="thread-title"
+                name="name"
+                placeholder="e.g. Fix login timeout on staging"
+                required
+                autoFocus
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="thread-status">Status</Label>
+              <input
+                ref={statusInputRef}
+                type="hidden"
+                name="status"
+                defaultValue={initialStatus}
+              />
+              <Select
+                defaultValue={initialStatus}
+                onValueChange={(value) => {
+                  if (statusInputRef.current) statusInputRef.current.value = value;
+                }}
+              >
+                <SelectTrigger id="thread-status" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="start" position="popper">
+                  <SelectGroup>
+                    {TICKET_STATUSES.map((value) => {
+                      const Icon = TICKET_STATUS_META[value].icon;
+                      return (
+                        <SelectItem key={value} value={value}>
+                          <Icon
+                            className={TICKET_STATUS_META[value].iconClassName}
+                          />
+                          {TICKET_STATUS_META[value].label}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="thread-assignee">Assignee</Label>
+              <input
+                ref={assigneeInputRef}
+                type="hidden"
+                name="assignee"
+                defaultValue={UNASSIGNED}
+              />
+              <Select
+                defaultValue={UNASSIGNED}
+                onValueChange={(value) => {
+                  if (assigneeInputRef.current) {
+                    assigneeInputRef.current.value = value;
+                  }
+                }}
+              >
+                <SelectTrigger id="thread-assignee" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="start" position="popper">
+                  <SelectGroup>
+                    <SelectItem value={UNASSIGNED}>
+                      <UserRound />
+                      Unassigned
                     </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="thread-description">Description</Label>
-            <MarkdownWritePreview
-              id="thread-description"
-              name="description"
-              placeholder="What is this ticket about? Use @ and # to mention people, tickets, or messages."
-              maxLength={MAX_TICKET_DESCRIPTION_LENGTH}
-              rows={4}
-              workspaceId={workspaceId}
-              members={members}
-              tickets={tickets}
-              channels={hashChannels}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label>Files</Label>
-            <AttachmentPreviewTray
-              items={uploads.items}
-              onRemove={uploads.remove}
-              onRetry={uploads.retry}
-            />
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              hidden
-              accept={ATTACHMENT_ACCEPT_ATTR}
-              onChange={(e) => {
-                uploads.addFiles(Array.from(e.target.files ?? []));
-                e.target.value = '';
-              }}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="self-start"
-              disabled={!channelId || atUploadLimit}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Paperclip data-icon="inline-start" />
-              Add files
-            </Button>
-          </div>
-          <div className="flex justify-end gap-2">
-            <DialogClose asChild>
-              <Button type="button" variant="outline">
-                Cancel
+                    {members?.map((member) => (
+                      <SelectItem key={member.userId} value={member.userId}>
+                        <Avatar size="sm" className="size-4">
+                          <AvatarImage src={member.image ?? undefined} alt="" />
+                          <AvatarFallback className="text-[8px] leading-none">
+                            {personInitials(member.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        {member.name}
+                        {member.isBot ? <BotBadge /> : null}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="thread-description">Description</Label>
+              <MarkdownWritePreview
+                id="thread-description"
+                name="description"
+                placeholder="What is this ticket about? Use @ and # to mention people, tickets, or messages."
+                maxLength={MAX_TICKET_DESCRIPTION_LENGTH}
+                rows={4}
+                workspaceId={workspaceId}
+                members={members}
+                tickets={tickets}
+                channels={hashChannels}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label>Files</Label>
+              <AttachmentPreviewTray
+                items={uploads.items}
+                onRemove={uploads.remove}
+                onRetry={uploads.retry}
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                hidden
+                accept={ATTACHMENT_ACCEPT_ATTR}
+                onChange={(e) => {
+                  uploads.addFiles(Array.from(e.target.files ?? []));
+                  e.target.value = '';
+                }}
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!channelId || atUploadLimit}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Paperclip data-icon="inline-start" />
+                  Add files
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  or drag and drop files anywhere in this dialog
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  Cancel
+                </Button>
+              </DialogClose>
+              <Button
+                type="submit"
+                disabled={
+                  !channelId ||
+                  createThread.isPending ||
+                  uploads.isAnyUploading ||
+                  uploads.items.some((item) => item.status === 'error')
+                }
+              >
+                {createThread.isPending ? 'Creating...' : 'Create'}
               </Button>
-            </DialogClose>
-            <Button
-              type="submit"
-              disabled={
-                !channelId ||
-                createThread.isPending ||
-                uploads.isAnyUploading ||
-                uploads.items.some((item) => item.status === 'error')
-              }
-            >
-              {createThread.isPending ? 'Creating...' : 'Create'}
-            </Button>
-          </div>
-        </form>
+            </div>
+          </form>
+        </ChannelDropZone>
       </DialogContent>
     </Dialog>
   );
