@@ -24,7 +24,16 @@ import {
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 
-export const QUICK_REACTIONS = ['👍', '❤️', '😂', '🎉', '🔥', '👀'] as const;
+export const QUICK_REACTIONS = [
+  '👍',
+  '❤️',
+  '😄',
+  '😂',
+  '🎉',
+  '🔥',
+  '👀',
+  '💯',
+] as const;
 
 type ReactionEmojiPickerProps = {
   onSelect: (emoji: string) => void;
@@ -34,7 +43,7 @@ type ReactionEmojiPickerProps = {
   align?: 'start' | 'center' | 'end';
   /** Popover only; the mobile drawer always opens from the bottom. */
   side?: 'top' | 'right' | 'bottom' | 'left';
-  /** Quick-reaction row above the search box. Off for the composer. */
+  /** Quick-reaction row above the search box. On by default. */
   showQuickReactions?: boolean;
   /** Runs when the picker closes; call `preventDefault` to skip returning focus to the trigger. */
   onCloseAutoFocus?: (event: Event) => void;

@@ -1,7 +1,14 @@
 'use client';
 
-import { Copy, Pencil, Pin, PinOff, Reply, Trash2 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import {
+  Copy,
+  Pencil,
+  Pin,
+  PinOff,
+  Reply,
+  SmilePlus,
+  Trash2,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Drawer,
@@ -13,8 +20,12 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { DrawerAction } from '@chat/_components/drawer-action';
 import type { Message } from '../_libs/messages';
+import { copyMessageText } from '../_helpers/copy-message-text';
 import { messageReplySnippet } from '../_helpers/message-reply';
-import { QUICK_REACTIONS } from './reaction-emoji-picker';
+import { QUICK_REACTIONS, ReactionEmojiPicker } from './reaction-emoji-picker';
+
+// The rest of the emoji live behind the "Add reaction" button.
+const DRAWER_REACTIONS = QUICK_REACTIONS.slice(0, 3);
 
 type MessageActionDrawerProps = {
   open: boolean;
@@ -53,12 +64,7 @@ export function MessageActionDrawer({
 
   async function handleCopy() {
     onOpenChange(false);
-    try {
-      await navigator.clipboard.writeText(message.content);
-      toast.success('Copied to clipboard');
-    } catch {
-      toast.error('Could not copy message');
-    }
+    await copyMessageText(message.content);
   }
 
   return (
@@ -77,8 +83,8 @@ export function MessageActionDrawer({
           </DrawerDescription>
         </DrawerHeader>
 
-        <div className="flex justify-between gap-1 px-3 pb-2">
-          {QUICK_REACTIONS.map((emoji) => (
+        <div className="flex justify-center gap-2 px-3 pb-2">
+          {DRAWER_REACTIONS.map((emoji) => (
             <Button
               key={emoji}
               type="button"
@@ -91,6 +97,17 @@ export function MessageActionDrawer({
               <span className="sr-only">React with {emoji}</span>
             </Button>
           ))}
+          <ReactionEmojiPicker onSelect={(emoji) => run(() => onReact(emoji))}>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={reactionPending}
+              className="size-11 rounded-full p-0"
+            >
+              <SmilePlus className="size-5" />
+              <span className="sr-only">Add reaction</span>
+            </Button>
+          </ReactionEmojiPicker>
         </div>
 
         <Separator className="mx-3 w-auto" />

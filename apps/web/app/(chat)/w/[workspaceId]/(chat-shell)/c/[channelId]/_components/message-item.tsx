@@ -37,6 +37,7 @@ import { messageReplySnippet } from '../_helpers/message-reply';
 import { useLongPress } from '../_hooks/use-long-press';
 import { MessageActionDrawer } from './message-action-drawer';
 import { MessageAttachments } from './message-attachments';
+import { MessageContextMenu } from './message-context-menu';
 import { MessageMarkdown } from './message-markdown';
 import { MessageReactions } from './message-reactions';
 import { QUICK_REACTIONS, ReactionEmojiPicker } from './reaction-emoji-picker';
@@ -205,16 +206,13 @@ export function MessageItem({
   // Focus the edit box with the caret after the existing text (autoFocus
   // leaves it at the start). Stable identity so re-renders while editing
   // don't re-run this and yank the caret back to the end mid-typing.
-  const attachEditTextarea = useCallback(
-    (node: HTMLTextAreaElement | null) => {
-      textareaRef.current = node;
-      if (!node) return;
-      const end = node.value.length;
-      node.focus();
-      node.setSelectionRange(end, end);
-    },
-    [],
-  );
+  const attachEditTextarea = useCallback((node: HTMLTextAreaElement | null) => {
+    textareaRef.current = node;
+    if (!node) return;
+    const end = node.value.length;
+    node.focus();
+    node.setSelectionRange(end, end);
+  }, []);
 
   function handleSaveEdit() {
     const value = textareaRef.current?.value.trim();
@@ -236,170 +234,186 @@ export function MessageItem({
 
   return (
     <>
-      <div
-        {...longPress}
-        className={cn(
-          'group relative flex gap-3 px-4 py-1.5 hover:bg-muted/50',
-          // Long press opens the action drawer on mobile, so suppress the
-          // native text selection / callout it would otherwise trigger.
-          showActions &&
-            'max-md:select-none max-md:[-webkit-touch-callout:none]',
-          isHighlighted && 'bg-accent/50',
-          openPanel === 'actions' && 'bg-muted/50',
-        )}
+      <MessageContextMenu
+        disabled={!showActions}
+        message={message}
+        isOwn={isOwn}
+        isPinned={isPinned}
+        canManageMessages={canManageMessages}
+        reactionPending={reactionPending}
+        onReact={(emoji) => onToggleReaction(message.id, emoji)}
+        onReply={() => onReply(message.id)}
+        onTogglePin={handleTogglePin}
+        onStartEdit={onStartEdit}
+        onRequestDelete={() => setOpenPanel('delete')}
       >
-        <PresenceAvatar
-          userId={message.senderId}
-          name={message.sender?.name ?? 'Unknown'}
-          image={message.sender?.image}
-          workspaceId={workspaceId}
-          className="mt-0.5"
-        />
-
-        <div className="min-w-0 flex-1">
-          <div className="mb-0.5 flex items-baseline gap-2">
-            <span className="text-sm font-semibold truncate">
-              {message.sender?.name ?? 'Unknown'}
-            </span>
-            {message.sender?.isBot ? <BotBadge /> : null}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="text-xs text-muted-foreground shrink-0 cursor-default">
-                  {formatTime(message.createdAt)}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                {formatFullDate(message.createdAt)}
-              </TooltipContent>
-            </Tooltip>
-            {isEdited && (
-              <span className="text-xs text-muted-foreground">(edited)</span>
-            )}
-            {isPinned ? (
-              <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Pin className="size-3" />
-                Pinned
-              </span>
-            ) : null}
-          </div>
-
-          {isEditing ? (
-            <div className="mt-1">
-              <Textarea
-                ref={attachEditTextarea}
-                defaultValue={message.content}
-                onKeyDown={handleEditKeyDown}
-                className="min-h-[60px] text-sm resize-none"
-              />
-              <div className="flex gap-1 mt-1">
-                <Button size="sm" variant="ghost" onClick={onCancelEdit}>
-                  <X className="h-3.5 w-3.5 mr-1" />
-                  Cancel
-                </Button>
-                <Button size="sm" onClick={handleSaveEdit}>
-                  <Check className="h-3.5 w-3.5 mr-1" />
-                  Save
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <MessageReplyPreview
-                replyToId={message.replyToId}
-                replyTo={message.replyTo}
-                onJumpToReply={onJumpToReply}
-              />
-              {message.content ? (
-                <MessageMarkdown
-                  content={message.content}
-                  className="text-sm break-words"
-                  members={members}
-                  tickets={tickets}
-                  channels={channels}
-                  workspaceId={workspaceId}
-                />
-              ) : null}
-              <MessageAttachments
-                attachments={message.attachments}
-                className="mt-1.5"
-              />
-              <MessageReactions
-                reactions={message.reactions ?? []}
-                onToggle={(emoji) => onToggleReaction(message.id, emoji)}
-                disabled={reactionPending}
-              />
-            </>
+        <div
+          {...longPress}
+          className={cn(
+            'group relative flex gap-3 px-4 py-1.5 hover:bg-muted/50',
+            // Long press opens the action drawer on mobile, so suppress the
+            // native text selection / callout it would otherwise trigger.
+            showActions &&
+              'max-md:select-none max-md:[-webkit-touch-callout:none]',
+            isHighlighted && 'bg-accent/50',
+            openPanel === 'actions' && 'bg-muted/50',
+            // Right-click menu is open on this message.
+            'data-[state=open]:bg-muted/50',
           )}
-        </div>
+        >
+          <PresenceAvatar
+            userId={message.senderId}
+            name={message.sender?.name ?? 'Unknown'}
+            image={message.sender?.image}
+            workspaceId={workspaceId}
+            className="mt-0.5"
+          />
 
-        {showActions ? (
-          <div
-            className={cn(
-              'absolute -top-3 right-4 z-10 hidden items-center rounded-md border bg-popover p-0.5 shadow-md md:flex',
-              'pointer-events-none opacity-0',
-              'group-hover:pointer-events-auto group-hover:opacity-100',
-              'group-focus-within:pointer-events-auto group-focus-within:opacity-100',
-              // Stay visible while the emoji picker popover is open.
-              'has-data-[state=open]:pointer-events-auto has-data-[state=open]:opacity-100',
+          <div className="min-w-0 flex-1">
+            <div className="mb-0.5 flex items-baseline gap-2">
+              <span className="text-sm font-semibold truncate">
+                {message.sender?.name ?? 'Unknown'}
+              </span>
+              {message.sender?.isBot ? <BotBadge /> : null}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-xs text-muted-foreground shrink-0 cursor-default">
+                    {formatTime(message.createdAt)}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  {formatFullDate(message.createdAt)}
+                </TooltipContent>
+              </Tooltip>
+              {isEdited && (
+                <span className="text-xs text-muted-foreground">(edited)</span>
+              )}
+              {isPinned ? (
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Pin className="size-3" />
+                  Pinned
+                </span>
+              ) : null}
+            </div>
+
+            {isEditing ? (
+              <div className="mt-1">
+                <Textarea
+                  ref={attachEditTextarea}
+                  defaultValue={message.content}
+                  onKeyDown={handleEditKeyDown}
+                  className="min-h-[60px] text-sm resize-none"
+                />
+                <div className="flex gap-1 mt-1">
+                  <Button size="sm" variant="ghost" onClick={onCancelEdit}>
+                    <X className="h-3.5 w-3.5 mr-1" />
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={handleSaveEdit}>
+                    <Check className="h-3.5 w-3.5 mr-1" />
+                    Save
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <MessageReplyPreview
+                  replyToId={message.replyToId}
+                  replyTo={message.replyTo}
+                  onJumpToReply={onJumpToReply}
+                />
+                {message.content ? (
+                  <MessageMarkdown
+                    content={message.content}
+                    className="text-sm break-words"
+                    members={members}
+                    tickets={tickets}
+                    channels={channels}
+                    workspaceId={workspaceId}
+                  />
+                ) : null}
+                <MessageAttachments
+                  attachments={message.attachments}
+                  className="mt-1.5"
+                />
+                <MessageReactions
+                  reactions={message.reactions ?? []}
+                  onToggle={(emoji) => onToggleReaction(message.id, emoji)}
+                  disabled={reactionPending}
+                />
+              </>
             )}
-          >
-            {TOOLBAR_REACTIONS.map((emoji) => (
-              <MessageHoverAction
-                key={emoji}
-                label={`React with ${emoji}`}
-                disabled={reactionPending}
-                className="text-base"
-                onClick={() => onToggleReaction(message.id, emoji)}
-              >
-                {emoji}
-              </MessageHoverAction>
-            ))}
-            <ReactionEmojiPicker
-              align="end"
-              onSelect={(emoji) => onToggleReaction(message.id, emoji)}
-            >
-              <MessageHoverAction
-                label="Add reaction"
-                disabled={reactionPending}
-              >
-                <SmilePlus />
-              </MessageHoverAction>
-            </ReactionEmojiPicker>
-            <Separator
-              orientation="vertical"
-              className="mx-0.5 h-4 data-vertical:self-center"
-            />
-            <MessageHoverAction
-              label="Reply"
-              onClick={() => onReply(message.id)}
-            >
-              <Reply />
-            </MessageHoverAction>
-            {canManageMessages ? (
-              <MessageHoverAction
-                label={isPinned ? 'Unpin message' : 'Pin message'}
-                onClick={handleTogglePin}
-              >
-                {isPinned ? <PinOff /> : <Pin />}
-              </MessageHoverAction>
-            ) : null}
-            {isOwn ? (
-              <MessageHoverAction label="Edit message" onClick={onStartEdit}>
-                <Pencil />
-              </MessageHoverAction>
-            ) : null}
-            {isOwn ? (
-              <MessageHoverAction
-                label="Delete message"
-                destructive
-                onClick={() => setOpenPanel('delete')}
-              >
-                <Trash2 />
-              </MessageHoverAction>
-            ) : null}
           </div>
-        ) : null}
-      </div>
+
+          {showActions ? (
+            <div
+              className={cn(
+                'absolute -top-3 right-4 z-10 hidden items-center rounded-md border bg-popover p-0.5 shadow-md md:flex',
+                'pointer-events-none opacity-0',
+                'group-hover:pointer-events-auto group-hover:opacity-100',
+                'group-focus-within:pointer-events-auto group-focus-within:opacity-100',
+                // Stay visible while the emoji picker popover is open.
+                'has-data-[state=open]:pointer-events-auto has-data-[state=open]:opacity-100',
+              )}
+            >
+              {TOOLBAR_REACTIONS.map((emoji) => (
+                <MessageHoverAction
+                  key={emoji}
+                  label={`React with ${emoji}`}
+                  disabled={reactionPending}
+                  className="text-xs"
+                  onClick={() => onToggleReaction(message.id, emoji)}
+                >
+                  {emoji}
+                </MessageHoverAction>
+              ))}
+              <ReactionEmojiPicker
+                align="end"
+                onSelect={(emoji) => onToggleReaction(message.id, emoji)}
+              >
+                <MessageHoverAction
+                  label="Add reaction"
+                  disabled={reactionPending}
+                >
+                  <SmilePlus />
+                </MessageHoverAction>
+              </ReactionEmojiPicker>
+              <Separator
+                orientation="vertical"
+                className="mx-0.5 h-4 data-vertical:self-center"
+              />
+              <MessageHoverAction
+                label="Reply"
+                onClick={() => onReply(message.id)}
+              >
+                <Reply />
+              </MessageHoverAction>
+              {canManageMessages ? (
+                <MessageHoverAction
+                  label={isPinned ? 'Unpin message' : 'Pin message'}
+                  onClick={handleTogglePin}
+                >
+                  {isPinned ? <PinOff /> : <Pin />}
+                </MessageHoverAction>
+              ) : null}
+              {isOwn ? (
+                <MessageHoverAction label="Edit message" onClick={onStartEdit}>
+                  <Pencil />
+                </MessageHoverAction>
+              ) : null}
+              {isOwn ? (
+                <MessageHoverAction
+                  label="Delete message"
+                  destructive
+                  onClick={() => setOpenPanel('delete')}
+                >
+                  <Trash2 />
+                </MessageHoverAction>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </MessageContextMenu>
 
       <MessageActionDrawer
         open={openPanel === 'actions'}

@@ -320,7 +320,6 @@ export function MessageInput({
           <ReactionEmojiPicker
             align="end"
             side="top"
-            showQuickReactions={false}
             onSelect={insertEmoji}
             onCloseAutoFocus={(e) => {
               e.preventDefault();
