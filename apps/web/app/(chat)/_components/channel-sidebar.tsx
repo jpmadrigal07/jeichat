@@ -2,7 +2,13 @@
 
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
-import { useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+} from 'react';
 import {
   AtSign,
   BellOff,
@@ -18,6 +24,7 @@ import {
   UserRound,
   MessagesSquare,
   StickyNotes,
+  GripVertical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -88,6 +95,16 @@ import {
 import { isChannelFolderCollapsed } from '../_helpers/sidebar-channel-collapse';
 import { useSidebarTicketFilters } from '../_hooks/use-sidebar-ticket-filter';
 import { useSidebarChannelCollapse } from '../_hooks/use-sidebar-channel-collapse';
+import { useSidebarChannelOrder } from '../_hooks/use-sidebar-channel-order';
+import { useLongPress } from '../_hooks/use-long-press';
+import { reorderedSidebarChannelIds } from '../_helpers/sidebar-channel-order';
+import {
+  clearSidebarChannelDropIndicator,
+  showSidebarChannelDropIndicator,
+  sidebarChannelDragTargets,
+  sidebarChannelIdBeforePointer,
+  startSidebarChannelDrag,
+} from '../_helpers/sidebar-channel-drag';
 import {
   channelBoardHref,
   conversationPageHref,
@@ -137,9 +154,109 @@ export function ChannelSidebar({ user }: { user: User }) {
   const { collapsedIds, setChannelCollapsed } = useSidebarChannelCollapse(
     workspaceId ?? '',
   );
+  const { setOrder, sortTopLevel } = useSidebarChannelOrder(workspaceId ?? '');
+  const [liftedChannelId, setLiftedChannelId] = useState<string | null>(null);
+  const channelListRef = useRef<HTMLDivElement>(null);
+
+  const cancelChannelReorder = useCallback(() => {
+    clearSidebarChannelDropIndicator(channelListRef.current);
+    setLiftedChannelId(null);
+  }, []);
+
+  useEffect(() => {
+    if (!liftedChannelId) return;
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') cancelChannelReorder();
+    };
+
+    const onPointerDown = (event: PointerEvent) => {
+      const root = channelListRef.current;
+      if (!root?.contains(event.target as Node)) cancelChannelReorder();
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('pointerdown', onPointerDown, true);
+    };
+  }, [cancelChannelReorder, liftedChannelId]);
 
   const activeWorkspace = workspaces?.find((ws) => ws.id === workspaceId);
   const { topLevel, dms, threadsByParent } = groupChannelsByParent(channels ?? []);
+  const orderedTopLevel = sortTopLevel(topLevel);
+  const sidebarChannelIds = orderedTopLevel.map((channel) => channel.id);
+
+  const moveSidebarChannel = useCallback(
+    (channelId: string, beforeChannelId: string | null) => {
+      const baseIds =
+        sidebarChannelIds.length > 0
+          ? sidebarChannelIds
+          : topLevel.map((channel) => channel.id);
+      const next = reorderedSidebarChannelIds({
+        channelIds: baseIds,
+        channelId,
+        beforeChannelId,
+      });
+      if (next) setOrder(next);
+      setLiftedChannelId(null);
+    },
+    [setOrder, sidebarChannelIds, topLevel],
+  );
+
+  const onChannelListDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+    const targets = sidebarChannelDragTargets(channelListRef.current);
+    showSidebarChannelDropIndicator(
+      channelListRef.current,
+      targets,
+      event.clientY,
+    );
+  }, []);
+
+  const onChannelListDragLeave = useCallback(() => {
+    clearSidebarChannelDropIndicator(channelListRef.current);
+  }, []);
+
+  const onChannelListDrop = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      clearSidebarChannelDropIndicator(channelListRef.current);
+      const channelId = event.dataTransfer.getData('text/plain');
+      if (!channelId) return;
+      const beforeChannelId = sidebarChannelIdBeforePointer(
+        channelListRef.current,
+        event.clientY,
+      );
+      moveSidebarChannel(channelId, beforeChannelId);
+    },
+    [moveSidebarChannel],
+  );
+
+  const onReorderPointerMove = useCallback((clientY: number) => {
+    const targets = sidebarChannelDragTargets(channelListRef.current);
+    showSidebarChannelDropIndicator(
+      channelListRef.current,
+      targets,
+      clientY,
+    );
+  }, []);
+
+  const onReorderPointerCommit = useCallback(
+    (channelId: string, clientY: number) => {
+      clearSidebarChannelDropIndicator(channelListRef.current);
+      const beforeChannelId = sidebarChannelIdBeforePointer(
+        channelListRef.current,
+        clientY,
+      );
+      moveSidebarChannel(channelId, beforeChannelId);
+    },
+    [moveSidebarChannel],
+  );
+
+  const onReorderPointerCancel = cancelChannelReorder;
   const myTicketsUnread = (channels ?? []).reduce((total, channel) => {
     if (!isAssignedTicket(channel, user.id)) return total;
     return total + (unreadCounts?.[channel.id] ?? 0);
@@ -235,46 +352,68 @@ export function ChannelSidebar({ user }: { user: User }) {
           ) : (
             <div className="flex min-w-0 flex-col gap-3">
               <div className="flex min-w-0 flex-col gap-0.5">
-                <div className="flex items-center justify-between px-1 mb-0.5">
-                  <span className="px-1 text-sm font-medium text-muted-foreground">
-                    Channels
-                  </span>
-                  <CreateChannelDialog
-                    workspaceId={workspaceId}
-                    currentUserId={user.id}
-                  >
-                    <Button variant="ghost" size="icon-sm" className="size-7">
-                      <Plus className="size-3.5" />
-                      <span className="sr-only">Create channel</span>
-                    </Button>
-                  </CreateChannelDialog>
+                <div className="mb-0.5 px-1">
+                  <div className="flex items-center justify-between">
+                    <span className="px-1 text-sm font-medium text-muted-foreground">
+                      Channels
+                    </span>
+                    <CreateChannelDialog
+                      workspaceId={workspaceId}
+                      currentUserId={user.id}
+                    >
+                      <Button variant="ghost" size="icon-sm" className="size-7">
+                        <Plus className="size-3.5" />
+                        <span className="sr-only">Create channel</span>
+                      </Button>
+                    </CreateChannelDialog>
+                  </div>
+                  {orderedTopLevel.length > 1 ? (
+                    <span className="sr-only">
+                      Hold a channel, then drag to reorder
+                    </span>
+                  ) : null}
                 </div>
-                {topLevel.map((channel) => (
-                  <ChannelFolder
-                    key={channel.id}
-                    workspaceId={workspaceId}
-                    channel={channel}
-                    tickets={threadsByParent.get(channel.id) ?? []}
-                    filter={channelSidebarTicketFilter(
-                      sidebarFilters,
-                      channel.id,
-                    )}
-                    onFilterChange={(next) =>
-                      setChannelFilter(channel.id, next)
-                    }
-                    collapsed={isChannelFolderCollapsed(
-                      collapsedIds,
-                      channel.id,
-                    )}
-                    onCollapsedChange={(next) =>
-                      setChannelCollapsed(channel.id, next)
-                    }
-                    currentUserId={user.id}
-                    activeChannelId={activeChannelId}
-                    unreadCounts={unreadCounts}
-                    notificationSettings={notificationSettings}
-                  />
-                ))}
+                <div
+                  ref={channelListRef}
+                  className="flex min-w-0 flex-col gap-0.5"
+                  onDragOver={onChannelListDragOver}
+                  onDragLeave={onChannelListDragLeave}
+                  onDrop={onChannelListDrop}
+                >
+                  {orderedTopLevel.map((channel) => (
+                    <ChannelFolder
+                      key={channel.id}
+                      workspaceId={workspaceId}
+                      channel={channel}
+                      tickets={threadsByParent.get(channel.id) ?? []}
+                      filter={channelSidebarTicketFilter(
+                        sidebarFilters,
+                        channel.id,
+                      )}
+                      onFilterChange={(next) =>
+                        setChannelFilter(channel.id, next)
+                      }
+                      collapsed={isChannelFolderCollapsed(
+                        collapsedIds,
+                        channel.id,
+                      )}
+                      onCollapsedChange={(next) =>
+                        setChannelCollapsed(channel.id, next)
+                      }
+                      currentUserId={user.id}
+                      activeChannelId={activeChannelId}
+                      unreadCounts={unreadCounts}
+                      notificationSettings={notificationSettings}
+                      reorderActive={liftedChannelId !== null}
+                      reorderLifted={liftedChannelId === channel.id}
+                      onReorderLift={() => setLiftedChannelId(channel.id)}
+                      onReorderDragEnd={() => setLiftedChannelId(null)}
+                      onReorderPointerMove={onReorderPointerMove}
+                      onReorderPointerCommit={onReorderPointerCommit}
+                      onReorderPointerCancel={onReorderPointerCancel}
+                    />
+                  ))}
+                </div>
               </div>
 
               <DirectMessagesNav
@@ -307,6 +446,13 @@ function ChannelFolder({
   activeChannelId,
   unreadCounts,
   notificationSettings,
+  reorderActive,
+  reorderLifted,
+  onReorderLift,
+  onReorderDragEnd,
+  onReorderPointerMove,
+  onReorderPointerCommit,
+  onReorderPointerCancel,
 }: {
   workspaceId: string;
   channel: Channel;
@@ -319,6 +465,13 @@ function ChannelFolder({
   activeChannelId: string | undefined;
   unreadCounts: Record<string, number> | undefined;
   notificationSettings: NotificationSettings | undefined;
+  reorderActive: boolean;
+  reorderLifted: boolean;
+  onReorderLift: () => void;
+  onReorderDragEnd: () => void;
+  onReorderPointerMove: (clientY: number) => void;
+  onReorderPointerCommit: (channelId: string, clientY: number) => void;
+  onReorderPointerCancel: () => void;
 }) {
   const isActive = channel.id === activeChannelId;
   const visibleTickets = filterSidebarTickets(
@@ -346,16 +499,130 @@ function ChannelFolder({
   const unreadCount = (isQuiet ? 0 : channelUnread) + ticketUnread;
   const collapseLabel = `Collapse tickets in ${channel.name}`;
 
+  const touchReorderRef = useRef(false);
+  const touchMovedRef = useRef(false);
+  const dragStartedRef = useRef(false);
+  const pointerOriginRef = useRef<{ x: number; y: number } | null>(null);
+  const [touchReorder, setTouchReorder] = useState(false);
+
+  const TOUCH_REORDER_MOVE_PX = 12;
+
+  const handleReorderActivate = useCallback(
+    (detail: { pointerId: number; pointerType: string; target: HTMLElement }) => {
+      onReorderLift();
+      if (detail.pointerType === 'touch') {
+        touchReorderRef.current = true;
+        touchMovedRef.current = false;
+        setTouchReorder(true);
+        detail.target.setPointerCapture(detail.pointerId);
+      }
+    },
+    [onReorderLift],
+  );
+
+  const longPress = useLongPress(handleReorderActivate);
+
+  const onRowPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    pointerOriginRef.current = { x: event.clientX, y: event.clientY };
+    dragStartedRef.current = false;
+    longPress.onPointerDown(event);
+  };
+
+  const onRowPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    longPress.onPointerMove(event);
+    if (!touchReorderRef.current) return;
+    const origin = pointerOriginRef.current;
+    if (!origin) return;
+    const distance = Math.hypot(
+      event.clientX - origin.x,
+      event.clientY - origin.y,
+    );
+    if (distance < TOUCH_REORDER_MOVE_PX) return;
+    touchMovedRef.current = true;
+    onReorderPointerMove(event.clientY);
+  };
+
+  const onRowPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (touchReorderRef.current) {
+      if (touchMovedRef.current) {
+        onReorderPointerCommit(channel.id, event.clientY);
+      } else {
+        onReorderPointerCancel();
+      }
+      touchReorderRef.current = false;
+      setTouchReorder(false);
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+        // Already released.
+      }
+    } else if (
+      reorderLifted &&
+      event.pointerType !== 'touch' &&
+      !dragStartedRef.current
+    ) {
+      onReorderPointerCancel();
+    }
+    pointerOriginRef.current = null;
+    longPress.onPointerUp();
+    longPress.resetActivated();
+  };
+
   return (
-    <div className="flex min-w-0 flex-col gap-0.5">
+    <div
+      data-sidebar-channel-id={channel.id}
+      className={cn(
+        'relative flex min-w-0 flex-col gap-0.5 transition-opacity duration-150',
+        reorderActive && !reorderLifted && 'opacity-45',
+        'data-drop-before:before:absolute data-drop-before:before:inset-x-0 data-drop-before:before:-top-0.5 data-drop-before:before:z-20 data-drop-before:before:h-0.5 data-drop-before:before:rounded-full data-drop-before:before:bg-primary',
+        'data-drop-after:after:absolute data-drop-after:after:inset-x-0 data-drop-after:after:-bottom-0.5 data-drop-after:after:z-20 data-drop-after:after:h-0.5 data-drop-after:after:rounded-full data-drop-after:after:bg-primary',
+      )}
+    >
       <div
+        draggable={reorderLifted && !touchReorder}
+        aria-label={
+          reorderLifted ? `${channel.name}, ready to drag` : undefined
+        }
         className={cn(
-          'flex min-w-0 items-center overflow-hidden rounded-md',
-          isActive
+          'flex min-h-10 min-w-0 touch-manipulation items-center overflow-hidden rounded-md transition-[box-shadow,transform,background-color] sm:min-h-8',
+          isActive && !reorderLifted
             ? 'bg-secondary text-secondary-foreground'
-            : 'hover:bg-muted hover:text-foreground dark:hover:bg-muted/50',
+            : !reorderLifted &&
+                'hover:bg-muted hover:text-foreground dark:hover:bg-muted/50',
+          reorderLifted &&
+            'relative z-10 scale-[1.03] select-none border border-primary/30 bg-background shadow-lg ring-2 ring-primary',
+          reorderLifted && !touchReorder && 'cursor-grab active:cursor-grabbing',
+          reorderLifted && touchReorder && 'touch-none',
         )}
+        onPointerDown={onRowPointerDown}
+        onPointerMove={onRowPointerMove}
+        onPointerUp={onRowPointerUp}
+        onPointerCancel={() => {
+          if (touchReorderRef.current) {
+            onReorderPointerCancel();
+            touchReorderRef.current = false;
+            setTouchReorder(false);
+          }
+          longPress.onPointerCancel();
+        }}
+        onContextMenu={longPress.onContextMenu}
+        onDragStart={(event) => {
+          dragStartedRef.current = true;
+          startSidebarChannelDrag(event, channel.id);
+        }}
+        onDragEnd={() => {
+          dragStartedRef.current = false;
+          onReorderDragEnd();
+          longPress.resetActivated();
+        }}
+        onClickCapture={longPress.onClickCapture}
       >
+        {reorderLifted ? (
+          <GripVertical
+            className="ml-1 size-4 shrink-0 text-primary motion-safe:animate-pulse"
+            aria-hidden
+          />
+        ) : null}
         <ChannelNavLink
           href={`/w/${workspaceId}/c/${channel.id}`}
           name={channel.name}
@@ -365,9 +632,17 @@ function ChannelFolder({
           unreadCount={unreadCount}
           quietUnread={isQuiet && channelUnread > 0}
           notificationLevel={notificationLevel}
-          className="min-w-0 flex-1 hover:bg-transparent dark:hover:bg-transparent"
+          className={cn(
+            'min-w-0 flex-1 hover:bg-transparent dark:hover:bg-transparent',
+            reorderLifted && 'pointer-events-none',
+          )}
         />
-        <div className="flex shrink-0 items-center">
+        <div
+          className={cn(
+            'flex shrink-0 items-center',
+            reorderLifted && 'pointer-events-none',
+          )}
+        >
           <ChannelTicketFilterMenu filter={filter} onChange={onFilterChange} />
           {hasTickets ? (
             <Tooltip>
