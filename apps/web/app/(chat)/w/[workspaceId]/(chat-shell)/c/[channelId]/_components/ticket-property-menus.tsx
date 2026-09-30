@@ -11,6 +11,17 @@ import {
   AvatarGroupCount,
   AvatarImage,
 } from '@/components/ui/avatar';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -583,6 +594,28 @@ export function TicketWatchersMenu({
   );
 }
 
+export function ArchiveTicketAlertContent({
+  onConfirm,
+}: {
+  onConfirm: () => void;
+}) {
+  return (
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Archive this ticket?</AlertDialogTitle>
+        <AlertDialogDescription>
+          It will be hidden from the board. You can restore it later from the
+          channel&apos;s archived tickets.
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Cancel</AlertDialogCancel>
+        <AlertDialogAction onClick={onConfirm}>Archive</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  );
+}
+
 export function TicketArchiveMenu({
   workspaceId,
   channelId,
@@ -628,24 +661,36 @@ export function TicketArchiveMenu({
   }
 
   if (variant === 'button') {
+    const button = (
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className={cn('h-8 w-8', className)}
+        disabled={updateChannel.isPending}
+        aria-label={label}
+        onClick={archived ? toggleArchived : undefined}
+      >
+        <Icon />
+        <span className="sr-only">{label}</span>
+      </Button>
+    );
+
+    // Archiving asks for confirmation; restoring is harmless and goes straight through.
     return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className={cn('h-8 w-8', className)}
-            disabled={updateChannel.isPending}
-            aria-label={label}
-            onClick={toggleArchived}
-          >
-            <Icon />
-            <span className="sr-only">{label}</span>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>{label}</TooltipContent>
-      </Tooltip>
+      <AlertDialog>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {archived ? (
+              button
+            ) : (
+              <AlertDialogTrigger asChild>{button}</AlertDialogTrigger>
+            )}
+          </TooltipTrigger>
+          <TooltipContent>{label}</TooltipContent>
+        </Tooltip>
+        <ArchiveTicketAlertContent onConfirm={toggleArchived} />
+      </AlertDialog>
     );
   }
 

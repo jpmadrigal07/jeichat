@@ -13,6 +13,7 @@ import {
   RotateCcw,
   Users,
 } from 'lucide-react';
+import { AlertDialog } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -34,6 +35,7 @@ import { isDmChannel } from '@chat/_helpers/channel-display';
 import { isTicketArchived } from '@chat/_helpers/ticket-fields';
 import { ExportDialog } from './export-dialog';
 import { PinnedMessagesDialogHost } from './pinned-messages-popover';
+import { ArchiveTicketAlertContent } from './ticket-property-menus';
 
 export type ChannelHeaderOverflowMenuProps = {
   workspaceId: string;
@@ -63,6 +65,7 @@ export function ChannelHeaderOverflowMenu({
   const updateChannel = useUpdateChannel(workspaceId);
   const [exportOpen, setExportOpen] = useState(false);
   const [pinsOpen, setPinsOpen] = useState(false);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
 
   const isDm = isDmChannel(channel);
   const showChatExtras = Boolean(channel && !isDm);
@@ -128,7 +131,9 @@ export function ChannelHeaderOverflowMenu({
             <DropdownMenuItem
               onSelect={(event) => {
                 event.preventDefault();
-                toggleArchived();
+                // Archiving asks for confirmation; restoring goes straight through.
+                if (archived) toggleArchived();
+                else setArchiveConfirmOpen(true);
               }}
               disabled={updateChannel.isPending}
             >
@@ -191,6 +196,15 @@ export function ChannelHeaderOverflowMenu({
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {isThread && channel ? (
+        <AlertDialog
+          open={archiveConfirmOpen}
+          onOpenChange={setArchiveConfirmOpen}
+        >
+          <ArchiveTicketAlertContent onConfirm={toggleArchived} />
+        </AlertDialog>
+      ) : null}
 
       {showChatExtras ? (
         <>
