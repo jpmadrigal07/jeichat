@@ -119,7 +119,10 @@ export function MarkdownWritePreview({
               event.preventDefault();
               onPasteImages(images);
             }}
-            className={textareaClassName}
+            className={cn(
+              'field-sizing-fixed max-h-72 overflow-y-auto',
+              textareaClassName,
+            )}
           />
           <ComposerTagPicker
             mentionOpen={picker.mentionOpen}
@@ -138,7 +141,7 @@ export function MarkdownWritePreview({
         {preview.trim() ? (
           <MessageMarkdown
             content={preview}
-            className="md-ticket min-h-16 text-sm"
+            className="md-ticket max-h-72 min-h-16 overflow-y-auto text-sm"
             members={members}
             tickets={tickets}
             channels={channels}
