@@ -14,14 +14,12 @@ jest.mock('../gateway/chat.gateway', () => ({
 describe('BotsService', () => {
   const workspacesService = {
     verifyOwnership: jest.fn(),
-    verifyMembership: jest.fn(),
   };
   let service: BotsService;
 
   beforeEach(() => {
     jest.clearAllMocks();
     workspacesService.verifyOwnership.mockResolvedValue(undefined);
-    workspacesService.verifyMembership.mockResolvedValue(undefined);
     service = new BotsService(
       {} as never,
       workspacesService as never,
@@ -35,8 +33,7 @@ describe('BotsService', () => {
     await expect(
       service.create('ws-1', 'owner-1', '   '),
     ).rejects.toBeInstanceOf(BadRequestException);
-    // TEMP: switch back to verifyOwnership with the bots.service.ts revert
-    expect(workspacesService.verifyMembership).toHaveBeenCalledWith(
+    expect(workspacesService.verifyOwnership).toHaveBeenCalledWith(
       'ws-1',
       'owner-1',
     );
