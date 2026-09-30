@@ -184,6 +184,7 @@ export function TicketDescription({
             channels={channels}
             workspaceId={workspaceId}
             embedAttachmentImages
+            onContentChange={onSave}
           />
           {!expanded && canCollapse ? (
             <>

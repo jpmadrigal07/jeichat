@@ -147,6 +147,10 @@ export function MarkdownWritePreview({
             channels={channels}
             workspaceId={workspaceId}
             embedAttachmentImages={embedAttachmentImages}
+            onContentChange={(next) => {
+              if (ref.current) ref.current.value = next;
+              setPreview(next);
+            }}
           />
         ) : (
           <p className="min-h-16 text-sm text-muted-foreground">

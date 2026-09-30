@@ -250,8 +250,12 @@ export function ChannelView({
     );
   }
 
+  // Resolves once the edit settles and never rejects; failures are toasted by
+  // the MutationCache handler in Providers.
   function handleEdit(messageId: string, content: string) {
-    editMutation.mutate({ messageId, content });
+    return editMutation
+      .mutateAsync({ messageId, content })
+      .catch(() => undefined);
   }
 
   function handleDelete(messageId: string) {

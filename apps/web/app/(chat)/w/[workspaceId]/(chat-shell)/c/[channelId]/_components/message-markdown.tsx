@@ -1,8 +1,16 @@
 'use client';
 
-import { memo, type ComponentProps } from 'react';
+import {
+  createContext,
+  memo,
+  useCallback,
+  useContext,
+  useOptimistic,
+  useTransition,
+  type ComponentProps,
+} from 'react';
 import Link from 'next/link';
-import type { Components } from 'react-markdown';
+import type { Components, ExtraProps } from 'react-markdown';
 import Markdown from 'react-markdown';
 import remarkBreaks from 'remark-breaks';
 import remarkGfm from 'remark-gfm';
@@ -24,6 +32,7 @@ import {
 import { parseAttachmentIdFromImageSrc } from '../_helpers/ticket-description-attachments';
 import { attachmentFileUrl } from '../_helpers/attachment-file-url';
 import { remarkChatTags } from '../_helpers/remark-chat-tags';
+import { toggleTaskAtOffset } from '../_helpers/task-list';
 
 const EMPTY_MEMBERS: MentionableMember[] = [];
 const EMPTY_TICKETS: TaggableTicket[] = [];
@@ -42,7 +51,19 @@ type MessageMarkdownProps = {
   workspaceId: string;
   /** Renders `![alt](attachment:<id>)` inline (ticket descriptions only). */
   embedAttachmentImages?: boolean;
+  /**
+   * Makes task list checkboxes clickable. Called with the content that has the
+   * clicked item toggled; the checkbox updates at once and settles on
+   * `content` once a returned promise does.
+   */
+  onContentChange?: (content: string) => void | Promise<unknown>;
 };
+
+type TaskToggle = (offset: number, checked: boolean) => void;
+
+const TaskToggleContext = createContext<TaskToggle | null>(null);
+/** Source offset of the task list item being rendered. */
+const TaskOffsetContext = createContext<number | null>(null);
 
 function MarkdownLink({
   href,
@@ -136,18 +157,38 @@ function MarkdownTable({ children }: ComponentProps<'table'>) {
   );
 }
 
-function MarkdownInput({
-  type,
-  checked,
-}: ComponentProps<'input'>) {
+function MarkdownListItem({
+  node,
+  className,
+  children,
+}: ComponentProps<'li'> & ExtraProps) {
+  const offset = node?.position?.start.offset;
+  if (offset === undefined || !className?.includes('task-list-item')) {
+    return <li className={className}>{children}</li>;
+  }
+  return (
+    <li className={className}>
+      <TaskOffsetContext.Provider value={offset}>
+        {children}
+      </TaskOffsetContext.Provider>
+    </li>
+  );
+}
+
+function MarkdownInput({ type, checked }: ComponentProps<'input'>) {
+  const toggle = useContext(TaskToggleContext);
+  const offset = useContext(TaskOffsetContext);
   if (type !== 'checkbox') return null;
+  const interactive = toggle !== null && offset !== null;
   return (
     <input
       type="checkbox"
       checked={Boolean(checked)}
-      disabled
-      readOnly
-      className="mr-1 align-middle"
+      disabled={!interactive}
+      onChange={(event) => {
+        if (interactive) toggle(offset, event.target.checked);
+      }}
+      className={cn('mr-1 align-middle', interactive && 'cursor-pointer')}
     />
   );
 }
@@ -165,6 +206,7 @@ const markdownComponents: Components = {
   pre: MarkdownPre,
   table: MarkdownTable,
   input: MarkdownInput,
+  li: MarkdownListItem,
   span: MarkdownSpan,
 };
 
@@ -181,8 +223,23 @@ export const MessageMarkdown = memo(function MessageMarkdown({
   channels = EMPTY_CHANNELS,
   workspaceId,
   embedAttachmentImages = false,
+  onContentChange,
 }: MessageMarkdownProps) {
-  if (!content.trim()) return null;
+  const [shownContent, setShownContent] = useOptimistic(content);
+  const [, startTransition] = useTransition();
+  const toggleTask = useCallback<TaskToggle>(
+    (offset, checked) => {
+      const next = toggleTaskAtOffset(shownContent, offset, checked);
+      if (next === null || !onContentChange) return;
+      startTransition(async () => {
+        setShownContent(next);
+        await onContentChange(next);
+      });
+    },
+    [shownContent, onContentChange, setShownContent],
+  );
+
+  if (!shownContent.trim()) return null;
 
   const urlTransform = embedAttachmentImages
     ? (url: string, key: string) =>
@@ -190,28 +247,32 @@ export const MessageMarkdown = memo(function MessageMarkdown({
     : transformChatUrl;
 
   return (
-    <div className={cn('md-chat', className)}>
-      <Markdown
-        remarkPlugins={[
-          remarkGfm,
-          remarkBreaks,
-          [remarkChatTags, { members, tickets, channels, workspaceId }],
-        ]}
-        rehypePlugins={[
-          rehypeHighlight,
-          [
-            rehypeSanitize,
-            embedAttachmentImages ? ticketSanitizeSchema : chatSanitizeSchema,
-          ],
-        ]}
-        skipHtml
-        urlTransform={urlTransform}
-        components={
-          embedAttachmentImages ? ticketMarkdownComponents : markdownComponents
-        }
-      >
-        {content.trimEnd()}
-      </Markdown>
-    </div>
+    <TaskToggleContext.Provider value={onContentChange ? toggleTask : null}>
+      <div className={cn('md-chat', className)}>
+        <Markdown
+          remarkPlugins={[
+            remarkGfm,
+            remarkBreaks,
+            [remarkChatTags, { members, tickets, channels, workspaceId }],
+          ]}
+          rehypePlugins={[
+            rehypeHighlight,
+            [
+              rehypeSanitize,
+              embedAttachmentImages ? ticketSanitizeSchema : chatSanitizeSchema,
+            ],
+          ]}
+          skipHtml
+          urlTransform={urlTransform}
+          components={
+            embedAttachmentImages
+              ? ticketMarkdownComponents
+              : markdownComponents
+          }
+        >
+          {shownContent.trimEnd()}
+        </Markdown>
+      </div>
+    </TaskToggleContext.Provider>
   );
 });
