@@ -237,18 +237,21 @@ export function useCreateThread(workspaceId: string) {
       description,
       attachmentIds,
       status,
+      assigneeId,
     }: {
       channelId: string;
       name: string;
       description?: string;
       attachmentIds?: string[];
       status?: string;
+      assigneeId?: string | null;
     }) =>
       createThread(workspaceId, channelId, {
         name,
         description,
         attachmentIds,
         status,
+        assigneeId,
       }),
     onSuccess: (thread, { channelId }) => {
       queryClient.invalidateQueries({
