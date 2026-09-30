@@ -17,8 +17,12 @@ import type {
 import {
   chatSanitizeSchema,
   isSafeHref,
+  ticketSanitizeSchema,
   transformChatUrl,
+  transformTicketImageUrl,
 } from '../_helpers/markdown-schema';
+import { parseAttachmentIdFromImageSrc } from '../_helpers/ticket-description-attachments';
+import { attachmentFileUrl } from '../_helpers/attachment-file-url';
 import { remarkChatTags } from '../_helpers/remark-chat-tags';
 
 const EMPTY_MEMBERS: MentionableMember[] = [];
@@ -36,6 +40,8 @@ type MessageMarkdownProps = {
   tickets?: TaggableTicket[];
   channels?: TaggableChannel[];
   workspaceId: string;
+  /** Renders `![alt](attachment:<id>)` inline (ticket descriptions only). */
+  embedAttachmentImages?: boolean;
 };
 
 function MarkdownLink({
@@ -93,6 +99,27 @@ function MarkdownImage({ alt }: ComponentProps<'img'>) {
   return <span className="text-muted-foreground">{alt}</span>;
 }
 
+function TicketAttachmentMarkdownImage({
+  src,
+  alt,
+}: ComponentProps<'img'>) {
+  const srcValue = typeof src === 'string' ? src : undefined;
+  const attachmentId = parseAttachmentIdFromImageSrc(srcValue);
+  if (!attachmentId) {
+    return alt ? (
+      <span className="text-muted-foreground">{alt}</span>
+    ) : null;
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={attachmentFileUrl(attachmentId)}
+      alt={alt ?? ''}
+      className="my-2 block max-h-80 max-w-full rounded-lg border object-contain"
+    />
+  );
+}
+
 function MarkdownPre({ className, children }: ComponentProps<'pre'>) {
   return (
     <div className="md-chat-pre-wrap">
@@ -141,6 +168,11 @@ const markdownComponents: Components = {
   span: MarkdownSpan,
 };
 
+const ticketMarkdownComponents: Components = {
+  ...markdownComponents,
+  img: TicketAttachmentMarkdownImage,
+};
+
 export const MessageMarkdown = memo(function MessageMarkdown({
   content,
   className,
@@ -148,8 +180,14 @@ export const MessageMarkdown = memo(function MessageMarkdown({
   tickets = EMPTY_TICKETS,
   channels = EMPTY_CHANNELS,
   workspaceId,
+  embedAttachmentImages = false,
 }: MessageMarkdownProps) {
   if (!content.trim()) return null;
+
+  const urlTransform = embedAttachmentImages
+    ? (url: string, key: string) =>
+        key === 'src' ? transformTicketImageUrl(url) : transformChatUrl(url)
+    : transformChatUrl;
 
   return (
     <div className={cn('md-chat', className)}>
@@ -161,11 +199,16 @@ export const MessageMarkdown = memo(function MessageMarkdown({
         ]}
         rehypePlugins={[
           rehypeHighlight,
-          [rehypeSanitize, chatSanitizeSchema],
+          [
+            rehypeSanitize,
+            embedAttachmentImages ? ticketSanitizeSchema : chatSanitizeSchema,
+          ],
         ]}
         skipHtml
-        urlTransform={transformChatUrl}
-        components={markdownComponents}
+        urlTransform={urlTransform}
+        components={
+          embedAttachmentImages ? ticketMarkdownComponents : markdownComponents
+        }
       >
         {content.trimEnd()}
       </Markdown>

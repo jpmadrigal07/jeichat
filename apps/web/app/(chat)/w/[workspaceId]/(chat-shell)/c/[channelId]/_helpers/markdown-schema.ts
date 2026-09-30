@@ -55,3 +55,32 @@ export function isSafeHref(href: string): boolean {
 export function transformChatUrl(href: string): string {
   return isSafeHref(href) ? href : '';
 }
+
+const ATTACHMENT_IMAGE_SRC_RE =
+  /^attachment:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const ATTACHMENT_PATH_SRC_RE =
+  /^\/attachments\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function isTicketAttachmentImageSrc(src: string): boolean {
+  const value = src.trim();
+  return (
+    ATTACHMENT_IMAGE_SRC_RE.test(value) || ATTACHMENT_PATH_SRC_RE.test(value)
+  );
+}
+
+export function transformTicketImageUrl(src: string): string {
+  return isTicketAttachmentImageSrc(src) ? src.trim() : '';
+}
+
+export const ticketSanitizeSchema: SanitizeSchema = {
+  ...chatSanitizeSchema,
+  attributes: {
+    ...chatSanitizeSchema.attributes,
+    img: ['alt', 'src'],
+  },
+  protocols: {
+    ...chatSanitizeSchema.protocols,
+    src: [...(chatSanitizeSchema.protocols?.src ?? []), 'attachment'],
+  },
+};
