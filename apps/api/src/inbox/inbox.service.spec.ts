@@ -237,6 +237,70 @@ describe('InboxService', () => {
     });
   });
 
+  describe('notifyNewMentionsFromContentChange', () => {
+    let insertedRows: { userId: string; messageId: string | null }[];
+    let emitInserted: jest.SpyInstance;
+
+    beforeEach(() => {
+      insertedRows = [];
+      db.select.mockReturnValue(query(members));
+      db.insert.mockReturnValue({
+        values: (rows: { userId: string; messageId: string | null }[]) => {
+          insertedRows = rows;
+          return {
+            onConflictDoNothing: () => ({
+              returning: () =>
+                Promise.resolve(
+                  rows.map((row, index) => ({
+                    id: `n-${index}`,
+                    userId: row.userId,
+                  })),
+                ),
+            }),
+          };
+        },
+      });
+      emitInserted = jest
+        .spyOn(
+          service as unknown as { emitInserted: () => Promise<void> },
+          'emitInserted',
+        )
+        .mockResolvedValue(undefined);
+      permissions.filterUsersWhoCanViewChannel.mockImplementation(
+        (_ws: string, _channel: string, ids: string[]) => Promise.resolve(ids),
+      );
+    });
+
+    it('notifies only users newly tagged in the description', async () => {
+      await service.notifyNewMentionsFromContentChange({
+        workspaceId: 'ws-1',
+        channelId: 'ticket-1',
+        actorId: 'john',
+        previousContent: '@Ramil Kaharian hello',
+        nextContent: '@Ramil Kaharian @Jepoy Madrigal hello',
+      });
+
+      expect(insertedRows.map((row) => row.userId)).toEqual(['jepoy']);
+      expect(insertedRows.every((row) => row.messageId === null)).toBe(true);
+      expect(emitInserted).toHaveBeenCalledWith([
+        { id: 'n-0', userId: 'jepoy' },
+      ]);
+    });
+
+    it('creates nothing when the mention set is unchanged', async () => {
+      await service.notifyNewMentionsFromContentChange({
+        workspaceId: 'ws-1',
+        channelId: 'ticket-1',
+        actorId: 'john',
+        previousContent: '@Jepoy Madrigal draft',
+        nextContent: '@Jepoy Madrigal updated text',
+      });
+
+      expect(db.insert).not.toHaveBeenCalled();
+      expect(emitInserted).not.toHaveBeenCalled();
+    });
+  });
+
   describe('list', () => {
     it('returns nothing when no notification channel is viewable', async () => {
       db.selectDistinct.mockReturnValue(query([{ channelId: 'private-1' }]));

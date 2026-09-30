@@ -355,6 +355,16 @@ export class ChannelsService {
       });
     }
 
+    if (trimmedDescription) {
+      await this.inboxService.notifyNewMentionsFromContentChange({
+        workspaceId,
+        channelId: threadId,
+        actorId: userId,
+        previousContent: '',
+        nextContent: trimmedDescription,
+      });
+    }
+
     const [enriched] = await this.withThreadAttachments([thread]);
     void this.chatGateway.resyncBotChannelRooms(workspaceId);
     return enriched;
@@ -945,6 +955,20 @@ export class ChannelsService {
         channelId: id,
         actorId: userId,
         watcherIds: nextWatcherIds.filter((watcherId) => !previousWatcherIds.has(watcherId)),
+      });
+    }
+
+    if (
+      isThread &&
+      data.description !== undefined &&
+      patch.description !== existing.description
+    ) {
+      await this.inboxService.notifyNewMentionsFromContentChange({
+        workspaceId,
+        channelId: id,
+        actorId: userId,
+        previousContent: existing.description ?? '',
+        nextContent: patch.description ?? '',
       });
     }
 

@@ -167,15 +167,66 @@ export class InboxService {
     actorId: string;
     content: string;
   }) {
-    const mentionedIds = await this.botsService.excludeBots(
-      await this.resolveMentionedUserIds(input),
-    );
+    await this.insertMentionNotifications({
+      workspaceId: input.workspaceId,
+      channelId: input.channelId,
+      messageId: input.messageId,
+      actorId: input.actorId,
+      recipientIds: await this.botsService.excludeBots(
+        await this.resolveMentionedUserIds(input),
+      ),
+    });
+  }
+
+  /** Inbox mentions for ticket descriptions (no message row). Only newly tagged users. */
+  async notifyNewMentionsFromContentChange(input: {
+    workspaceId: string;
+    channelId: string;
+    actorId: string;
+    previousContent: string;
+    nextContent: string;
+  }) {
+    const base = {
+      workspaceId: input.workspaceId,
+      channelId: input.channelId,
+      actorId: input.actorId,
+    };
+    const [previousIds, nextIds] = await Promise.all([
+      this.resolveMentionedUserIds({
+        ...base,
+        content: input.previousContent,
+      }),
+      this.resolveMentionedUserIds({
+        ...base,
+        content: input.nextContent,
+      }),
+    ]);
+    const previous = new Set(previousIds);
+    const added = nextIds.filter((id) => !previous.has(id));
+    if (added.length === 0) return;
+
+    await this.insertMentionNotifications({
+      ...base,
+      messageId: null,
+      recipientIds: await this.botsService.excludeBots(added),
+    });
+  }
+
+  private async insertMentionNotifications(input: {
+    workspaceId: string;
+    channelId: string;
+    messageId: string | null;
+    actorId: string;
+    recipientIds: string[];
+  }) {
+    if (input.recipientIds.length === 0) return;
+
     // A muted channel stays silent, even for direct mentions and `@all`.
     const levels = await this.notificationSettings.listLevels(
       input.channelId,
-      mentionedIds,
+      input.recipientIds,
     );
-    const userIds = mentionedIds.filter((id) => levels.get(id) !== 'muted');
+    const userIds = input.recipientIds.filter((id) => levels.get(id) !== 'muted');
     if (userIds.length === 0) return;
 
     const now = new Date();
