@@ -57,6 +57,9 @@ export function ThreadIssueHeader({
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const removeByServerIdRef = useRef<(id: string) => void>(() => undefined);
+  const insertAttachmentMarkdownRef = useRef<
+    ((attachmentId: string, alt: string) => void) | null
+  >(null);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [descriptionEditing, setDescriptionEditing] = useState(false);
   const searchParams = useSearchParams();
@@ -76,6 +79,9 @@ export function ThreadIssueHeader({
           onSuccess: () => removeByServerIdRef.current(attachmentId),
         },
       );
+    },
+    onFileUploaded: (attachmentId, file) => {
+      insertAttachmentMarkdownRef.current?.(attachmentId, file.name);
     },
   });
   removeByServerIdRef.current = uploads.removeByServerId;
@@ -128,8 +134,11 @@ export function ThreadIssueHeader({
     updateChannel.mutate({ channelId: channel.id, description });
   }
 
-  function addFiles(files: File[]) {
-    uploads.addFiles(files, countAttachmentKinds(savedOnly));
+  function addFiles(
+    files: File[],
+    options?: { insertMarkdownOnComplete?: boolean },
+  ) {
+    uploads.addFiles(files, countAttachmentKinds(savedOnly), options);
   }
 
   function removeSaved(attachmentId: string) {
@@ -224,6 +233,12 @@ export function ThreadIssueHeader({
                     onExpandedChange={setDescriptionExpanded}
                     editing={descriptionEditing}
                     onEditingChange={setDescriptionEditing}
+                    onPasteImages={(files) =>
+                      addFiles(files, { insertMarkdownOnComplete: true })
+                    }
+                    onRegisterAttachmentMarkdownInsert={(insert) => {
+                      insertAttachmentMarkdownRef.current = insert;
+                    }}
                   />
                 ) : null}
               </div>

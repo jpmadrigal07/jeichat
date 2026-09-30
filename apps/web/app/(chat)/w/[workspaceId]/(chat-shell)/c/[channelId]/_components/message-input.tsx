@@ -1,6 +1,12 @@
 'use client';
 
-import { useRef, useCallback, useEffect, useState } from 'react';
+import {
+  useRef,
+  useCallback,
+  useEffect,
+  useState,
+  type ClipboardEvent,
+} from 'react';
 import { SendHorizonal, Smile, X } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -306,6 +312,12 @@ export function MessageInput({
               rows={1}
               autoFocus
               onKeyDown={handleKeyDown}
+              onPaste={(event: ClipboardEvent<HTMLTextAreaElement>) => {
+                const files = Array.from(event.clipboardData?.files ?? []);
+                if (!files.length) return;
+                event.preventDefault();
+                uploads.addFiles(files);
+              }}
               onSelect={picker.syncFromTextarea}
               onScroll={highlight.syncHighlightScroll}
               onInput={(e) => {

@@ -26,6 +26,7 @@ export type PendingAttachment = {
   progress: number;
   serverId: string | null;
   error: string | null;
+  insertMarkdownOnComplete?: boolean;
 };
 
 function groupRejectionsByKind(rejected: FileRejection[]) {
@@ -79,7 +80,10 @@ function uploadErrorMessage(err: unknown): string {
 
 export function useAttachmentUploads(
   channelId: string,
-  options?: { onUploaded?: (attachmentId: string) => void },
+  options?: {
+    onUploaded?: (attachmentId: string) => void;
+    onFileUploaded?: (attachmentId: string, file: File) => void;
+  },
 ) {
   const [items, setItems] = useState<PendingAttachment[]>([]);
   const itemsRef = useRef(items);
@@ -87,6 +91,8 @@ export function useAttachmentUploads(
   const abortControllersRef = useRef(new Map<string, AbortController>());
   const onUploadedRef = useRef(options?.onUploaded);
   onUploadedRef.current = options?.onUploaded;
+  const onFileUploadedRef = useRef(options?.onFileUploaded);
+  onFileUploadedRef.current = options?.onFileUploaded;
 
   const updateItem = useCallback(
     (localId: string, patch: Partial<PendingAttachment>) => {
@@ -136,8 +142,12 @@ export function useAttachmentUploads(
           controller.signal,
         );
 
+        const pending = itemsRef.current.find((item) => item.localId === localId);
         updateItem(localId, { status: 'uploaded', progress: 1 });
         onUploadedRef.current?.(presign.attachmentId);
+        if (pending?.insertMarkdownOnComplete) {
+          onFileUploadedRef.current?.(presign.attachmentId, file);
+        }
       } catch (err) {
         if (controller.signal.aborted) return;
         updateItem(localId, {
@@ -152,7 +162,11 @@ export function useAttachmentUploads(
   );
 
   const addFiles = useCallback(
-    (files: File[], alreadyAttached?: AttachmentKindCounts) => {
+    (
+      files: File[],
+      alreadyAttached?: AttachmentKindCounts,
+      options?: { insertMarkdownOnComplete?: boolean },
+    ) => {
       if (!files.length) return;
 
       const pending = countAttachmentKinds(
@@ -173,6 +187,7 @@ export function useAttachmentUploads(
         progress: 0,
         serverId: null,
         error: null,
+        insertMarkdownOnComplete: options?.insertMarkdownOnComplete,
       }));
 
       setItems((current) => [...current, ...newItems]);

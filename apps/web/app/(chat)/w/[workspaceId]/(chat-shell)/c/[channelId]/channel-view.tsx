@@ -35,7 +35,6 @@ import { TypingIndicator } from './_components/typing-indicator';
 import { ChannelAttachmentLightbox } from './_components/channel-attachment-lightbox';
 import { ChannelDropZone } from './_components/channel-drop-overlay';
 import { useAttachmentUploads } from './_hooks/use-attachment-uploads';
-import { usePasteAttachments } from './_hooks/use-paste-attachments';
 import { ChatPane } from '@chat/_components/chat-pane';
 import { Skeleton } from '@/components/ui/skeleton';
 import { isDmChannel } from '@chat/_helpers/channel-display';
@@ -123,7 +122,6 @@ export function ChannelView({
   );
   const canManageMessages = pinsData?.canManageMessages ?? false;
   const uploads = useAttachmentUploads(channelId);
-  usePasteAttachments(uploads.addFiles);
   const { mutate: markChannelRead } = useMarkChannelRead(workspaceId);
 
   useEffect(() => {
