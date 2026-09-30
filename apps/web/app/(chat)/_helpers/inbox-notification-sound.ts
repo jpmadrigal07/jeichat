@@ -2,6 +2,7 @@ const STORAGE_KEY = 'jeichat:inbox-notification-sound:v1';
 const SOUND_URL = '/sounds/notification.wav';
 const DEFAULT_ENABLED = true;
 const COOLDOWN_MS = 1000;
+const SOUND_VOLUME = 0.6;
 
 const listeners = new Set<() => void>();
 
@@ -51,7 +52,7 @@ function getNotificationAudio() {
 
   notificationAudio = new Audio(SOUND_URL);
   notificationAudio.preload = 'auto';
-  notificationAudio.volume = 1;
+  notificationAudio.volume = SOUND_VOLUME;
   return notificationAudio;
 }
 
