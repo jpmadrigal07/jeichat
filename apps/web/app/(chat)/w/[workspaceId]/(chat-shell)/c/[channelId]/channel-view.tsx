@@ -285,7 +285,7 @@ export function ChannelView({
 
   if (showThreadCards) {
     return (
-      <ChatPane header={header} currentUserId={userId}>
+      <ChatPane header={header}>
         <ChannelThreadCards
           workspaceId={workspaceId}
           channelId={channelId}
@@ -298,7 +298,7 @@ export function ChannelView({
 
   if (isPending) {
     return (
-      <ChatPane header={header} currentUserId={userId}>
+      <ChatPane header={header}>
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           {isThread && channel ? (
             <ThreadIssueHeader
@@ -327,7 +327,7 @@ export function ChannelView({
   }
 
   return (
-    <ChatPane header={header} currentUserId={userId}>
+    <ChatPane header={header}>
       <ChannelAttachmentLightbox />
       <ChannelDropZone
         onAdd={uploads.addFiles}

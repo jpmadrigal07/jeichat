@@ -26,17 +26,10 @@ import {
 } from '@chat/_hooks/use-inbox';
 import { ChatPageHeader } from '@chat/_components/chat-page-header';
 import { ChatPane } from '@chat/_components/chat-pane';
-import { MembersSidebarToggle } from '@chat/_components/members-sidebar-toggle';
 import { WorkspaceSearch } from '@chat/_components/workspace-search';
 import { useWorkspaceRootCrumb } from '@chat/_hooks/use-workspace-root-crumb';
 
-export function InboxView({
-  workspaceId,
-  userId,
-}: {
-  workspaceId: string;
-  userId: string;
-}) {
+export function InboxView({ workspaceId }: { workspaceId: string }) {
   const { data, isPending } = useInbox(workspaceId);
   const markRead = useMarkInboxRead(workspaceId);
   const markAllRead = useMarkAllInboxRead(workspaceId);
@@ -47,7 +40,6 @@ export function InboxView({
 
   return (
     <ChatPane
-      currentUserId={userId}
       header={
         <ChatPageHeader
           backHref={workspaceRoot.href}
@@ -66,7 +58,6 @@ export function InboxView({
                   Mark all read
                 </Button>
               ) : null}
-              <MembersSidebarToggle />
               <div className="md:ml-3">
                 <WorkspaceSearch workspaceId={workspaceId} />
               </div>

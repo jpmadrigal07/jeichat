@@ -28,7 +28,6 @@ import { useUnreadCounts } from '@chat/_hooks/use-unread-counts';
 import { conversationPageHref, type Channel } from '@chat/_libs/channels';
 import { ChatPageHeader } from '@chat/_components/chat-page-header';
 import { ChatPane } from '@chat/_components/chat-pane';
-import { MembersSidebarToggle } from '@chat/_components/members-sidebar-toggle';
 import { WorkspaceSearch } from '@chat/_components/workspace-search';
 import { useWorkspaceRootCrumb } from '@chat/_hooks/use-workspace-root-crumb';
 
@@ -49,7 +48,6 @@ export function MyTicketsView({
 
   return (
     <ChatPane
-      currentUserId={userId}
       header={
         <ChatPageHeader
           backHref={workspaceRoot.href}
@@ -58,7 +56,6 @@ export function MyTicketsView({
           crumbs={[{ label: 'My tickets' }]}
           actions={
             <>
-              <MembersSidebarToggle />
               <div className="md:ml-3">
                 <WorkspaceSearch workspaceId={workspaceId} />
               </div>

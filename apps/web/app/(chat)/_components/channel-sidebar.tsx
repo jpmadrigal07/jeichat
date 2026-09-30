@@ -22,6 +22,7 @@ import {
   MessagesSquare,
   StickyNotes,
   GripVertical,
+  Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -56,6 +57,7 @@ import { ChannelTypeIcon } from './channel-type-icon';
 import { useUnreadCounts } from '../_hooks/use-unread-counts';
 import { useInboxSocket, useInboxUnreadCount } from '../_hooks/use-inbox';
 import { useNotificationSettings } from '../_hooks/use-notification-settings';
+import { useOnlineMemberCount } from '../_hooks/use-online-member-count';
 import { useWorkspaces } from '../_hooks/use-workspaces';
 import { formatUnreadCount } from '../_helpers/format-unread-count';
 import { notificationLevelOf } from '../_helpers/notification-level';
@@ -246,6 +248,7 @@ export function ChannelSidebar({ user }: { user: User }) {
   );
 
   const onReorderPointerCancel = cancelChannelReorder;
+  const onlineMemberCount = useOnlineMemberCount(workspaceId);
   const myTicketsUnread = (channels ?? []).reduce((total, channel) => {
     if (!isAssignedTicket(channel, user.id)) return total;
     return total + (unreadCounts?.[channel.id] ?? 0);
@@ -328,6 +331,15 @@ export function ChannelSidebar({ user }: { user: User }) {
               icon={StickyNotes}
               isActive={pathname === `/w/${workspaceId}/my-tickets`}
               unreadCount={myTicketsUnread}
+              className="w-full"
+            />
+            <ChannelNavLink
+              href={`/w/${workspaceId}/members`}
+              name="Members"
+              icon={Users}
+              isActive={pathname === `/w/${workspaceId}/members`}
+              unreadCount={0}
+              onlineCount={onlineMemberCount}
               className="w-full"
             />
           </div>
@@ -925,6 +937,7 @@ function ChannelNavLink({
   isPrivate,
   isActive,
   unreadCount,
+  onlineCount = 0,
   quietUnread = false,
   notificationLevel = 'all',
   className,
@@ -937,6 +950,8 @@ function ChannelNavLink({
   isPrivate?: boolean;
   isActive: boolean;
   unreadCount: number;
+  /** Green badge with the number of people online; hidden when zero. */
+  onlineCount?: number;
   /** Unread messages that shouldn't show a badge (mentions only / muted). */
   quietUnread?: boolean;
   notificationLevel?: NotificationLevel;
@@ -991,6 +1006,11 @@ function ChannelNavLink({
           <UnreadBadge className="ml-auto h-4 min-w-4 shrink-0 px-1 text-[0.625rem] font-semibold">
             {unreadLabel}
           </UnreadBadge>
+        ) : null}
+        {onlineCount > 0 ? (
+          <Badge className="ml-auto h-4 shrink-0 bg-online px-1.5 text-[0.625rem] font-semibold whitespace-nowrap text-black">
+            {onlineCount > 99 ? '99+' : onlineCount} online
+          </Badge>
         ) : null}
       </Link>
     </Button>

@@ -33,7 +33,6 @@ import {
   type ChannelHeaderOverflowMenuProps,
 } from './channel-header-overflow-menu';
 import { ChannelNotificationMenu } from '@chat/_components/channel-notification-menu';
-import { MembersSidebarToggle } from '@chat/_components/members-sidebar-toggle';
 import { WorkspaceSearch } from '@chat/_components/workspace-search';
 import { ChannelTypeIcon } from '@chat/_components/channel-type-icon';
 import { PresenceAvatar } from '@chat/_components/presence-avatar';
@@ -159,7 +158,6 @@ export function ChannelHeader({
             <ExportDialog channelId={channelId} channel={channel} />
             <PinnedMessagesPopoverHost channelId={channelId} />
           </div>
-          <MembersSidebarToggle className="max-md:hidden" />
           <Suspense
             fallback={
               <ChannelHeaderOverflowMenu

@@ -23,7 +23,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { createThreadHref } from '@chat/_components/create-thread-dialog';
-import { useMembersSidebarOpen } from '@chat/_hooks/use-members-sidebar';
 import { useUpdateChannel } from '@chat/_hooks/use-channels';
 import {
   channelBoardHref,
@@ -61,7 +60,6 @@ export function ChannelHeaderOverflowMenu({
   createThreadHref: createThreadHrefProp,
 }: ChannelHeaderOverflowMenuProps) {
   const router = useRouter();
-  const { setOpen: setMembersOpen } = useMembersSidebarOpen();
   const updateChannel = useUpdateChannel(workspaceId);
   const [exportOpen, setExportOpen] = useState(false);
   const [pinsOpen, setPinsOpen] = useState(false);
@@ -99,10 +97,6 @@ export function ChannelHeaderOverflowMenu({
 
   function openPins() {
     setPinsOpen(true);
-  }
-
-  function openMembers() {
-    setMembersOpen(true);
   }
 
   return (
@@ -154,14 +148,11 @@ export function ChannelHeaderOverflowMenu({
           ) : null}
           {showChatExtras ? (
             <>
-              <DropdownMenuItem
-                onSelect={(event) => {
-                  event.preventDefault();
-                  openMembers();
-                }}
-              >
-                <Users />
-                Show members
+              <DropdownMenuItem asChild>
+                <Link href={`/w/${workspaceId}/members`}>
+                  <Users />
+                  Members
+                </Link>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={(event) => {
@@ -184,14 +175,11 @@ export function ChannelHeaderOverflowMenu({
             </>
           ) : null}
           {isDm ? (
-            <DropdownMenuItem
-              onSelect={(event) => {
-                event.preventDefault();
-                openMembers();
-              }}
-            >
-              <Users />
-              Show members
+            <DropdownMenuItem asChild>
+              <Link href={`/w/${workspaceId}/members`}>
+                <Users />
+                Members
+              </Link>
             </DropdownMenuItem>
           ) : null}
         </DropdownMenuContent>
