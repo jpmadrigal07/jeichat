@@ -45,8 +45,16 @@ export function ProfileIdentityFields({ user }: { user: ProfileUser }) {
       new FormData(event.currentTarget).get('name') ?? '',
     ).trim();
     if (!name || name === user.name) return;
-    // DEMO BUG (revert after bug-checker test): only affects this user's profile save.
-    toast.error('Name could not be saved.');
+    updateName.mutate(name, {
+      onSuccess: async (data) => {
+        await authClient.updateUser({
+          name: data.name,
+          image: data.image ?? undefined,
+        });
+        toast.success('Name updated');
+        router.refresh();
+      },
+    });
   }
 
   function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
