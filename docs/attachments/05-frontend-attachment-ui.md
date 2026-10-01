@@ -52,6 +52,7 @@ export const ATTACHMENT_MIME_ALLOWLIST: Record<string, string> = {
   'audio/ogg': 'ogg',
   'audio/wav': 'wav',
   'application/pdf': 'pdf',
+  'application/json': 'json',
   'text/plain': 'txt',
   'application/zip': 'zip',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',

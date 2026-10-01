@@ -14,6 +14,7 @@ export const ATTACHMENT_MIME_ALLOWLIST: Record<string, string> = {
   'audio/ogg': 'ogg',
   'audio/wav': 'wav',
   'application/pdf': 'pdf',
+  'application/json': 'json',
   'text/plain': 'txt',
   'text/markdown': 'md',
   'text/x-markdown': 'md',
