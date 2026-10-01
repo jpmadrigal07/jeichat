@@ -46,7 +46,7 @@ export function AttachmentImage({
     <button
       type="button"
       className={cn(
-        'relative cursor-pointer overflow-hidden rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'relative overflow-hidden rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         compact
           ? 'block size-16'
           : 'flex h-40 min-w-24 max-w-full items-center justify-center bg-muted sm:max-w-60',

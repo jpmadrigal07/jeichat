@@ -95,7 +95,7 @@ export function MessageContextMenu({
               key={emoji}
               aria-label={`React with ${emoji}`}
               disabled={reactionPending}
-              className="size-8 justify-center p-0 text-sm"
+              className="size-8 cursor-pointer justify-center p-0 text-sm"
               onSelect={() => onReact(emoji)}
             >
               {emoji}
@@ -105,12 +105,16 @@ export function MessageContextMenu({
 
         <ContextMenuSeparator />
 
-        <ContextMenuItem onSelect={() => runAfterClose(onReply)}>
+        <ContextMenuItem
+          className="cursor-pointer"
+          onSelect={() => runAfterClose(onReply)}
+        >
           <Reply />
           Reply
         </ContextMenuItem>
         {message.content ? (
           <ContextMenuItem
+            className="cursor-pointer"
             onSelect={() => void copyMessageText(message.content)}
           >
             <Copy />
@@ -118,13 +122,16 @@ export function MessageContextMenu({
           </ContextMenuItem>
         ) : null}
         {canManageMessages ? (
-          <ContextMenuItem onSelect={onTogglePin}>
+          <ContextMenuItem className="cursor-pointer" onSelect={onTogglePin}>
             {isPinned ? <PinOff /> : <Pin />}
             {isPinned ? 'Unpin message' : 'Pin message'}
           </ContextMenuItem>
         ) : null}
         {isOwn ? (
-          <ContextMenuItem onSelect={() => runAfterClose(onStartEdit)}>
+          <ContextMenuItem
+            className="cursor-pointer"
+            onSelect={() => runAfterClose(onStartEdit)}
+          >
             <Pencil />
             Edit message
           </ContextMenuItem>
@@ -132,6 +139,7 @@ export function MessageContextMenu({
         {isOwn ? (
           <ContextMenuItem
             variant="destructive"
+            className="cursor-pointer"
             onSelect={() => runAfterClose(onRequestDelete)}
           >
             <Trash2 />

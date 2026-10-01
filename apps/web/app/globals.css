@@ -177,6 +177,26 @@
     @apply font-sans;
     }
   /*
+   * Tailwind 4's preflight leaves buttons on the arrow cursor. Restore the
+   * pointer on clickable controls, skipping disabled ones. Utility classes
+   * (cursor-not-allowed, cursor-w-resize, …) still win — they sit in a later
+   * layer.
+   */
+  button:not(:disabled),
+  [role='button']:not(:disabled, [aria-disabled='true']),
+  select:not(:disabled),
+  summary,
+  input:is(
+      [type='button'],
+      [type='submit'],
+      [type='reset'],
+      [type='file'],
+      [type='checkbox'],
+      [type='radio']
+    ):not(:disabled) {
+    @apply cursor-pointer;
+    }
+  /*
    * Stop the root page from rubber-banding when swiping past the top or
    * bottom (most noticeable in the installed PWA). Inner scroll areas keep
    * their own native bounce; it just no longer drags the whole app along.
