@@ -6,6 +6,21 @@ export function isDmChannel(
   return channel?.channelType === 'dm';
 }
 
+/**
+ * A DM whose other person has left the workspace: still readable, but nothing
+ * in it can be changed. Strict `=== false` so an API that omits the flag never
+ * locks a DM.
+ */
+export function isDmPeerGone(
+  channel: Pick<Channel, 'channelType' | 'dmPeer'> | null | undefined,
+) {
+  return (
+    isDmChannel(channel) &&
+    channel?.dmPeer != null &&
+    channel.dmPeer.inWorkspace === false
+  );
+}
+
 export function channelDisplayName(channel: Channel): string {
   if (isDmChannel(channel) && channel.dmPeer) {
     return channel.dmPeer.name;

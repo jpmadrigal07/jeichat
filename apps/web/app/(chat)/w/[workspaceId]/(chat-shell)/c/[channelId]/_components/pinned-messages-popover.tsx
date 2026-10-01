@@ -31,6 +31,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useDmPeerGone } from '../_hooks/use-dm-peer-gone';
 import {
   usePinnedMessages,
   useUnpinMessage,
@@ -183,7 +184,8 @@ function PinnedMessagesPanel({
   const { data } = usePinnedMessages(channelId);
   const unpin = useUnpinMessage(channelId);
   const pins = data?.data ?? [];
-  const canManageMessages = data?.canManageMessages ?? false;
+  const peerGone = useDmPeerGone(channelId);
+  const canManageMessages = (data?.canManageMessages ?? false) && !peerGone;
 
   if (pins.length === 0) {
     return (

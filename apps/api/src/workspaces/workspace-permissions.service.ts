@@ -75,8 +75,13 @@ export class WorkspacePermissionsService {
     userId: string,
     permission: Permission,
   ): Promise<boolean> {
-    const permissionChannelId =
-      await this.resolvePermissionChannelId(channelId);
+    const [membership, permissionChannelId] = await Promise.all([
+      this.getMembership(workspaceId, userId),
+      this.resolvePermissionChannelId(channelId),
+    ]);
+    // Channel membership, DM membership and role assignments all outlive a
+    // workspace removal, so none of them may grant access on their own.
+    if (!membership) return false;
     if (!permissionChannelId) return false;
 
     const [channelMeta] = await this.drizzle.db
@@ -91,14 +96,13 @@ export class WorkspacePermissionsService {
       return access.memberOf.has(permissionChannelId);
     }
 
-    const membership = await this.getMembership(workspaceId, userId);
-    if (membership?.role === 'owner') return true;
+    if (membership.role === 'owner') return true;
 
     const [access, assignedRoles] = await Promise.all([
       this.loadChannelAccessContext(userId, [permissionChannelId]),
       this.getUserRoles(workspaceId, userId),
     ]);
-    const roles = withDefaultMemberRole(assignedRoles, Boolean(membership));
+    const roles = withDefaultMemberRole(assignedRoles, true);
 
     if (access.memberOf.has(permissionChannelId)) {
       if (isChannelMemberPermission(permission)) return true;
@@ -136,8 +140,8 @@ export class WorkspacePermissionsService {
 
   /**
    * Everyone a channel's messages notify: all workspace members for a public
-   * channel, channel members for a private channel or DM. Tickets follow
-   * their parent channel.
+   * channel, channel members for a private channel or DM (still in the
+   * workspace). Tickets follow their parent channel.
    */
   async listChannelAudienceUserIds(channelId: string): Promise<string[]> {
     const permissionChannelId =
@@ -159,6 +163,13 @@ export class WorkspacePermissionsService {
         ? await this.drizzle.db
             .select({ userId: channelMembers.userId })
             .from(channelMembers)
+            .innerJoin(
+              workspaceMembers,
+              and(
+                eq(workspaceMembers.userId, channelMembers.userId),
+                eq(workspaceMembers.workspaceId, channel.workspaceId),
+              ),
+            )
             .where(eq(channelMembers.channelId, permissionChannelId))
         : await this.drizzle.db
             .select({ userId: workspaceMembers.userId })
@@ -175,7 +186,10 @@ export class WorkspacePermissionsService {
   ): Promise<Set<string>> {
     if (channelIds.length === 0) return new Set();
 
-    if (await this.isWorkspaceOwner(workspaceId, userId)) {
+    const membership = await this.getMembership(workspaceId, userId);
+    if (!membership) return new Set();
+
+    if (membership.role === 'owner') {
       return this.restrictDmChannelsToMembers(
         channelIds,
         new Set(channelIds),

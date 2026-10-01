@@ -6,17 +6,19 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
-import { and, asc, count, desc, eq, gt, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gt, inArray, lt, ne, or, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { DrizzleService } from '../database/drizzle.service';
 import {
   attachments,
   bots,
+  channelMembers,
   channelWatchers,
   channels,
   messages,
   messageReactions,
   pinnedMessages,
+  workspaceMembers,
 } from '../database/schema';
 import { user } from '../database/schema/auth';
 import { ChatGateway } from '../gateway/chat.gateway';
@@ -117,6 +119,38 @@ export class MessagesService {
       userId,
       permission,
     );
+  }
+
+  /**
+   * A DM stays readable after the other person is gone, but nothing in it can
+   * change: no new messages, edits, deletes, reactions or pins. No-op elsewhere.
+   */
+  private async assertDmWritable(
+    channel: { id: string; workspaceId: string; channelType: string },
+    actorId: string,
+  ) {
+    if (channel.channelType !== 'dm') return;
+
+    const peers = await this.drizzle.db
+      .select({ inWorkspace: sql<boolean>`${workspaceMembers.id} is not null` })
+      .from(channelMembers)
+      .leftJoin(
+        workspaceMembers,
+        and(
+          eq(workspaceMembers.userId, channelMembers.userId),
+          eq(workspaceMembers.workspaceId, channel.workspaceId),
+        ),
+      )
+      .where(
+        and(
+          eq(channelMembers.channelId, channel.id),
+          ne(channelMembers.userId, actorId),
+        ),
+      );
+
+    if (peers.some((peer) => !peer.inWorkspace)) {
+      throw new ForbiddenException('This person is no longer in the workspace');
+    }
   }
 
   private async loadAttachmentsByMessageIds(
@@ -312,6 +346,7 @@ export class MessagesService {
       senderId,
       PERMISSIONS.SEND_MESSAGES,
     );
+    await this.assertDmWritable(channel, senderId);
 
     if (!content.trim() && attachmentIds.length === 0) {
       throw new BadRequestException('Empty message');
@@ -639,7 +674,12 @@ export class MessagesService {
 
   /** Removes all link previews from the sender's own message, for everyone. */
   async removeLinkPreviews(channelId: string, id: string, userId: string) {
-    await this.verifyChannelAccess(channelId, userId, PERMISSIONS.VIEW_CHANNEL);
+    const channel = await this.verifyChannelAccess(
+      channelId,
+      userId,
+      PERMISSIONS.VIEW_CHANNEL,
+    );
+    await this.assertDmWritable(channel, userId);
 
     const [existing] = await this.drizzle.db
       .select({ senderId: messages.senderId })
@@ -667,6 +707,7 @@ export class MessagesService {
       userId,
       PERMISSIONS.VIEW_CHANNEL,
     );
+    await this.assertDmWritable(channel, userId);
 
     const [existing] = await this.drizzle.db
       .select()
@@ -701,7 +742,12 @@ export class MessagesService {
   }
 
   async remove(channelId: string, id: string, userId: string) {
-    await this.verifyChannelAccess(channelId, userId, PERMISSIONS.VIEW_CHANNEL);
+    const channel = await this.verifyChannelAccess(
+      channelId,
+      userId,
+      PERMISSIONS.VIEW_CHANNEL,
+    );
+    await this.assertDmWritable(channel, userId);
 
     const [existing] = await this.drizzle.db
       .select()
@@ -741,6 +787,7 @@ export class MessagesService {
       userId,
       PERMISSIONS.VIEW_CHANNEL,
     );
+    await this.assertDmWritable(channel, userId);
 
     const emoji = normalizeReactionEmoji(rawEmoji);
 
@@ -823,11 +870,13 @@ export class MessagesService {
   }
 
   async pin(channelId: string, messageId: string, userId: string) {
-    await this.workspacePermissionsService.assertChannelPermissionByChannelId(
-      channelId,
-      userId,
-      PERMISSIONS.MANAGE_MESSAGES,
-    );
+    const channel =
+      await this.workspacePermissionsService.assertChannelPermissionByChannelId(
+        channelId,
+        userId,
+        PERMISSIONS.MANAGE_MESSAGES,
+      );
+    await this.assertDmWritable(channel, userId);
 
     const [existingMessage] = await this.drizzle.db
       .select()
@@ -875,11 +924,13 @@ export class MessagesService {
   }
 
   async unpin(channelId: string, messageId: string, userId: string) {
-    await this.workspacePermissionsService.assertChannelPermissionByChannelId(
-      channelId,
-      userId,
-      PERMISSIONS.MANAGE_MESSAGES,
-    );
+    const channel =
+      await this.workspacePermissionsService.assertChannelPermissionByChannelId(
+        channelId,
+        userId,
+        PERMISSIONS.MANAGE_MESSAGES,
+      );
+    await this.assertDmWritable(channel, userId);
 
     const [existing] = await this.drizzle.db
       .select()

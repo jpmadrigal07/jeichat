@@ -74,6 +74,8 @@ type DmPeer = {
   id: string;
   name: string;
   image: string | null;
+  /** False once the peer has left or been removed; the DM turns read-only. */
+  inWorkspace: boolean;
 };
 
 @Injectable()
@@ -1118,7 +1120,8 @@ export class ChannelsService {
   }
 
   async remove(workspaceId: string, id: string, userId: string) {
-    await this.findOne(workspaceId, id, userId);
+    const existing = await this.findOne(workspaceId, id, userId);
+    this.assertNotDm(existing, 'Direct messages cannot be deleted');
     await this.workspacePermissionsService.assertChannelPermission(
       workspaceId,
       id,
@@ -1219,6 +1222,7 @@ export class ChannelsService {
       channelId,
       actorId,
     );
+    this.assertNotDm(channel, 'Direct message participants cannot be changed');
 
     await this.workspacePermissionsService.assertChannelPermission(
       workspaceId,
@@ -1254,6 +1258,7 @@ export class ChannelsService {
       channelId,
       actorId,
     );
+    this.assertNotDm(channel, 'Direct message participants cannot be changed');
 
     await this.workspacePermissionsService.assertChannelPermission(
       workspaceId,
@@ -1276,6 +1281,17 @@ export class ChannelsService {
       throw new NotFoundException('Channel member not found');
     }
     void this.chatGateway.resyncBotChannelRooms(workspaceId);
+  }
+
+  /**
+   * A DM is a fixed pair, so it can't be deleted or have people added or
+   * removed. The channel permission check lets any DM member through, which is
+   * why this has to be enforced here.
+   */
+  private assertNotDm(channel: { channelType: string }, message: string) {
+    if (channel.channelType === CHANNEL_TYPE.DM) {
+      throw new BadRequestException(message);
+    }
   }
 
   private async requireTopLevelChannel(
@@ -1360,9 +1376,18 @@ export class ChannelsService {
         id: user.id,
         name: user.name,
         image: user.image,
+        inWorkspace: sql<boolean>`${workspaceMembers.id} is not null`,
       })
       .from(channelMembers)
       .innerJoin(user, eq(channelMembers.userId, user.id))
+      .innerJoin(channels, eq(channelMembers.channelId, channels.id))
+      .leftJoin(
+        workspaceMembers,
+        and(
+          eq(workspaceMembers.userId, user.id),
+          eq(workspaceMembers.workspaceId, channels.workspaceId),
+        ),
+      )
       .where(
         and(
           inArray(channelMembers.channelId, dmChannelIds),

@@ -56,6 +56,8 @@ type MessageItemProps = {
   isPinned: boolean;
   isHighlighted: boolean;
   canManageMessages: boolean;
+  /** Hides every way to change the message; reading and navigating still work. */
+  readOnly: boolean;
   onStartEdit: () => void;
   onCancelEdit: () => void;
   onEdit: (messageId: string, content: string) => void | Promise<unknown>;
@@ -179,6 +181,7 @@ export function MessageItem({
   isPinned,
   isHighlighted,
   canManageMessages,
+  readOnly,
   onStartEdit,
   onCancelEdit,
   onEdit,
@@ -199,7 +202,9 @@ export function MessageItem({
 }: MessageItemProps) {
   const [openPanel, setOpenPanel] = useState<'actions' | 'delete' | null>(null);
   const isEdited = message.updatedAt !== message.createdAt;
-  const showActions = !isEditing;
+  // An edit already open when the DM turns read-only is dropped, not saved.
+  const editing = isEditing && !readOnly;
+  const showActions = !editing && !readOnly;
   const longPress = useLongPress(() => setOpenPanel('actions'), {
     // Below `md` the hover toolbar is hidden, so long press replaces it.
     enabled: () =>
@@ -308,7 +313,7 @@ export function MessageItem({
               </div>
             )}
 
-            {isEditing ? (
+            {editing ? (
               <MessageEditComposer
                 initialContent={message.content}
                 workspaceId={workspaceId}
@@ -350,7 +355,9 @@ export function MessageItem({
                       workspaceId={workspaceId}
                       preserveBlankLines
                       onContentChange={
-                        isOwn ? (next) => onEdit(message.id, next) : undefined
+                        isOwn && !readOnly
+                          ? (next) => onEdit(message.id, next)
+                          : undefined
                       }
                     />
                   ) : null}
@@ -361,7 +368,7 @@ export function MessageItem({
                 <MessageLinkPreviews
                   previews={message.linkPreviews ?? []}
                   removable={
-                    isOwn
+                    isOwn && !readOnly
                       ? { channelId: message.channelId, messageId: message.id }
                       : undefined
                   }
@@ -374,7 +381,7 @@ export function MessageItem({
                 <MessageReactions
                   reactions={message.reactions ?? []}
                   onToggle={(emoji) => onToggleReaction(message.id, emoji)}
-                  disabled={reactionPending}
+                  disabled={reactionPending || readOnly}
                 />
               </>
             )}
@@ -451,7 +458,7 @@ export function MessageItem({
       </MessageContextMenu>
 
       <MessageActionDrawer
-        open={openPanel === 'actions'}
+        open={openPanel === 'actions' && !readOnly}
         onOpenChange={(open) => setOpenPanel(open ? 'actions' : null)}
         message={message}
         isOwn={isOwn}
@@ -465,7 +472,7 @@ export function MessageItem({
         onRequestDelete={() => setOpenPanel('delete')}
       />
 
-      {isOwn ? (
+      {isOwn && !readOnly ? (
         <AlertDialog
           open={openPanel === 'delete'}
           onOpenChange={(open) => setOpenPanel(open ? 'delete' : null)}

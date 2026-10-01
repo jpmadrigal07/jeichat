@@ -24,6 +24,8 @@ export type DmPeer = {
   id: string;
   name: string;
   image: string | null;
+  /** False once the peer has left or been removed; the DM turns read-only. */
+  inWorkspace: boolean;
 };
 
 export type Channel = {

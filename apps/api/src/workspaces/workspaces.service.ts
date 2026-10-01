@@ -259,6 +259,11 @@ export class WorkspacesService {
       workspaceId,
       action: 'added',
     });
+    this.chatGateway.emitWorkspaceMembershipChanged(
+      workspaceId,
+      targetUserId,
+      'added',
+    );
 
     return member;
   }
@@ -292,6 +297,12 @@ export class WorkspacesService {
       workspaceId,
       action: 'removed',
     });
+    this.chatGateway.emitWorkspaceMembershipChanged(
+      workspaceId,
+      targetUserId,
+      'removed',
+    );
+    void this.chatGateway.evictUserFromWorkspace(targetUserId, workspaceId);
     void this.chatGateway.resyncBotChannelRooms(workspaceId);
   }
 

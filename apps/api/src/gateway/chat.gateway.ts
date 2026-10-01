@@ -252,9 +252,44 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`user:${userId}`).emit('workspace_membership', payload);
   }
 
+  /** Tells the rest of the workspace to refresh members and DM state. */
+  emitWorkspaceMembershipChanged(
+    workspaceId: string,
+    changedUserId: string,
+    action: 'added' | 'removed',
+  ) {
+    this.server
+      .to(`workspace:${workspaceId}`)
+      .except(`user:${changedUserId}`)
+      .emit('workspace_membership', { workspaceId, action });
+  }
+
   disconnectUserSockets(userId: string) {
     if (!this.server) return;
     this.server.in(`user:${userId}`).disconnectSockets(true);
+  }
+
+  /** Takes a removed member's open sockets out of the workspace's rooms. */
+  async evictUserFromWorkspace(userId: string, workspaceId: string) {
+    if (!this.server) return;
+    try {
+      const channelIds =
+        await this.workspacesService.listChannelIds(workspaceId);
+      this.server
+        .in(`user:${userId}`)
+        .socketsLeave([
+          `workspace:${workspaceId}`,
+          ...channelIds.map((channelId) => `channel:${channelId}`),
+        ]);
+      this.workspacesByUser.get(userId)?.delete(workspaceId);
+      this.server.to(`workspace:${workspaceId}`).emit('presence_update', {
+        workspaceId,
+        userId,
+        online: false,
+      });
+    } catch {
+      // Access-change hooks must not fail the originating request.
+    }
   }
 
   async resyncBotChannelRooms(workspaceId: string) {

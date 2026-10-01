@@ -31,13 +31,14 @@ import { ThreadIssueHeader } from './_components/thread-issue-header';
 import { MessageList } from './_components/message-list';
 import { ChannelEmptyState } from './_components/channel-empty-state';
 import { MessageInput } from './_components/message-input';
+import { DmPeerLeftNotice } from './_components/dm-peer-left-notice';
 import { TypingIndicator } from './_components/typing-indicator';
 import { ChannelAttachmentLightbox } from './_components/channel-attachment-lightbox';
 import { ChannelDropZone } from './_components/channel-drop-overlay';
 import { useAttachmentUploads } from './_hooks/use-attachment-uploads';
 import { ChatPane } from '@chat/_components/chat-pane';
 import { Skeleton } from '@/components/ui/skeleton';
-import { isDmChannel } from '@chat/_helpers/channel-display';
+import { isDmChannel, isDmPeerGone } from '@chat/_helpers/channel-display';
 
 type Props = {
   params: Promise<{ workspaceId: string; channelId: string }>;
@@ -67,6 +68,7 @@ export function ChannelView({
     : undefined;
   const isThread = Boolean(channel?.parentId);
   const isDm = isDmChannel(channel);
+  const dmPeerGone = isDmPeerGone(channel);
   // Tickets inherit access from their parent. In a private channel or DM only
   // its members (and workspace owners) can open it, so only they get tagged.
   const accessChannel = parentChannel ?? channel;
@@ -333,6 +335,7 @@ export function ChannelView({
       <ChannelAttachmentLightbox />
       <ChannelDropZone
         onAdd={uploads.addFiles}
+        disabled={dmPeerGone}
         className="relative flex min-h-0 flex-1 flex-col"
       >
         <div className="relative flex min-h-0 flex-1 flex-col">
@@ -377,6 +380,7 @@ export function ChannelView({
               }
               pinnedMessageIds={pinnedMessageIds}
               canManageMessages={canManageMessages}
+              readOnly={dmPeerGone}
               highlightMessageId={highlightMessageId}
               members={members ?? []}
               tickets={tickets}
@@ -389,22 +393,26 @@ export function ChannelView({
           )}
           <TypingIndicator users={typingNames} />
         </div>
-        <MessageInput
-          channelName={channel?.name}
-          currentUserId={userId}
-          workspaceId={workspaceId}
-          members={mentionableMembers}
-          tickets={tickets}
-          channels={hashChannels}
-          mentionMessages={mentionMessages}
-          allowAllMention={!isDm}
-          replyTo={replyTo}
-          onCancelReply={cancelReply}
-          onSend={handleSend}
-          onTyping={emitTyping}
-          sendDisabled={sendMutation.isPending}
-          uploads={uploads}
-        />
+        {dmPeerGone && channel?.dmPeer ? (
+          <DmPeerLeftNotice name={channel.dmPeer.name} />
+        ) : (
+          <MessageInput
+            channelName={channel?.name}
+            currentUserId={userId}
+            workspaceId={workspaceId}
+            members={mentionableMembers}
+            tickets={tickets}
+            channels={hashChannels}
+            mentionMessages={mentionMessages}
+            allowAllMention={!isDm}
+            replyTo={replyTo}
+            onCancelReply={cancelReply}
+            onSend={handleSend}
+            onTyping={emitTyping}
+            sendDisabled={sendMutation.isPending}
+            uploads={uploads}
+          />
+        )}
       </ChannelDropZone>
     </ChatPane>
   );

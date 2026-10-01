@@ -6,12 +6,15 @@ import { overlayTopOffset } from '../_helpers/drop-overlay-offset';
 
 type ChannelDropZoneProps = {
   onAdd: (files: File[]) => void;
+  /** Swallows drops (so the browser doesn't open the file) without uploading. */
+  disabled?: boolean;
   children: ReactNode;
   className?: string;
 };
 
 export function ChannelDropZone({
   onAdd,
+  disabled,
   children,
   className,
 }: ChannelDropZoneProps) {
@@ -36,12 +39,12 @@ export function ChannelDropZone({
       e.preventDefault();
       e.stopPropagation();
       dragCounterRef.current += 1;
-      if (e.dataTransfer.types.includes('Files')) {
+      if (!disabled && e.dataTransfer.types.includes('Files')) {
         measureOverlayTop();
         setIsDragging(true);
       }
     },
-    [measureOverlayTop],
+    [disabled, measureOverlayTop],
   );
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
@@ -71,9 +74,9 @@ export function ChannelDropZone({
       dragCounterRef.current = 0;
       setIsDragging(false);
       const files = Array.from(e.dataTransfer.files);
-      if (files.length) onAdd(files);
+      if (files.length && !disabled) onAdd(files);
     },
-    [onAdd],
+    [disabled, onAdd],
   );
 
   return (

@@ -39,6 +39,8 @@ type MessageListProps = {
   pendingReactionMessageId?: string;
   pinnedMessageIds: ReadonlySet<string>;
   canManageMessages: boolean;
+  /** Nothing can be edited, reacted to, pinned or deleted (DM with someone who left). */
+  readOnly: boolean;
   highlightMessageId: string | null;
   members: MentionableMember[];
   tickets: TaggableTicket[];
@@ -143,6 +145,7 @@ export function MessageList({
   pendingReactionMessageId,
   pinnedMessageIds,
   canManageMessages,
+  readOnly,
   highlightMessageId,
   members,
   tickets,
@@ -597,6 +600,7 @@ export function MessageList({
                 isPinned={pinnedMessageIds.has(item.message.id)}
                 isHighlighted={highlightMessageId === item.message.id}
                 canManageMessages={canManageMessages}
+                readOnly={readOnly}
                 onStartEdit={() => setEditingMessageId(item.message.id)}
                 onCancelEdit={() => setEditingMessageId(null)}
                 onEdit={onEdit}
