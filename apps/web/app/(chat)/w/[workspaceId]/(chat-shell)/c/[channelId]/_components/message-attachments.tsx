@@ -119,6 +119,7 @@ export function MessageAttachments({
   const others = attachments.filter(
     (a) => !a.contentType.startsWith('image/'),
   );
+  const imageIds = images.map((a) => a.id);
 
   return (
     <div className={cn('flex min-w-0 flex-col gap-2', className)}>
@@ -134,6 +135,7 @@ export function MessageAttachments({
               <AttachmentImage
                 attachment={attachment}
                 size={compact ? 'sm' : 'default'}
+                gallery={imageIds}
               />
             </RemovableAttachment>
           ))}

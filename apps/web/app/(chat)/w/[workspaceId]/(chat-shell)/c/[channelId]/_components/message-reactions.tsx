@@ -39,7 +39,7 @@ export function MessageReactions({
               disabled={disabled}
               onClick={() => onToggle(reaction.emoji)}
               className={cn(
-                'inline-flex h-6 items-center gap-1 rounded-full border px-1.5 text-xs transition-colors',
+                'inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border px-1.5 text-xs transition-colors disabled:cursor-default',
                 reaction.reactedByMe
                   ? 'border-primary/40 bg-primary/10 text-foreground'
                   : 'border-border bg-muted/40 text-muted-foreground hover:bg-muted',
