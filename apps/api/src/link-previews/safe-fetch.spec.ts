@@ -1,4 +1,6 @@
+import { EventEmitter } from 'node:events';
 import http, { type IncomingMessage, type ServerResponse } from 'node:http';
+import https from 'node:https';
 import type { AddressInfo } from 'node:net';
 import zlib from 'node:zlib';
 import {
@@ -257,5 +259,36 @@ describe('safeFetchDocument', () => {
         timeoutMs: 150,
       }),
     ).rejects.toThrow();
+  });
+});
+
+describe('safeFetchDocument request errors', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  // Bun emits one 'error' per address it tries; the second one used to have no
+  // listener and crashed the process. Node would throw on the unhandled emit.
+  it('survives a request that emits more than one error', async () => {
+    const uncaught = jest.fn();
+    process.on('uncaughtException', uncaught);
+    jest.spyOn(https, 'request').mockImplementation((() => {
+      const request = new EventEmitter() as EventEmitter & { end: () => void };
+      request.end = () => {
+        setImmediate(() => request.emit('error', new Error('ECONNREFUSED ::1')));
+        setImmediate(() =>
+          request.emit('error', new Error('ECONNREFUSED 127.0.0.1')),
+        );
+      };
+      return request;
+    }) as unknown as typeof https.request);
+
+    await expect(safeFetchDocument('https://example.com/')).rejects.toThrow(
+      'ECONNREFUSED ::1',
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    process.off('uncaughtException', uncaught);
+
+    expect(uncaught).not.toHaveBeenCalled();
   });
 });

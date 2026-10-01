@@ -130,7 +130,10 @@ function openResponse(
       },
       resolve,
     );
-    request.once('error', reject);
+    // `on`, not `once`: a request can emit several errors (Bun reports one per
+    // address it tries), and an 'error' with no listener crashes the process.
+    // Rejecting an already-settled promise is a no-op.
+    request.on('error', reject);
     request.end();
   });
 }
