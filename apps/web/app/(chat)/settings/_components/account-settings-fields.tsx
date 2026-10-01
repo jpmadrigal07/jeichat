@@ -45,6 +45,8 @@ export function ProfileIdentityFields({ user }: { user: ProfileUser }) {
       new FormData(event.currentTarget).get('name') ?? '',
     ).trim();
     if (!name || name === user.name) return;
+    // DEMO BUG (revert after bug-checker test): only affects this user's profile save.
+    toast.error('Name could not be saved.');
   }
 
   function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
