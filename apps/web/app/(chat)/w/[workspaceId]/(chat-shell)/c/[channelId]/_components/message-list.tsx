@@ -9,6 +9,7 @@ import { MessageItem } from './message-item';
 import { TicketActivityItem } from './ticket-activity-item';
 import type { TicketEvent } from '../_libs/channel-events';
 import type { Message } from '../_libs/messages';
+import { isGroupedWithPrevious } from '../_helpers/message-grouping';
 import type { TicketTimelineEntry } from '../_helpers/merge-ticket-timeline';
 import type { MentionableMember } from '@chat/_helpers/mentions';
 import type {
@@ -50,6 +51,7 @@ type MessageListProps = {
 
 const EDITING_ROW_ESTIMATE = 160;
 const EVENT_ROW_ESTIMATE = 40;
+const GROUPED_ROW_ESTIMATE = 32;
 const LIST_PADDING_END = 16;
 
 function formatDateSeparator(dateStr: string): string {
@@ -69,7 +71,7 @@ function formatDateSeparator(dateStr: string): string {
 }
 
 type ListItem =
-  | { type: 'message'; message: Message }
+  | { type: 'message'; message: Message; isGrouped: boolean }
   | { type: 'event'; event: TicketEvent }
   | { type: 'date'; date: string };
 
@@ -83,6 +85,9 @@ function buildListItems(entries: TicketTimelineEntry[]): ListItem[] {
   const reversed = [...entries].reverse();
   const items: ListItem[] = [];
   let lastDate = '';
+  // The message directly above the next entry; cleared by anything that
+  // interrupts a run (date separator, ticket event).
+  let previousMessage: Message | null = null;
 
   for (const entry of reversed) {
     const createdAt = createdAtOf(entry);
@@ -90,8 +95,20 @@ function buildListItems(entries: TicketTimelineEntry[]): ListItem[] {
     if (entryDate !== lastDate) {
       items.push({ type: 'date', date: createdAt });
       lastDate = entryDate;
+      previousMessage = null;
     }
-    items.push(entry);
+
+    if (entry.type === 'message') {
+      items.push({
+        type: 'message',
+        message: entry.message,
+        isGrouped: isGroupedWithPrevious(entry.message, previousMessage),
+      });
+      previousMessage = entry.message;
+    } else {
+      items.push(entry);
+      previousMessage = null;
+    }
   }
 
   return items;
@@ -202,6 +219,9 @@ export function MessageList({
       if (item?.type === 'event') return EVENT_ROW_ESTIMATE;
       if (item?.type === 'message' && item.message.id === editingMessageId) {
         return EDITING_ROW_ESTIMATE;
+      }
+      if (item?.type === 'message' && item.isGrouped) {
+        return GROUPED_ROW_ESTIMATE;
       }
       return 72;
     },
@@ -556,6 +576,7 @@ export function MessageList({
             >
               <MessageItem
                 message={item.message}
+                isGrouped={item.isGrouped}
                 isOwn={item.message.senderId === currentUserId}
                 isEditing={editingMessageId === item.message.id}
                 isPinned={pinnedMessageIds.has(item.message.id)}

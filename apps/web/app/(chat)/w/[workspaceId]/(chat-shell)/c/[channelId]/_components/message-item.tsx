@@ -48,6 +48,8 @@ import { MessageEditComposer } from './message-edit-composer';
 
 type MessageItemProps = {
   message: Message;
+  /** Continues the previous message's group: avatar and name are hidden. */
+  isGrouped: boolean;
   isOwn: boolean;
   isEditing: boolean;
   isPinned: boolean;
@@ -170,6 +172,7 @@ function MessageHoverAction({
 
 export function MessageItem({
   message,
+  isGrouped,
   isOwn,
   isEditing,
   isPinned,
@@ -202,6 +205,21 @@ export function MessageItem({
       showActions && window.matchMedia('(max-width: 767px)').matches,
   });
 
+  // Grouped messages have no header to hold "(edited)" / "Pinned", so they sit
+  // beside the text instead.
+  const showGroupedStatus = isGrouped && (isEdited || isPinned);
+  const statusMarkers = (
+    <>
+      {isEdited && <span className="text-xs text-muted-foreground">(edited)</span>}
+      {isPinned ? (
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Pin className="size-3" />
+          Pinned
+        </span>
+      ) : null}
+    </>
+  );
+
   function handleTogglePin() {
     if (isPinned) onUnpin(message.id);
     else onPin(message.id);
@@ -225,7 +243,9 @@ export function MessageItem({
         <div
           {...longPress}
           className={cn(
-            'group relative flex gap-3 px-4 py-1.5 hover:bg-muted/50',
+            'group relative flex gap-3 px-4 hover:bg-muted/50',
+            // Group heads carry the gap between groups; grouped rows sit tight.
+            isGrouped ? 'py-0.5' : 'pb-0.5 pt-2.5',
             // Long press opens the action drawer on mobile, so suppress the
             // native text selection / callout it would otherwise trigger.
             showActions &&
@@ -236,23 +256,18 @@ export function MessageItem({
             'data-[state=open]:bg-muted/50',
           )}
         >
-          <PresenceAvatar
-            userId={message.senderId}
-            name={message.sender?.name ?? 'Unknown'}
-            image={message.sender?.image}
-            workspaceId={workspaceId}
-            className="mt-0.5"
-          />
-
-          <div className="min-w-0 flex-1">
-            <div className="mb-0.5 flex items-baseline gap-2">
-              <span className="text-sm font-semibold truncate">
-                {message.sender?.name ?? 'Unknown'}
-              </span>
-              {message.sender?.isBot ? <BotBadge /> : null}
+          {isGrouped ? (
+            // Same width as the avatar so grouped text stays aligned.
+            <div className="flex h-5 w-8 shrink-0 items-center justify-center">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="text-xs text-muted-foreground shrink-0 cursor-default">
+                  <span
+                    className={cn(
+                      'cursor-default whitespace-nowrap text-[10px] text-muted-foreground',
+                      'opacity-0 group-hover:opacity-100',
+                      'group-data-[state=open]:opacity-100',
+                    )}
+                  >
                     {formatTime(message.createdAt)}
                   </span>
                 </TooltipTrigger>
@@ -260,16 +275,37 @@ export function MessageItem({
                   {formatFullDate(message.createdAt)}
                 </TooltipContent>
               </Tooltip>
-              {isEdited && (
-                <span className="text-xs text-muted-foreground">(edited)</span>
-              )}
-              {isPinned ? (
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Pin className="size-3" />
-                  Pinned
-                </span>
-              ) : null}
             </div>
+          ) : (
+            <PresenceAvatar
+              userId={message.senderId}
+              name={message.sender?.name ?? 'Unknown'}
+              image={message.sender?.image}
+              workspaceId={workspaceId}
+              className="mt-0.5"
+            />
+          )}
+
+          <div className="min-w-0 flex-1">
+            {isGrouped ? null : (
+              <div className="mb-0.5 flex items-baseline gap-2">
+                <span className="text-sm font-semibold truncate">
+                  {message.sender?.name ?? 'Unknown'}
+                </span>
+                {message.sender?.isBot ? <BotBadge /> : null}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="text-xs text-muted-foreground shrink-0 cursor-default">
+                      {formatTime(message.createdAt)}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    {formatFullDate(message.createdAt)}
+                  </TooltipContent>
+                </Tooltip>
+                {statusMarkers}
+              </div>
+            )}
 
             {isEditing ? (
               <MessageEditComposer
@@ -296,19 +332,30 @@ export function MessageItem({
                   replyTo={message.replyTo}
                   onJumpToReply={onJumpToReply}
                 />
-                {message.content ? (
-                  <MessageMarkdown
-                    content={message.content}
-                    className="text-sm break-words"
-                    members={members}
-                    tickets={tickets}
-                    channels={channels}
-                    workspaceId={workspaceId}
-                    onContentChange={
-                      isOwn ? (next) => onEdit(message.id, next) : undefined
-                    }
-                  />
-                ) : null}
+                <div
+                  className={cn(
+                    // Wraps below the text when the message leaves no room.
+                    showGroupedStatus &&
+                      'flex flex-wrap items-baseline-last gap-x-2',
+                  )}
+                >
+                  {message.content ? (
+                    <MessageMarkdown
+                      content={message.content}
+                      className="min-w-0 max-w-full text-sm break-words"
+                      members={members}
+                      tickets={tickets}
+                      channels={channels}
+                      workspaceId={workspaceId}
+                      onContentChange={
+                        isOwn ? (next) => onEdit(message.id, next) : undefined
+                      }
+                    />
+                  ) : null}
+                  {showGroupedStatus ? (
+                    <div className="flex items-center gap-2">{statusMarkers}</div>
+                  ) : null}
+                </div>
                 <MessageAttachments
                   attachments={message.attachments}
                   className="mt-1.5"
