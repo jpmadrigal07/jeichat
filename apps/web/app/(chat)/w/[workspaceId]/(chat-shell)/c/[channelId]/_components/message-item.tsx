@@ -348,6 +348,7 @@ export function MessageItem({
                       tickets={tickets}
                       channels={channels}
                       workspaceId={workspaceId}
+                      preserveBlankLines
                       onContentChange={
                         isOwn ? (next) => onEdit(message.id, next) : undefined
                       }

@@ -32,6 +32,7 @@ import {
 import { parseAttachmentIdFromImageSrc } from '../_helpers/ticket-description-attachments';
 import { attachmentFileUrl } from '../_helpers/attachment-file-url';
 import { remarkChatTags } from '../_helpers/remark-chat-tags';
+import { remarkPreserveBlankLines } from '../_helpers/remark-preserve-blank-lines';
 import { toggleTaskAtOffset } from '../_helpers/task-list';
 
 const EMPTY_MEMBERS: MentionableMember[] = [];
@@ -51,6 +52,8 @@ type MessageMarkdownProps = {
   workspaceId: string;
   /** Renders `![alt](attachment:<id>)` inline (ticket descriptions only). */
   embedAttachmentImages?: boolean;
+  /** Shows each blank line between blocks instead of folding them into one gap. */
+  preserveBlankLines?: boolean;
   /**
    * Makes task list checkboxes clickable. Called with the content that has the
    * clicked item toggled; the checkbox updates at once and settles on
@@ -223,6 +226,7 @@ export const MessageMarkdown = memo(function MessageMarkdown({
   channels = EMPTY_CHANNELS,
   workspaceId,
   embedAttachmentImages = false,
+  preserveBlankLines = false,
   onContentChange,
 }: MessageMarkdownProps) {
   const [shownContent, setShownContent] = useOptimistic(content);
@@ -253,6 +257,7 @@ export const MessageMarkdown = memo(function MessageMarkdown({
           remarkPlugins={[
             remarkGfm,
             remarkBreaks,
+            ...(preserveBlankLines ? [remarkPreserveBlankLines] : []),
             [remarkChatTags, { members, tickets, channels, workspaceId }],
           ]}
           rehypePlugins={[
