@@ -1,9 +1,16 @@
 'use client';
 
-import { useRef, useCallback, useEffect, useState } from 'react';
+import {
+  useRef,
+  useCallback,
+  useEffect,
+  useState,
+  type ClipboardEvent,
+} from 'react';
 import { SendHorizonal, Smile, X } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { chatMessageFooterClass } from '@chat/_helpers/chat-footer-classes';
 import type { MentionableMember } from '@chat/_helpers/mentions';
 import type {
@@ -152,6 +159,8 @@ export function MessageInput({
     !uploads.isAnyUploading &&
     (hasText || uploads.readyServerIds.length > 0) &&
     !sendDisabled;
+  const hasContent =
+    hasText || uploads.items.some((item) => item.status !== 'error');
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (picker.handlePickerKeyDown(e)) return;
@@ -306,6 +315,12 @@ export function MessageInput({
               rows={1}
               autoFocus
               onKeyDown={handleKeyDown}
+              onPaste={(event: ClipboardEvent<HTMLTextAreaElement>) => {
+                const files = Array.from(event.clipboardData?.files ?? []);
+                if (!files.length) return;
+                event.preventDefault();
+                uploads.addFiles(files);
+              }}
               onSelect={picker.syncFromTextarea}
               onScroll={highlight.syncHighlightScroll}
               onInput={(e) => {
@@ -338,8 +353,13 @@ export function MessageInput({
           </ReactionEmojiPicker>
           <Button
             size="icon"
-            variant="ghost"
-            className="h-7 w-7 shrink-0"
+            variant={hasContent ? 'default' : 'ghost'}
+            className={cn(
+              'h-7 w-7 shrink-0',
+              hasContent &&
+                'dark:bg-white dark:text-black dark:hover:bg-white/90',
+            )}
+            aria-label="Send message"
             onMouseDown={(e) => e.preventDefault()}
             onClick={submit}
             disabled={!canSend}

@@ -267,6 +267,24 @@
   margin: 0.25rem 0;
 }
 
+/* Tailwind preflight resets list-style to none, so restore markers. */
+.md-chat ul {
+  list-style-type: disc;
+}
+
+.md-chat ul ul {
+  list-style-type: circle;
+}
+
+.md-chat ol {
+  list-style-type: decimal;
+}
+
+.md-chat .contains-task-list {
+  list-style-type: none;
+  padding-left: 0;
+}
+
 .md-chat li + li {
   margin-top: 0.125rem;
 }

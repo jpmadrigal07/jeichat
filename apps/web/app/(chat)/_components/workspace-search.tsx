@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useImperativeHandle, useRef, useState, type Ref } from 'react';
 import Link from 'next/link';
 import {
   AtSign,
@@ -124,9 +124,24 @@ function HistoryQuery({ query }: { query: string }) {
   );
 }
 
-export function WorkspaceSearch({ workspaceId }: { workspaceId: string }) {
+export type WorkspaceSearchHandle = { open: () => void };
+
+type WorkspaceSearchProps = {
+  workspaceId: string;
+  /** Lets a parent (e.g. a mobile overflow drawer) open the search popover. */
+  ref?: Ref<WorkspaceSearchHandle>;
+  /** Set false when something else opens the search on mobile. */
+  showMobileTrigger?: boolean;
+};
+
+export function WorkspaceSearch({
+  workspaceId,
+  ref,
+  showMobileTrigger = true,
+}: WorkspaceSearchProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
+  useImperativeHandle(ref, () => ({ open: () => setOpen(true) }), []);
   const [query, setQuery] = useState('');
   const { data: workspaces } = useWorkspaces();
   const { data: members } = useWorkspaceMembers(workspaceId);
@@ -186,7 +201,13 @@ export function WorkspaceSearch({ workspaceId }: { workspaceId: string }) {
   return (
     <Popover open={open} onOpenChange={setOpen} modal={false}>
       <PopoverAnchor asChild>
-        <div className="relative md:w-44 lg:w-56">
+        <div
+          className={cn(
+            'relative md:w-44 lg:w-56',
+            // Keep the popover anchored at header height without the icon.
+            !showMobileTrigger && 'max-md:h-6',
+          )}
+        >
           <div className="relative hidden md:block">
             <Search className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -212,16 +233,18 @@ export function WorkspaceSearch({ workspaceId }: { workspaceId: string }) {
               aria-label={`Search ${workspaceName}`}
             />
           </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="md:hidden"
-            aria-label={`Search ${workspaceName}`}
-            onClick={() => setOpen(true)}
-          >
-            <Search />
-          </Button>
+          {showMobileTrigger ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="md:hidden"
+              aria-label={`Search ${workspaceName}`}
+              onClick={() => setOpen(true)}
+            >
+              <Search />
+            </Button>
+          ) : null}
         </div>
       </PopoverAnchor>
       <PopoverContent

@@ -1,6 +1,13 @@
 'use client';
 
-import { useRef, useState, type KeyboardEvent, type RefObject } from 'react';
+import {
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type KeyboardEvent,
+  type RefObject,
+} from 'react';
+import { clipboardImageFiles } from '../_helpers/ticket-description-attachments';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { MentionableMember } from '@chat/_helpers/mentions';
@@ -32,6 +39,9 @@ type MarkdownWritePreviewProps = {
   autoFocus?: boolean;
   onKeyDown?: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   textareaRef?: RefObject<HTMLTextAreaElement | null>;
+  enableImagePaste?: boolean;
+  onPasteImages?: (files: File[]) => void;
+  embedAttachmentImages?: boolean;
 };
 
 export function MarkdownWritePreview({
@@ -52,6 +62,9 @@ export function MarkdownWritePreview({
   autoFocus,
   onKeyDown,
   textareaRef,
+  enableImagePaste = false,
+  onPasteImages,
+  embedAttachmentImages = false,
 }: MarkdownWritePreviewProps) {
   const innerRef = useRef<HTMLTextAreaElement>(null);
   const [tab, setTab] = useState('write');
@@ -99,7 +112,17 @@ export function MarkdownWritePreview({
             }}
             onSelect={picker.syncFromTextarea}
             onInput={picker.syncFromTextarea}
-            className={textareaClassName}
+            onPaste={(event: ClipboardEvent<HTMLTextAreaElement>) => {
+              if (!enableImagePaste || !onPasteImages) return;
+              const images = clipboardImageFiles(event.clipboardData);
+              if (!images.length) return;
+              event.preventDefault();
+              onPasteImages(images);
+            }}
+            className={cn(
+              'field-sizing-fixed max-h-72 overflow-y-auto',
+              textareaClassName,
+            )}
           />
           <ComposerTagPicker
             mentionOpen={picker.mentionOpen}
@@ -118,11 +141,16 @@ export function MarkdownWritePreview({
         {preview.trim() ? (
           <MessageMarkdown
             content={preview}
-            className="md-ticket min-h-16 text-sm"
+            className="md-ticket max-h-72 min-h-16 overflow-y-auto text-sm"
             members={members}
             tickets={tickets}
             channels={channels}
             workspaceId={workspaceId}
+            embedAttachmentImages={embedAttachmentImages}
+            onContentChange={(next) => {
+              if (ref.current) ref.current.value = next;
+              setPreview(next);
+            }}
           />
         ) : (
           <p className="min-h-16 text-sm text-muted-foreground">

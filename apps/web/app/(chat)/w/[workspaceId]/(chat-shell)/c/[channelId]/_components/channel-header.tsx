@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Columns3, MessageSquare, MessageSquarePlus } from 'lucide-react';
@@ -33,7 +33,10 @@ import {
   type ChannelHeaderOverflowMenuProps,
 } from './channel-header-overflow-menu';
 import { ChannelNotificationMenu } from '@chat/_components/channel-notification-menu';
-import { WorkspaceSearch } from '@chat/_components/workspace-search';
+import {
+  WorkspaceSearch,
+  type WorkspaceSearchHandle,
+} from '@chat/_components/workspace-search';
 import { ChannelTypeIcon } from '@chat/_components/channel-type-icon';
 import { PresenceAvatar } from '@chat/_components/presence-avatar';
 import {
@@ -62,6 +65,7 @@ export function ChannelHeader({
   view,
   layout,
 }: ChannelHeaderProps) {
+  const searchRef = useRef<WorkspaceSearchHandle>(null);
   const isThread = Boolean(channel?.parentId);
   const isDm = isDmChannel(channel);
   const onBoard = view === 'threads' && !isThread;
@@ -75,6 +79,11 @@ export function ChannelHeader({
     isThread && parentChannel
       ? `Back to ${channelBreadcrumbLabel(parentChannel)}`
       : 'Back to channels';
+
+  // On mobile, search lives in the "…" drawer instead of its own icon.
+  function openSearch() {
+    searchRef.current?.open();
+  }
 
   const crumbs = buildChannelHeaderCrumbs({
     channel,
@@ -169,6 +178,7 @@ export function ChannelHeader({
                 layout={layout}
                 isThread={isThread}
                 isTicketChannel={Boolean(!isThread && channel && !isDm)}
+                onOpenSearch={openSearch}
               />
             }
           >
@@ -181,10 +191,15 @@ export function ChannelHeader({
               layout={layout}
               isThread={isThread}
               isTicketChannel={Boolean(!isThread && channel && !isDm)}
+              onOpenSearch={openSearch}
             />
           </Suspense>
           <div className="md:ml-3">
-            <WorkspaceSearch workspaceId={workspaceId} />
+            <WorkspaceSearch
+              ref={searchRef}
+              workspaceId={workspaceId}
+              showMobileTrigger={false}
+            />
           </div>
         </>
       }
@@ -294,7 +309,7 @@ function ChannelHeaderTicketActionsFromSearch(
 }
 
 function ChannelHeaderOverflowMenuFromSearch(
-  props: Omit<ChannelHeaderOverflowMenuProps, 'createThreadHref'>,
+  props: Omit<ChannelHeaderOverflowMenuProps, 'createThreadHref' | 'search'>,
 ) {
   const searchParams = useSearchParams();
   const createThreadHrefValue = createThreadHref(
@@ -307,6 +322,7 @@ function ChannelHeaderOverflowMenuFromSearch(
     <ChannelHeaderOverflowMenu
       {...props}
       createThreadHref={createThreadHrefValue}
+      search={searchParams}
     />
   );
 }
@@ -337,6 +353,7 @@ function ChannelHeaderTicketActions({
         size="sm"
         spacing={0}
         aria-label="Channel view"
+        className="max-md:hidden"
       >
         <ToggleGroupItem value="messages" asChild>
           <Link href={channelPageHref(workspaceId, channelId)}>

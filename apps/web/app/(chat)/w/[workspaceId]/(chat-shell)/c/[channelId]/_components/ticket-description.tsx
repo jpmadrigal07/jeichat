@@ -1,6 +1,10 @@
 'use client';
 
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  attachmentImageMarkdown,
+  insertTextAtCaret,
+} from '../_helpers/ticket-description-attachments';
 import toast from 'react-hot-toast';
 import { Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -27,6 +31,10 @@ type TicketDescriptionProps = {
   onExpandedChange: (expanded: boolean) => void;
   editing: boolean;
   onEditingChange: (editing: boolean) => void;
+  onPasteImages?: (files: File[]) => void;
+  onRegisterAttachmentMarkdownInsert?: (
+    insert: ((attachmentId: string, alt: string) => void) | null,
+  ) => void;
 };
 
 export function TicketDescription({
@@ -41,8 +49,23 @@ export function TicketDescription({
   onExpandedChange,
   editing,
   onEditingChange,
+  onPasteImages,
+  onRegisterAttachmentMarkdownInsert,
 }: TicketDescriptionProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!editing || !onRegisterAttachmentMarkdownInsert) return;
+    onRegisterAttachmentMarkdownInsert((attachmentId, alt) => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      insertTextAtCaret(
+        textarea,
+        `${attachmentImageMarkdown(attachmentId, alt)}\n`,
+      );
+    });
+    return () => onRegisterAttachmentMarkdownInsert(null);
+  }, [editing, onRegisterAttachmentMarkdownInsert]);
   const previewRef = useRef<HTMLDivElement>(null);
   const [canCollapse, setCanCollapse] = useState(false);
 
@@ -98,9 +121,12 @@ export function TicketDescription({
           key={`edit-${description ?? ''}`}
           textareaRef={textareaRef}
           defaultValue={description ?? ''}
-          placeholder="Add a description. Use @ and # to mention people, tickets, or messages."
+          placeholder="Add a description. Paste images, or use @ and # to mention people, tickets, or messages."
           maxLength={MAX_TICKET_DESCRIPTION_LENGTH}
           autoFocus
+          enableImagePaste={Boolean(onPasteImages)}
+          onPasteImages={onPasteImages}
+          embedAttachmentImages
           workspaceId={workspaceId}
           members={members}
           tickets={tickets}
@@ -157,6 +183,8 @@ export function TicketDescription({
             tickets={tickets}
             channels={channels}
             workspaceId={workspaceId}
+            embedAttachmentImages
+            onContentChange={onSave}
           />
           {!expanded && canCollapse ? (
             <>

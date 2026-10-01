@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useHistoryBack } from '@chat/_hooks/use-history-back';
 
@@ -23,7 +23,7 @@ export function MobileBackLink({
       asChild
     >
       <Link href={href} onClick={handleBack}>
-        <ChevronLeft />
+        <ArrowLeft className="size-4" />
         <span className="sr-only">{label}</span>
       </Link>
     </Button>

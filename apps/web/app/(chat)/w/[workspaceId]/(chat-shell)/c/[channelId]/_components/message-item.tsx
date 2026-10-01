@@ -56,7 +56,7 @@ type MessageItemProps = {
   canManageMessages: boolean;
   onStartEdit: () => void;
   onCancelEdit: () => void;
-  onEdit: (messageId: string, content: string) => void;
+  onEdit: (messageId: string, content: string) => void | Promise<unknown>;
   onDelete: (messageId: string) => void;
   onPin: (messageId: string) => void;
   onUnpin: (messageId: string) => void;
@@ -330,6 +330,9 @@ export function MessageItem({
                     tickets={tickets}
                     channels={channels}
                     workspaceId={workspaceId}
+                    onContentChange={
+                      isOwn ? (next) => onEdit(message.id, next) : undefined
+                    }
                   />
                 ) : null}
                 <MessageAttachments

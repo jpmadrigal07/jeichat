@@ -49,6 +49,11 @@ import { useAttachmentUploads } from '../w/[workspaceId]/(chat-shell)/c/[channel
 import { ChannelDropZone } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_components/channel-drop-overlay';
 import { AttachmentPreviewTray } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_components/attachment-preview-tray';
 import { MarkdownWritePreview } from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_components/markdown-write-preview';
+import {
+  attachmentImageMarkdown,
+  insertTextAtCaret,
+  parseAttachmentIdsFromDescription,
+} from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_helpers/ticket-description-attachments';
 
 export const CREATE_THREAD_PARAM = 'create-thread';
 export const CREATE_STATUS_PARAM = 'create-status';
@@ -137,9 +142,19 @@ function CreateThreadDialog({
   const hashChannels = taggableChannels(channels ?? []);
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const descriptionTextareaRef = useRef<HTMLTextAreaElement>(null);
   const statusInputRef = useRef<HTMLInputElement>(null);
   const assigneeInputRef = useRef<HTMLInputElement>(null);
-  const uploads = useAttachmentUploads(channelId ?? '');
+  const uploads = useAttachmentUploads(channelId ?? '', {
+    onFileUploaded: (attachmentId, file) => {
+      const textarea = descriptionTextareaRef.current;
+      if (!textarea) return;
+      insertTextAtCaret(
+        textarea,
+        `${attachmentImageMarkdown(attachmentId, file.name)}\n`,
+      );
+    },
+  });
   const uploadCounts = countAttachmentKinds(
     uploads.items.map((item) => item.file),
   );
@@ -162,13 +177,19 @@ function CreateThreadDialog({
       (formData.get('description') as string).trim() || undefined;
     if (!name) return;
     const assignee = formData.get('assignee') as string | null;
+    const descriptionAttachmentIds = description
+      ? parseAttachmentIdsFromDescription(description)
+      : [];
+    const attachmentIds = [
+      ...new Set([...uploads.readyServerIds, ...descriptionAttachmentIds]),
+    ];
 
     createThread.mutate(
       {
         channelId,
         name,
         description,
-        attachmentIds: uploads.readyServerIds,
+        attachmentIds,
         status: ticketStatusOf(formData.get('status') as string | null),
         assigneeId: assignee && assignee !== UNASSIGNED ? assignee : null,
       },
@@ -291,13 +312,21 @@ function CreateThreadDialog({
               <MarkdownWritePreview
                 id="thread-description"
                 name="description"
-                placeholder="What is this ticket about? Use @ and # to mention people, tickets, or messages."
+                textareaRef={descriptionTextareaRef}
+                placeholder="What is this ticket about? Paste images, or use @ and # to mention people, tickets, or messages."
                 maxLength={MAX_TICKET_DESCRIPTION_LENGTH}
                 rows={4}
                 workspaceId={workspaceId}
                 members={members}
                 tickets={tickets}
                 channels={hashChannels}
+                enableImagePaste={Boolean(channelId)}
+                onPasteImages={(files) =>
+                  uploads.addFiles(files, uploadCounts, {
+                    insertMarkdownOnComplete: true,
+                  })
+                }
+                embedAttachmentImages
               />
             </div>
             <div className="flex flex-col gap-2">
