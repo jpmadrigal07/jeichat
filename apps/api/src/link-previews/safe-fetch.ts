@@ -1,11 +1,7 @@
-import {
-  lookup as dnsLookup,
-  type LookupAddress,
-  type LookupOptions,
-} from 'node:dns';
+import { promises as dnsPromises, type LookupAddress } from 'node:dns';
 import http, { type IncomingMessage } from 'node:http';
 import https from 'node:https';
-import { isIP, type LookupFunction } from 'node:net';
+import { isIP } from 'node:net';
 import type { Readable } from 'node:stream';
 import zlib from 'node:zlib';
 import { isPublicAddress } from './address-policy';
@@ -54,8 +50,8 @@ const PREVIEWABLE_IMAGE_TYPES = new Set([
 /**
  * Parses `raw` and rejects anything the fetcher must not request: non-http(s)
  * schemes, embedded credentials, unusual ports, and IP-literal hosts in
- * non-public ranges. Hostnames are checked again at connect time (see
- * `guardedLookup`), because DNS can answer differently than it did here.
+ * non-public ranges. Hostnames are resolved and checked again right before
+ * connecting (see `resolveCandidates`), because they carry no address yet.
  */
 export function parsePublicUrl(raw: string, allowLocalOrigin?: string): URL {
   let url: URL;
@@ -82,60 +78,108 @@ export function parsePublicUrl(raw: string, allowLocalOrigin?: string): URL {
   return url;
 }
 
-function guardedLookup(exempt: boolean): LookupFunction {
-  return (hostname, options: LookupOptions, callback) => {
-    dnsLookup(hostname, { ...options, all: true }, (error, addresses) => {
-      if (error) {
-        callback(error, '', 4);
-        return;
-      }
-      const list = addresses as LookupAddress[];
-      // Reject on any non-public answer so a mixed record set cannot slip through.
-      if (
-        !exempt &&
-        (list.length === 0 || list.some((entry) => !isPublicAddress(entry.address)))
-      ) {
-        callback(new UnsafeUrlError('Address is not publicly routable'), '', 4);
-        return;
-      }
-      if (options.all) {
-        callback(null, list);
-        return;
-      }
-      callback(null, list[0].address, list[0].family);
-    });
-  };
+/** The host without the brackets `URL` keeps around IPv6 literals. */
+function bareHost(url: URL): string {
+  return url.hostname.replace(/^\[|\]$/g, '');
+}
+
+/**
+ * Resolves `url`'s host to the addresses worth connecting to, refusing the
+ * whole host if any answer is non-public so a mixed record set cannot slip
+ * through. We connect to one of these exact addresses (see `openResponse`),
+ * so DNS cannot answer differently between this check and the connection.
+ */
+async function resolveCandidates(
+  url: URL,
+  exempt: boolean,
+  signal: AbortSignal,
+): Promise<LookupAddress[]> {
+  const host = bareHost(url);
+  const literalFamily = isIP(host);
+  if (literalFamily !== 0) return [{ address: host, family: literalFamily }];
+
+  signal.throwIfAborted();
+  // getaddrinfo cannot be cancelled, so stop waiting for it at the deadline.
+  const deadline = new Promise<never>((_, reject) => {
+    signal.addEventListener(
+      'abort',
+      () =>
+        reject(
+          signal.reason instanceof Error ? signal.reason : new Error('Aborted'),
+        ),
+      { once: true },
+    );
+  });
+  const addresses = await Promise.race([
+    dnsPromises.lookup(host, { all: true }),
+    deadline,
+  ]);
+
+  if (
+    !exempt &&
+    (addresses.length === 0 ||
+      addresses.some((entry) => !isPublicAddress(entry.address)))
+  ) {
+    throw new UnsafeUrlError('Address is not publicly routable');
+  }
+  // IPv4 first: a host with a broken IPv6 route should not use up the deadline.
+  return [...addresses].sort((a, b) => a.family - b.family);
 }
 
 function openResponse(
   url: URL,
+  address: LookupAddress,
   signal: AbortSignal,
-  exempt: boolean,
 ): Promise<IncomingMessage> {
   return new Promise((resolve, reject) => {
-    const transport = url.protocol === 'https:' ? https : http;
-    const request = transport.request(
-      url,
-      {
-        method: 'GET',
-        agent: false,
-        signal,
-        lookup: guardedLookup(exempt),
-        headers: {
-          'User-Agent': USER_AGENT,
-          Accept: IMAGE_PATH.test(url.pathname) ? IMAGE_ACCEPT : HTML_ACCEPT,
-          'Accept-Language': 'en',
-          'Accept-Encoding': 'gzip, deflate, br',
-        },
+    const secure = url.protocol === 'https:';
+    const transport = secure ? https : http;
+    const host = bareHost(url);
+    // Connect to the vetted address ourselves instead of passing a custom
+    // `lookup`: Bun 1.3.10 cannot connect through one (ECONNREFUSED). The
+    // hostname still goes out as SNI, certificate name and Host header.
+    const options: https.RequestOptions = {
+      method: 'GET',
+      host: address.address,
+      port: Number(url.port) || (secure ? 443 : 80),
+      path: `${url.pathname}${url.search}`,
+      agent: false,
+      signal,
+      ...(secure && isIP(host) === 0 ? { servername: host } : {}),
+      headers: {
+        Host: url.host,
+        'User-Agent': USER_AGENT,
+        Accept: IMAGE_PATH.test(url.pathname) ? IMAGE_ACCEPT : HTML_ACCEPT,
+        'Accept-Language': 'en',
+        'Accept-Encoding': 'gzip, deflate, br',
       },
-      resolve,
-    );
+    };
+    const request = transport.request(options, resolve);
     // `on`, not `once`: a request can emit several errors (Bun reports one per
     // address it tries), and an 'error' with no listener crashes the process.
     // Rejecting an already-settled promise is a no-op.
     request.on('error', reject);
     request.end();
   });
+}
+
+/** Opens a response from the first address of `url`'s host that accepts us. */
+async function connect(
+  url: URL,
+  signal: AbortSignal,
+  exempt: boolean,
+): Promise<IncomingMessage> {
+  const candidates = await resolveCandidates(url, exempt, signal);
+  let lastError: unknown = new Error('Host did not resolve');
+  for (const address of candidates) {
+    try {
+      return await openResponse(url, address, signal);
+    } catch (error) {
+      if (signal.aborted) throw error;
+      lastError = error;
+    }
+  }
+  throw lastError;
 }
 
 function decodeBody(response: IncomingMessage): Readable {
@@ -216,7 +260,7 @@ export async function safeFetchDocument(
   let url = parsePublicUrl(rawUrl, allowLocalOrigin);
 
   for (let hop = 0; hop <= maxRedirects; hop += 1) {
-    const response = await openResponse(
+    const response = await connect(
       url,
       deadline,
       url.origin === allowLocalOrigin,

@@ -1,3 +1,4 @@
+import dns, { type LookupAddress } from 'node:dns';
 import { EventEmitter } from 'node:events';
 import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import https from 'node:https';
@@ -262,7 +263,36 @@ describe('safeFetchDocument', () => {
   });
 });
 
-describe('safeFetchDocument request errors', () => {
+describe('safeFetchDocument connecting', () => {
+  type FakeRequest = EventEmitter & { end: () => void };
+
+  /** Stubs `https.request`; `onEnd` plays the server for each attempt. */
+  function stubRequest(
+    onEnd: (
+      request: FakeRequest,
+      options: https.RequestOptions,
+      respond: (response: unknown) => void,
+    ) => void,
+  ) {
+    const calls: https.RequestOptions[] = [];
+    jest.spyOn(https, 'request').mockImplementation(((
+      options: https.RequestOptions,
+      callback: (response: unknown) => void,
+    ) => {
+      calls.push(options);
+      const request = new EventEmitter() as FakeRequest;
+      request.end = () => onEnd(request, options, callback);
+      return request;
+    }) as unknown as typeof https.request);
+    return calls;
+  }
+
+  function stubDns(addresses: LookupAddress[]) {
+    return jest
+      .spyOn(dns.promises, 'lookup')
+      .mockResolvedValue(addresses as never);
+  }
+
   afterEach(() => {
     jest.restoreAllMocks();
   });
@@ -272,23 +302,85 @@ describe('safeFetchDocument request errors', () => {
   it('survives a request that emits more than one error', async () => {
     const uncaught = jest.fn();
     process.on('uncaughtException', uncaught);
-    jest.spyOn(https, 'request').mockImplementation((() => {
-      const request = new EventEmitter() as EventEmitter & { end: () => void };
-      request.end = () => {
-        setImmediate(() => request.emit('error', new Error('ECONNREFUSED ::1')));
-        setImmediate(() =>
-          request.emit('error', new Error('ECONNREFUSED 127.0.0.1')),
-        );
-      };
-      return request;
-    }) as unknown as typeof https.request);
+    stubRequest((request) => {
+      setImmediate(() => request.emit('error', new Error('ECONNREFUSED ::1')));
+      setImmediate(() =>
+        request.emit('error', new Error('ECONNREFUSED 127.0.0.1')),
+      );
+    });
 
-    await expect(safeFetchDocument('https://example.com/')).rejects.toThrow(
+    await expect(safeFetchDocument('https://8.8.8.8/')).rejects.toThrow(
       'ECONNREFUSED ::1',
     );
     await new Promise((resolve) => setTimeout(resolve, 20));
     process.off('uncaughtException', uncaught);
 
     expect(uncaught).not.toHaveBeenCalled();
+  });
+
+  it('connects to the address it resolved and keeps the hostname for TLS', async () => {
+    stubDns([{ address: '93.184.216.34', family: 4 }]);
+    const calls = stubRequest((request) =>
+      setImmediate(() => request.emit('error', new Error('stop'))),
+    );
+
+    await expect(
+      safeFetchDocument('https://example.com/a/b?q=1#frag'),
+    ).rejects.toThrow('stop');
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({
+      host: '93.184.216.34',
+      port: 443,
+      path: '/a/b?q=1',
+      servername: 'example.com',
+    });
+    expect(calls[0].headers).toMatchObject({ Host: 'example.com' });
+    // A custom `lookup` is what Bun 1.3.10 cannot connect through.
+    expect(calls[0]).not.toHaveProperty('lookup');
+  });
+
+  it('does not send an IP address as the TLS server name', async () => {
+    const calls = stubRequest((request) =>
+      setImmediate(() => request.emit('error', new Error('stop'))),
+    );
+    await expect(safeFetchDocument('https://8.8.8.8/')).rejects.toThrow('stop');
+    expect(calls[0].host).toBe('8.8.8.8');
+    expect(calls[0]).not.toHaveProperty('servername');
+  });
+
+  it('refuses a host when any DNS answer is non-public', async () => {
+    stubDns([
+      { address: '93.184.216.34', family: 4 },
+      { address: '10.0.0.5', family: 4 },
+    ]);
+    const calls = stubRequest(() => undefined);
+
+    await expect(
+      safeFetchDocument('https://example.com/'),
+    ).rejects.toBeInstanceOf(UnsafeUrlError);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('tries IPv4 first, then the next address when one fails', async () => {
+    stubDns([
+      { address: '2606:4700::6810:84e5', family: 6 },
+      { address: '93.184.216.34', family: 4 },
+    ]);
+    const calls = stubRequest((request, options, respond) => {
+      if (options.host === '93.184.216.34') {
+        setImmediate(() => request.emit('error', new Error('ECONNREFUSED')));
+        return;
+      }
+      respond({ statusCode: 404, headers: {}, destroy: () => undefined });
+    });
+
+    await expect(safeFetchDocument('https://example.com/')).rejects.toThrow(
+      'Unexpected status 404',
+    );
+    expect(calls.map((call) => call.host)).toEqual([
+      '93.184.216.34',
+      '2606:4700::6810:84e5',
+    ]);
   });
 });
