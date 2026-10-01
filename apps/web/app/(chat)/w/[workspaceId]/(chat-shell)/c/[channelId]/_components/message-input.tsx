@@ -21,6 +21,7 @@ import type {
 import { ComposerTagPicker } from '@chat/_components/composer-tag-picker';
 import { useComposerTagPicker } from '@chat/_hooks/use-composer-tag-picker';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { shouldSubmitOnEnter } from '../_helpers/enter-to-submit';
 import {
   markdownShortcutForKey,
   replaceSelection,
@@ -180,7 +181,7 @@ export function MessageInput({
       }
     }
 
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (shouldSubmitOnEnter(e)) {
       e.preventDefault();
       submit();
     }

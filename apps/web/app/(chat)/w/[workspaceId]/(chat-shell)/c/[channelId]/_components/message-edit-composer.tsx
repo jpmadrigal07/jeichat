@@ -12,6 +12,7 @@ import type {
   TaggableMessage,
   TaggableTicket,
 } from '@chat/_helpers/ticket-mentions';
+import { shouldSubmitOnEnter } from '../_helpers/enter-to-submit';
 import { useComposerTagHighlight } from '../_hooks/use-composer-tag-highlight';
 
 type MessageEditComposerProps = {
@@ -76,7 +77,7 @@ export function MessageEditComposer({
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (picker.handlePickerKeyDown(e)) return;
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (shouldSubmitOnEnter(e)) {
       e.preventDefault();
       handleSave();
     }
