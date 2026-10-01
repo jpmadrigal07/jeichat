@@ -27,6 +27,7 @@ type ComposerTagPickerProps = {
   selectedIndex: number;
   isSearching?: boolean;
   placement?: 'above' | 'below';
+  className?: string;
   onMention: (member: MentionableMember) => void;
   onMentionAll?: () => void;
   onHashItem: (item: HashPickerItem) => void;
@@ -41,6 +42,7 @@ export function ComposerTagPicker({
   selectedIndex,
   isSearching = false,
   placement = 'above',
+  className,
   onMention,
   onMentionAll,
   onHashItem,
@@ -54,6 +56,7 @@ export function ComposerTagPicker({
       className={cn(
         'absolute inset-x-0 z-10 flex max-h-72 flex-col gap-1 overflow-y-auto rounded-md border bg-popover p-1 shadow-md',
         placement === 'above' ? 'bottom-full mb-1' : 'top-full mt-1',
+        className,
       )}
     >
       {mentionOpen && mentionAll ? (

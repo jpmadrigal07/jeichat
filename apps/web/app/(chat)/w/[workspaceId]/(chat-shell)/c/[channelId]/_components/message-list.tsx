@@ -4,6 +4,7 @@ import { useRef, useEffect, useLayoutEffect, useCallback, useState, type ReactNo
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { MessageItem } from './message-item';
 import { TicketActivityItem } from './ticket-activity-item';
 import type { TicketEvent } from '../_libs/channel-events';
@@ -12,6 +13,7 @@ import type { TicketTimelineEntry } from '../_helpers/merge-ticket-timeline';
 import type { MentionableMember } from '@chat/_helpers/mentions';
 import type {
   TaggableChannel,
+  TaggableMessage,
   TaggableTicket,
 } from '@chat/_helpers/ticket-mentions';
 
@@ -39,6 +41,8 @@ type MessageListProps = {
   members: MentionableMember[];
   tickets: TaggableTicket[];
   channels: TaggableChannel[];
+  mentionMessages: TaggableMessage[];
+  allowAllMention: boolean;
   workspaceId: string;
   showTicketLink?: boolean;
   header?: ReactNode;
@@ -125,6 +129,8 @@ export function MessageList({
   members,
   tickets,
   channels,
+  mentionMessages,
+  allowAllMention,
   workspaceId,
   showTicketLink = false,
   header,
@@ -535,7 +541,11 @@ export function MessageList({
               key={getListItemKey(item, editingMessageId)}
               data-index={virtualRow.index}
               ref={virtualizer.measureElement}
-              className="hover:z-10 focus-within:z-10"
+              className={cn(
+                'hover:z-10 focus-within:z-10',
+                editingMessageId === item.message.id &&
+                  'z-30 hover:z-30 focus-within:z-30',
+              )}
               style={{
                 position: 'absolute',
                 top: 0,
@@ -564,6 +574,9 @@ export function MessageList({
                 members={members}
                 tickets={tickets}
                 channels={channels}
+                mentionMessages={mentionMessages}
+                allowAllMention={allowAllMention}
+                currentUserId={currentUserId}
                 workspaceId={workspaceId}
               />
             </div>

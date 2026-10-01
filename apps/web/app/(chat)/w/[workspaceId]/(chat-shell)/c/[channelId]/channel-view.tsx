@@ -381,6 +381,8 @@ export function ChannelView({
               members={members ?? []}
               tickets={tickets}
               channels={hashChannels}
+              mentionMessages={mentionMessages}
+              allowAllMention={!isDm}
               workspaceId={workspaceId}
               showTicketLink={!isThread}
             />
