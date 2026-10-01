@@ -16,6 +16,7 @@ export * from './channel-events';
 export * from './notifications';
 export * from './pinned-messages';
 export * from './message-reactions';
+export * from './message-link-previews';
 export * from './channel-members';
 export * from './channel-notification-settings';
 export * from './push-subscriptions';

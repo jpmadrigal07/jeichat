@@ -6,6 +6,7 @@ import { NotificationSettingsModule } from '../notification-settings/notificatio
 import { WorkspacesModule } from '../workspaces/workspaces.module';
 import { BotsModule } from '../bots/bots.module';
 import { GithubIntegrationModule } from '../integrations/github/github.module';
+import { LinkPreviewsModule } from '../link-previews/link-previews.module';
 import { ChannelPinsController } from './channel-pins.controller';
 import { MessagesController } from './messages.controller';
 import { MessagesService } from './messages.service';
@@ -16,6 +17,7 @@ import { MessagesService } from './messages.service';
     forwardRef(() => GatewayModule),
     InboxModule,
     NotificationSettingsModule,
+    LinkPreviewsModule,
     PushModule,
     forwardRef(() => BotsModule),
     forwardRef(() => GithubIntegrationModule),

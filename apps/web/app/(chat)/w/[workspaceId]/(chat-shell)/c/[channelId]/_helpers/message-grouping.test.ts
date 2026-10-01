@@ -20,6 +20,7 @@ function message(overrides: Partial<Message> & { offsetMs?: number }): Message {
     sender: null,
     attachments: [],
     reactions: [],
+    linkPreviews: [],
     replyToId: null,
     replyTo: null,
     ...rest,

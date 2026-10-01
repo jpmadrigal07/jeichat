@@ -204,6 +204,20 @@
       "when": 1790633466912,
       "tag": "0028_channel_notification_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1790855508867,
+      "tag": "0029_message_link_previews",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1790858880189,
+      "tag": "0030_message_link_previews_suppressed",
+      "breakpoints": true
     }
   ]
 }

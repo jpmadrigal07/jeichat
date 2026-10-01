@@ -19,8 +19,14 @@ import {
   removePinFromCache,
   updatePinnedMessageInCache,
 } from './use-pins';
+import { updateMessageLinkPreviewsInCache } from './use-link-previews';
 import { updateMessageReactionsInCache } from './use-reactions';
-import type { Message, MessageReactionsPayload, PinnedMessage } from '../_libs/messages';
+import type {
+  Message,
+  MessageLinkPreviewsPayload,
+  MessageReactionsPayload,
+  PinnedMessage,
+} from '../_libs/messages';
 import { addChannelEventToCache } from './use-channel-events';
 import {
   isParentChannelEventType,
@@ -109,6 +115,18 @@ export function useSocket(
       }
     };
 
+    const handleMessageLinkPreviewsUpdated = (
+      payload: MessageLinkPreviewsPayload,
+    ) => {
+      if (payload.channelId === channelIdRef.current) {
+        updateMessageLinkPreviewsInCache(
+          queryClient,
+          channelIdRef.current,
+          payload,
+        );
+      }
+    };
+
     const handleUserTyping = (payload: {
       channelId: string;
       userId: string;
@@ -175,6 +193,10 @@ export function useSocket(
     socket.on('message_pinned', handleMessagePinned);
     socket.on('message_unpinned', handleMessageUnpinned);
     socket.on('message_reactions_updated', handleMessageReactionsUpdated);
+    socket.on(
+      'message_link_previews_updated',
+      handleMessageLinkPreviewsUpdated,
+    );
     socket.on('channel_event', handleChannelEvent);
     socket.on('user_typing', handleUserTyping);
     socket.on('connect', joinCurrent);
@@ -187,6 +209,10 @@ export function useSocket(
       socket.off('message_pinned', handleMessagePinned);
       socket.off('message_unpinned', handleMessageUnpinned);
       socket.off('message_reactions_updated', handleMessageReactionsUpdated);
+      socket.off(
+        'message_link_previews_updated',
+        handleMessageLinkPreviewsUpdated,
+      );
       socket.off('channel_event', handleChannelEvent);
       socket.off('user_typing', handleUserTyping);
       socket.off('connect', joinCurrent);

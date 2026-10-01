@@ -126,3 +126,28 @@ export function updatePinnedMessageReactionsInCache(
     },
   );
 }
+
+export function updatePinnedMessageLinkPreviewsInCache(
+  queryClient: QueryClient,
+  channelId: string,
+  messageId: string,
+  linkPreviews: Message['linkPreviews'],
+) {
+  queryClient.setQueryData<PinnedMessagesResponse>(
+    pinsQueryKey(channelId),
+    (old) => {
+      if (!old) return old;
+      return {
+        ...old,
+        data: old.data.map((item) =>
+          item.messageId === messageId
+            ? {
+                ...item,
+                message: { ...item.message, linkPreviews },
+              }
+            : item,
+        ),
+      };
+    },
+  );
+}

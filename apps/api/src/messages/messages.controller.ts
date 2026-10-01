@@ -77,6 +77,15 @@ export class MessagesController {
     return this.messagesService.remove(channelId, id, actor.userId);
   }
 
+  @Delete(':id/link-previews')
+  removeLinkPreviews(
+    @Param('channelId') channelId: string,
+    @Param('id') id: string,
+    @Actor() actor: RequestActor,
+  ) {
+    return this.messagesService.removeLinkPreviews(channelId, id, actor.userId);
+  }
+
   @Post(':id/pin')
   pin(
     @Param('channelId') channelId: string,

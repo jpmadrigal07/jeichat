@@ -9,6 +9,7 @@ import { MessageItem } from './message-item';
 import { TicketActivityItem } from './ticket-activity-item';
 import type { TicketEvent } from '../_libs/channel-events';
 import type { Message } from '../_libs/messages';
+import { estimateLinkPreviewsHeight } from '../_helpers/link-preview-layout';
 import { isGroupedWithPrevious } from '../_helpers/message-grouping';
 import type { TicketTimelineEntry } from '../_helpers/merge-ticket-timeline';
 import type { MentionableMember } from '@chat/_helpers/mentions';
@@ -220,10 +221,16 @@ export function MessageList({
       if (item?.type === 'message' && item.message.id === editingMessageId) {
         return EDITING_ROW_ESTIMATE;
       }
+      // Previews are far taller than a text row; without them in the estimate
+      // the list drifts while it measures rows on the way to the bottom.
+      const previewsHeight =
+        item?.type === 'message'
+          ? estimateLinkPreviewsHeight(item.message.linkPreviews)
+          : 0;
       if (item?.type === 'message' && item.isGrouped) {
-        return GROUPED_ROW_ESTIMATE;
+        return GROUPED_ROW_ESTIMATE + previewsHeight;
       }
-      return 72;
+      return 72 + previewsHeight;
     },
     overscan: 10,
     scrollMargin,
@@ -384,6 +391,14 @@ export function MessageList({
       }
     };
   }, [highlightIndex, items.length, totalSize, scrollToBottom, isAtBottom, virtualizer]);
+
+  // Rows can grow after they render (a link preview arrives, an image loads).
+  // Keep a viewer who is at the live bottom there; scrolling up releases it.
+  useEffect(() => {
+    if (isInitialPinRef.current || hasPreviousPage) return;
+    if (!stickToBottomRef.current) return;
+    scrollToBottom();
+  }, [totalSize, hasPreviousPage, scrollToBottom]);
 
   useEffect(() => {
     if (

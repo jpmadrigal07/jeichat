@@ -65,6 +65,16 @@ const migrations = [
     table: 'channel_notification_settings',
     file: '../src/database/drizzle/0028_channel_notification_settings.sql',
   },
+  {
+    name: '0029_message_link_previews',
+    table: 'message_link_previews',
+    file: '../src/database/drizzle/0029_message_link_previews.sql',
+  },
+  {
+    name: '0030_message_link_previews_suppressed',
+    column: { table: 'messages', name: 'link_previews_suppressed' },
+    file: '../src/database/drizzle/0030_message_link_previews_suppressed.sql',
+  },
 ] as const;
 
 try {

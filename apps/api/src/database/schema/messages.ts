@@ -1,4 +1,5 @@
 import {
+  boolean,
   index,
   pgTable,
   text,
@@ -19,6 +20,10 @@ export const messages = pgTable(
       .notNull()
       .references(() => user.id),
     content: text('content').notNull(),
+    // Set when the sender removes the link previews; later edits must not bring them back.
+    linkPreviewsSuppressed: boolean('link_previews_suppressed')
+      .notNull()
+      .default(false),
     replyToId: text('reply_to_id').references(
       (): AnyPgColumn => messages.id,
       { onDelete: 'set null' },

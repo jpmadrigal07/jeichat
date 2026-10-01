@@ -43,6 +43,7 @@ import {
 import { PERMISSIONS } from '../workspaces/permissions';
 import { WorkspacePermissionsService } from '../workspaces/workspace-permissions.service';
 import { BotsService } from '../bots/bots.service';
+import { LinkPreviewsService } from '../link-previews/link-previews.service';
 import { GithubIntegrationService } from '../integrations/github/github.service';
 import {
   aroundWindowSizes,
@@ -99,6 +100,7 @@ export class MessagesService {
     private readonly pushService: PushService,
     private readonly botsService: BotsService,
     private readonly notificationSettings: NotificationSettingsService,
+    private readonly linkPreviews: LinkPreviewsService,
     @Inject(forwardRef(() => GithubIntegrationService))
     private readonly githubIntegration: GithubIntegrationService,
   ) {}
@@ -379,6 +381,7 @@ export class MessagesService {
 
     const message = await this.findOneWithAttachments(messageId, senderId);
     this.chatGateway.emitNewMessage(channelId, message);
+    this.scheduleLinkPreviews(channelId, messageId, content);
     await Promise.all([
       this.notifyMessageRecipients(channel, senderId, message, content),
       content.trim()
@@ -596,15 +599,66 @@ export class MessagesService {
     const replyToById = await this.loadReplyToByIds(
       rows.map((row) => row.replyToId),
     );
+    const linkPreviewsGrouped = await this.linkPreviews.loadByMessageIds(
+      rows.map((row) => row.id),
+    );
     return rows.map((row) => ({
       ...row,
       attachments: grouped.get(row.id) ?? [],
       reactions: reactionsGrouped.get(row.id) ?? [],
+      linkPreviews: linkPreviewsGrouped.get(row.id) ?? [],
       replyTo: row.replyToId ? (replyToById.get(row.replyToId) ?? null) : null,
       sender: row.sender
         ? { ...row.sender, isBot: row.sender.isBot === true }
         : null,
     }));
+  }
+
+  /**
+   * Unfurls links in the background so sending never waits on a third-party
+   * site. Previews that arrive are pushed to the channel as a follow-up event.
+   */
+  private scheduleLinkPreviews(
+    channelId: string,
+    messageId: string,
+    content: string,
+  ) {
+    if (!/https?:\/\//i.test(content)) return;
+    void this.linkPreviews
+      .syncForMessage(messageId, content)
+      .then((linkPreviews) => {
+        if (!linkPreviews) return;
+        this.chatGateway.emitMessageLinkPreviewsUpdated(channelId, {
+          messageId,
+          channelId,
+          linkPreviews,
+        });
+      })
+      .catch(() => undefined);
+  }
+
+  /** Removes all link previews from the sender's own message, for everyone. */
+  async removeLinkPreviews(channelId: string, id: string, userId: string) {
+    await this.verifyChannelAccess(channelId, userId, PERMISSIONS.VIEW_CHANNEL);
+
+    const [existing] = await this.drizzle.db
+      .select({ senderId: messages.senderId })
+      .from(messages)
+      .where(and(eq(messages.id, id), eq(messages.channelId, channelId)));
+
+    if (!existing) throw new NotFoundException('Message not found');
+
+    if (existing.senderId !== userId) {
+      throw new ForbiddenException(
+        'You can only remove embeds from your own messages',
+      );
+    }
+
+    await this.linkPreviews.suppressForMessage(id);
+
+    const payload = { messageId: id, channelId, linkPreviews: [] };
+    this.chatGateway.emitMessageLinkPreviewsUpdated(channelId, payload);
+    return payload;
   }
 
   async update(channelId: string, id: string, userId: string, content: string) {
@@ -630,8 +684,10 @@ export class MessagesService {
       .set({ content, updatedAt: new Date() })
       .where(eq(messages.id, id));
 
+    await this.linkPreviews.reconcileForMessage(id, content);
     const result = await this.findOneWithAttachments(id, userId);
     this.chatGateway.emitMessageUpdated(channelId, result);
+    this.scheduleLinkPreviews(channelId, id, content);
     if (content.trim()) {
       await this.inboxService.notifyMentions({
         workspaceId: channel.workspaceId,
@@ -890,6 +946,9 @@ export class MessagesService {
     const replyToById = await this.loadReplyToByIds(
       rows.map((row) => row.replyToId),
     );
+    const linkPreviewsGrouped = await this.linkPreviews.loadByMessageIds(
+      rows.map((row) => row.messageId),
+    );
 
     return rows.map((row) => ({
       id: row.id,
@@ -917,6 +976,7 @@ export class MessagesService {
           : null,
         attachments: grouped.get(row.messageId) ?? [],
         reactions: reactionsGrouped.get(row.messageId) ?? [],
+        linkPreviews: linkPreviewsGrouped.get(row.messageId) ?? [],
         replyTo: row.replyToId
           ? (replyToById.get(row.replyToId) ?? null)
           : null,

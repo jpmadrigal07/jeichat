@@ -34,6 +34,7 @@ import { messageReplySnippet } from '../_helpers/message-reply';
 import { useLongPress } from '../_hooks/use-long-press';
 import { MessageActionDrawer } from './message-action-drawer';
 import { MessageAttachments } from './message-attachments';
+import { MessageLinkPreviews } from './message-link-previews';
 import { MessageContextMenu } from './message-context-menu';
 import { MessageMarkdown } from './message-markdown';
 import { MessageReactions } from './message-reactions';
@@ -356,6 +357,15 @@ export function MessageItem({
                     <div className="flex items-center gap-2">{statusMarkers}</div>
                   ) : null}
                 </div>
+                <MessageLinkPreviews
+                  previews={message.linkPreviews ?? []}
+                  removable={
+                    isOwn
+                      ? { channelId: message.channelId, messageId: message.id }
+                      : undefined
+                  }
+                  className="mt-1.5"
+                />
                 <MessageAttachments
                   attachments={message.attachments}
                   className="mt-1.5"

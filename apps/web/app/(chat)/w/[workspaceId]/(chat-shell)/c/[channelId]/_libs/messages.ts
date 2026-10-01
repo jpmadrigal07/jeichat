@@ -21,6 +21,25 @@ export type MessageReactionsPayload = {
   reactions: MessageReaction[];
 };
 
+/** Unfurled link metadata. `image` renders the media bare (GIFs, direct images); `link` renders a card. */
+export type MessageLinkPreview = {
+  id: string;
+  url: string;
+  kind: 'link' | 'image';
+  title: string | null;
+  description: string | null;
+  siteName: string | null;
+  imageUrl: string | null;
+  imageWidth: number | null;
+  imageHeight: number | null;
+};
+
+export type MessageLinkPreviewsPayload = {
+  messageId: string;
+  channelId: string;
+  linkPreviews: MessageLinkPreview[];
+};
+
 export type MessageReplyTo = {
   id: string;
   content: string;
@@ -46,6 +65,7 @@ export type Message = {
   } | null;
   attachments: MessageAttachment[];
   reactions: MessageReaction[];
+  linkPreviews: MessageLinkPreview[];
   replyToId: string | null;
   replyTo: MessageReplyTo | null;
 };
@@ -201,6 +221,16 @@ export async function deleteMessage(
   messageId: string,
 ): Promise<void> {
   await api.delete(`/channels/${channelId}/messages/${messageId}`);
+}
+
+export async function removeMessageLinkPreviews(
+  channelId: string,
+  messageId: string,
+): Promise<MessageLinkPreviewsPayload> {
+  const { data } = await api.delete<MessageLinkPreviewsPayload>(
+    `/channels/${channelId}/messages/${messageId}/link-previews`,
+  );
+  return data;
 }
 
 export async function fetchPinnedMessages(

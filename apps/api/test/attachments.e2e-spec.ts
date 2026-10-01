@@ -12,6 +12,7 @@ import { InboxService } from '../src/inbox/inbox.service';
 import { BotsService } from '../src/bots/bots.service';
 import { MessagesController } from '../src/messages/messages.controller';
 import { GithubIntegrationService } from '../src/integrations/github/github.service';
+import { LinkPreviewsService } from '../src/link-previews/link-previews.service';
 import { MessagesService } from '../src/messages/messages.service';
 import { NotificationSettingsService } from '../src/notification-settings/notification-settings.service';
 import { PushService } from '../src/push/push.service';
@@ -132,6 +133,14 @@ describe('Attachments API (e2e)', () => {
         {
           provide: GithubIntegrationService,
           useValue: { handleChatCommand: jest.fn() },
+        },
+        {
+          provide: LinkPreviewsService,
+          useValue: {
+            loadByMessageIds: jest.fn().mockResolvedValue(new Map()),
+            reconcileForMessage: jest.fn().mockResolvedValue(undefined),
+            syncForMessage: jest.fn().mockResolvedValue(null),
+          },
         },
       ],
     }).compile();
