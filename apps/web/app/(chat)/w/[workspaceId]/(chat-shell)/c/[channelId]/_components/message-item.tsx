@@ -1,15 +1,13 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useState } from 'react';
 import {
-  Check,
   Pencil,
   Pin,
   PinOff,
   Reply,
   SmilePlus,
   Trash2,
-  X,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -30,7 +28,6 @@ import { BotBadge } from '@chat/_components/bot-badge';
 import { PresenceAvatar } from '@chat/_components/presence-avatar';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import type { Message, MessageReplyTo } from '../_libs/messages';
 import { messageReplySnippet } from '../_helpers/message-reply';
@@ -44,8 +41,10 @@ import { QUICK_REACTIONS, ReactionEmojiPicker } from './reaction-emoji-picker';
 import type { MentionableMember } from '@chat/_helpers/mentions';
 import type {
   TaggableChannel,
+  TaggableMessage,
   TaggableTicket,
 } from '@chat/_helpers/ticket-mentions';
+import { MessageEditComposer } from './message-edit-composer';
 
 type MessageItemProps = {
   message: Message;
@@ -67,6 +66,9 @@ type MessageItemProps = {
   members: MentionableMember[];
   tickets: TaggableTicket[];
   channels: TaggableChannel[];
+  mentionMessages: TaggableMessage[];
+  allowAllMention: boolean;
+  currentUserId: string;
   workspaceId: string;
 };
 
@@ -186,9 +188,11 @@ export function MessageItem({
   members,
   tickets,
   channels,
+  mentionMessages,
+  allowAllMention,
+  currentUserId,
   workspaceId,
 }: MessageItemProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [openPanel, setOpenPanel] = useState<'actions' | 'delete' | null>(null);
   const isEdited = message.updatedAt !== message.createdAt;
   const showActions = !isEditing;
@@ -201,35 +205,6 @@ export function MessageItem({
   function handleTogglePin() {
     if (isPinned) onUnpin(message.id);
     else onPin(message.id);
-  }
-
-  // Focus the edit box with the caret after the existing text (autoFocus
-  // leaves it at the start). Stable identity so re-renders while editing
-  // don't re-run this and yank the caret back to the end mid-typing.
-  const attachEditTextarea = useCallback((node: HTMLTextAreaElement | null) => {
-    textareaRef.current = node;
-    if (!node) return;
-    const end = node.value.length;
-    node.focus();
-    node.setSelectionRange(end, end);
-  }, []);
-
-  function handleSaveEdit() {
-    const value = textareaRef.current?.value.trim();
-    if (value && value !== message.content) {
-      onEdit(message.id, value);
-    }
-    onCancelEdit();
-  }
-
-  function handleEditKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSaveEdit();
-    }
-    if (e.key === 'Escape') {
-      onCancelEdit();
-    }
   }
 
   return (
@@ -297,24 +272,23 @@ export function MessageItem({
             </div>
 
             {isEditing ? (
-              <div className="mt-1">
-                <Textarea
-                  ref={attachEditTextarea}
-                  defaultValue={message.content}
-                  onKeyDown={handleEditKeyDown}
-                  className="min-h-[60px] text-sm resize-none"
-                />
-                <div className="flex gap-1 mt-1">
-                  <Button size="sm" variant="ghost" onClick={onCancelEdit}>
-                    <X className="h-3.5 w-3.5 mr-1" />
-                    Cancel
-                  </Button>
-                  <Button size="sm" onClick={handleSaveEdit}>
-                    <Check className="h-3.5 w-3.5 mr-1" />
-                    Save
-                  </Button>
-                </div>
-              </div>
+              <MessageEditComposer
+                initialContent={message.content}
+                workspaceId={workspaceId}
+                currentUserId={currentUserId}
+                members={members}
+                tickets={tickets}
+                channels={channels}
+                mentionMessages={mentionMessages}
+                allowAllMention={allowAllMention}
+                onSave={(value) => {
+                  if (value !== message.content) {
+                    onEdit(message.id, value);
+                  }
+                  onCancelEdit();
+                }}
+                onCancel={onCancelEdit}
+              />
             ) : (
               <>
                 <MessageReplyPreview
