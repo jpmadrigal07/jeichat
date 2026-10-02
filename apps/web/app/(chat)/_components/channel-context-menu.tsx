@@ -16,6 +16,8 @@ type ChannelContextMenuProps = {
   children: React.ReactNode;
   workspaceId: string;
   channelId: string;
+  /** Voice channels have no messages to be notified about. */
+  showNotifications?: boolean;
 };
 
 /**
@@ -26,6 +28,7 @@ export function ChannelContextMenu({
   children,
   workspaceId,
   channelId,
+  showNotifications = true,
 }: ChannelContextMenuProps) {
   // Below `md` there is no right-click, and a long press reorders the row.
   const isMobile = useIsMobile();
@@ -42,10 +45,12 @@ export function ChannelContextMenu({
             Channel Settings
           </Link>
         </ContextMenuItem>
-        <ChannelNotificationContextSubMenu
-          workspaceId={workspaceId}
-          channelId={channelId}
-        />
+        {showNotifications ? (
+          <ChannelNotificationContextSubMenu
+            workspaceId={workspaceId}
+            channelId={channelId}
+          />
+        ) : null}
       </ContextMenuContent>
     </ContextMenu>
   );

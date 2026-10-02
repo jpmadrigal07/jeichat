@@ -237,6 +237,13 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.server.to(`channel:${channelId}`).emit('channel_event', event);
   }
 
+  /** Someone joined or left a voice channel; clients refetch its participants. */
+  emitVoiceParticipantsChanged(workspaceId: string, channelId: string) {
+    this.server
+      .to(`workspace:${workspaceId}`)
+      .emit('voice_participants_changed', { workspaceId, channelId });
+  }
+
   emitInboxNotification(userId: string, notification: unknown) {
     this.server.to(`user:${userId}`).emit('inbox_notification', notification);
   }

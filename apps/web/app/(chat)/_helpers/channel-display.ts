@@ -6,6 +6,12 @@ export function isDmChannel(
   return channel?.channelType === 'dm';
 }
 
+export function isVoiceChannel(
+  channel: Pick<Channel, 'channelType'> | null | undefined,
+) {
+  return channel?.channelType === 'voice';
+}
+
 /**
  * A DM whose other person has left the workspace: still readable, but nothing
  * in it can be changed. Strict `=== false` so an API that omits the flag never
@@ -37,5 +43,6 @@ export function channelBreadcrumbLabel(
   if (isDmChannel(channel)) {
     return channel.dmPeer?.name ?? channel.name ?? fallback;
   }
+  if (isVoiceChannel(channel)) return channel.name;
   return `# ${channel.name}`;
 }

@@ -210,6 +210,7 @@ export function useCreateChannel(workspaceId: string) {
       ticketKey?: string;
       isPrivate?: boolean;
       memberIds?: string[];
+      channelType?: 'channel' | 'voice';
     }) => createChannel(workspaceId, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({

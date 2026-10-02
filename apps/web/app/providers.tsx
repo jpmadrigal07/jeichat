@@ -56,8 +56,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
     () =>
       new QueryClient({
         queryCache: new QueryCache({
-          onError: (error) => {
+          onError: (error, query) => {
             if (isApiError(error) && error.isCancelled) return;
+            // Background queries (e.g. polled voice participants) fail quietly.
+            if (query.meta?.silent === true) return;
             toast.error(getErrorMessage(error));
           },
         }),

@@ -1,7 +1,7 @@
 import { getServerSession } from '@/lib/auth-server';
 import { redirect } from 'next/navigation';
 import { channelBoardHref, parseTicketLayout } from '@chat/_libs/channels';
-import { ChannelView } from './channel-view';
+import { ChannelRouteView } from './channel-route-view';
 
 export default async function ChannelPage({
   params,
@@ -35,7 +35,7 @@ export default async function ChannelPage({
     : query.message;
 
   return (
-    <ChannelView
+    <ChannelRouteView
       params={params}
       userId={session.data.user.id}
       view="messages"

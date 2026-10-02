@@ -65,10 +65,26 @@ import {
 
 const parentChannels = alias(channels, 'parent_channels');
 
-const CHANNEL_TYPE = {
+export const CHANNEL_TYPE = {
   CHANNEL: 'channel',
   DM: 'dm',
+  VOICE: 'voice',
 } as const;
+
+/** Channel kinds someone can create directly; DMs come from `createOrGetDm`. */
+export type CreatableChannelType =
+  | typeof CHANNEL_TYPE.CHANNEL
+  | typeof CHANNEL_TYPE.VOICE;
+
+export function parseCreatableChannelType(
+  value: unknown,
+): CreatableChannelType {
+  if (value === undefined || value === null || value === CHANNEL_TYPE.CHANNEL) {
+    return CHANNEL_TYPE.CHANNEL;
+  }
+  if (value === CHANNEL_TYPE.VOICE) return CHANNEL_TYPE.VOICE;
+  throw new BadRequestException('Channel type must be "channel" or "voice"');
+}
 
 type DmPeer = {
   id: string;
@@ -97,6 +113,7 @@ export class ChannelsService {
     ticketKey?: string | null,
     isPrivate = false,
     memberIds: string[] = [],
+    channelType: CreatableChannelType = CHANNEL_TYPE.CHANNEL,
   ) {
     await this.workspacesService.verifyMembership(workspaceId, userId);
 
@@ -104,17 +121,21 @@ export class ChannelsService {
     if (!trimmed) {
       throw new BadRequestException('Channel name is required');
     }
-    await this.assertChannelNameAvailable(workspaceId, trimmed);
+    await this.assertChannelNameAvailable(workspaceId, trimmed, channelType);
 
-    const key =
-      ticketKey !== undefined && ticketKey !== null && ticketKey.trim()
-        ? parseChannelKey(ticketKey)
-        : suggestChannelKey(trimmed);
-    const uniqueKey = await this.allocateChannelKey(
-      workspaceId,
-      key,
-      ticketKey !== undefined && ticketKey !== null && ticketKey.trim().length > 0,
-    );
+    // Voice channels hold no tickets, so they never take a ticket key.
+    const uniqueKey =
+      channelType === CHANNEL_TYPE.VOICE
+        ? null
+        : await this.allocateChannelKey(
+            workspaceId,
+            ticketKey !== undefined && ticketKey !== null && ticketKey.trim()
+              ? parseChannelKey(ticketKey)
+              : suggestChannelKey(trimmed),
+            ticketKey !== undefined &&
+              ticketKey !== null &&
+              ticketKey.trim().length > 0,
+          );
 
     const now = new Date();
     const [channel] = await this.drizzle.db
@@ -125,6 +146,7 @@ export class ChannelsService {
         name: trimmed,
         description,
         ticketKey: uniqueKey,
+        channelType,
         isPrivate,
         createdAt: now,
         updatedAt: now,
@@ -239,6 +261,11 @@ export class ChannelsService {
     if (parent.channelType === CHANNEL_TYPE.DM) {
       throw new BadRequestException(
         'Tickets are not available in direct messages',
+      );
+    }
+    if (parent.channelType === CHANNEL_TYPE.VOICE) {
+      throw new BadRequestException(
+        'Tickets are not available in voice channels',
       );
     }
 
@@ -615,8 +642,11 @@ export class ChannelsService {
         'Only tickets have status, priority, assignee, due date, labels, watchers, and archive',
       );
     }
-    if (isThread && data.ticketKey !== undefined) {
-      throw new BadRequestException('Only channels have a ticket key');
+    if (
+      data.ticketKey !== undefined &&
+      (isThread || existing.channelType === CHANNEL_TYPE.VOICE)
+    ) {
+      throw new BadRequestException('Only text channels have a ticket key');
     }
     if (isThread && data.isPrivate !== undefined) {
       throw new BadRequestException(
@@ -671,7 +701,14 @@ export class ChannelsService {
             );
           }
         } else {
-          await this.assertChannelNameAvailable(workspaceId, trimmed, id);
+          await this.assertChannelNameAvailable(
+            workspaceId,
+            trimmed,
+            existing.channelType === CHANNEL_TYPE.VOICE
+              ? CHANNEL_TYPE.VOICE
+              : CHANNEL_TYPE.CHANNEL,
+            id,
+          );
         }
         patch.name = trimmed;
       }
@@ -1203,21 +1240,29 @@ export class ChannelsService {
     );
 
     const [target] = await this.drizzle.db
-      .select({ parentId: channels.parentId })
+      .select({
+        parentId: channels.parentId,
+        channelType: channels.channelType,
+      })
       .from(channels)
       .where(eq(channels.id, id));
 
-    if (!target?.parentId) {
+    // A workspace always keeps one text channel; voice channels can all go.
+    if (!target?.parentId && target?.channelType === CHANNEL_TYPE.CHANNEL) {
       const topLevel = await this.drizzle.db
         .select({ id: channels.id })
         .from(channels)
         .where(
-          and(eq(channels.workspaceId, workspaceId), isNull(channels.parentId)),
+          and(
+            eq(channels.workspaceId, workspaceId),
+            isNull(channels.parentId),
+            eq(channels.channelType, CHANNEL_TYPE.CHANNEL),
+          ),
         );
 
       if (topLevel.length <= 1) {
         throw new BadRequestException(
-          'Cannot delete the last channel in a workspace',
+          'Cannot delete the last text channel in a workspace',
         );
       }
     }
@@ -1754,10 +1799,15 @@ export class ChannelsService {
     }
   }
 
-  /** Mirrors the `channels_workspace_id_name_unq` partial unique index. */
+  /**
+   * Mirrors the `channels_workspace_id_name_unq` partial unique index for text
+   * channels. Voice names are only unique among voice channels, so `general`
+   * can exist as both.
+   */
   private async assertChannelNameAvailable(
     workspaceId: string,
     name: string,
+    channelType: CreatableChannelType,
     excludeId?: string,
   ) {
     const [existing] = await this.drizzle.db
@@ -1767,7 +1817,7 @@ export class ChannelsService {
         and(
           eq(channels.workspaceId, workspaceId),
           isNull(channels.parentId),
-          eq(channels.channelType, CHANNEL_TYPE.CHANNEL),
+          eq(channels.channelType, channelType),
           eq(channels.name, name),
           excludeId ? ne(channels.id, excludeId) : undefined,
         ),

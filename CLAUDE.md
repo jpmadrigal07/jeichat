@@ -306,6 +306,13 @@ R2_PUBLIC_URL=                          # Optional: only if using a public custo
 R2_PRESIGN_EXPIRES_SECONDS=600          # Presigned URL TTL (10 min default)
 R2_MAX_UPLOAD_BYTES=26214400            # 25 MiB per file
 
+# LiveKit — voice channels (optional; voice endpoints return 503 without them)
+LIVEKIT_URL=wss://<project>.livekit.cloud  # Or a self-hosted server URL
+LIVEKIT_API_KEY=
+LIVEKIT_API_SECRET=
+LIVEKIT_API_URL=                        # Optional: server-API URL if different from LIVEKIT_URL
+LIVEKIT_ROOM_PREFIX=                    # Optional: e.g. dev- to share one project across envs
+
 # API (Nest)
 PORT=3002
 WEB_ORIGIN=http://localhost:3001           # CORS allowed origin
@@ -315,6 +322,16 @@ CORS_CREDENTIALS=                          # Set to 'false' to disable credentia
 NEXT_PUBLIC_API_URL=http://localhost:3002
 NEXT_PUBLIC_API_CREDENTIALS=true           # Required for session cookies cross-origin
 ```
+
+---
+
+## Voice Channels (LiveKit)
+
+Voice channels are `channels` rows with `channel_type = 'voice'` (no ticket key, no tickets). Audio runs browser ↔ LiveKit; the API never carries media.
+
+- **API (`apps/api/src/voice/`)** mints join tokens (`POST /workspaces/:id/voice/:channelId/token`; identity = user ID, `canPublish` = `SEND_MESSAGES`), lists participants per channel from LiveKit's server API (`GET /workspaces/:id/voice/participants`, 3 s cache), and broadcasts `voice_participants_changed` to `workspace:<id>` on `POST …/sync` (sent by the client after joining/leaving) and on LiveKit webhooks (`POST /voice/webhook`).
+- **Self-hosting** is env-only: the token response carries `serverUrl`, so the web app never hardcodes a LiveKit URL. Room names are `${LIVEKIT_ROOM_PREFIX}${channelId}`.
+- **Web**: `VoiceProvider` (`app/(chat)/_hooks/use-voice.tsx`) wraps the `(chat)` layout and owns one LiveKit `Room`, so a call survives navigation and workspace switches. Use `useVoice()` for join/leave/mute/deafen. Deafen is a participant attribute (`deafened`) so others see it.
 
 ---
 

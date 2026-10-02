@@ -115,6 +115,8 @@ import { PresenceAvatar } from './presence-avatar';
 import { UnreadBadge } from './unread-badge';
 import { channelDisplayName } from '../_helpers/channel-display';
 import { UserBar } from './user-bar';
+import { VoiceChannelsNav } from './voice-channels-nav';
+import { VoiceConnectionPanel } from './voice-controls';
 import { HistoryNavButtons } from './history-nav-buttons';
 import { ResizableSidebar } from './resizable-sidebar';
 import { WorkspaceSwitcher } from './workspace-switcher';
@@ -178,7 +180,9 @@ export function ChannelSidebar({ user }: { user: User }) {
   }, [cancelChannelReorder, liftedChannelId]);
 
   const activeWorkspace = workspaces?.find((ws) => ws.id === workspaceId);
-  const { topLevel, dms, threadsByParent } = groupChannelsByParent(channels ?? []);
+  const { topLevel, voice, dms, threadsByParent } = groupChannelsByParent(
+    channels ?? [],
+  );
   const orderedTopLevel = sortTopLevel(topLevel);
   const sidebarChannelIds = orderedTopLevel.map((channel) => channel.id);
 
@@ -420,6 +424,13 @@ export function ChannelSidebar({ user }: { user: User }) {
                 </div>
               </div>
 
+              <VoiceChannelsNav
+                workspaceId={workspaceId}
+                currentUserId={user.id}
+                channels={voice}
+                activeChannelId={activeChannelId}
+              />
+
               <DirectMessagesNav
                 workspaceId={workspaceId}
                 currentUserId={user.id}
@@ -432,6 +443,7 @@ export function ChannelSidebar({ user }: { user: User }) {
         </div>
       </ScrollArea>
 
+      <VoiceConnectionPanel />
       <UserBar user={user} />
       <CreateThreadDialogHost workspaceId={workspaceId} />
     </ResizableSidebar>

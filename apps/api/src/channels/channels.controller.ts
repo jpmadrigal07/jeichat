@@ -11,7 +11,7 @@ import {
 import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
 import { Actor, BotAllowed, type RequestActor } from '../auth/actor';
 import type { auth } from '../auth/auth';
-import { ChannelsService } from './channels.service';
+import { ChannelsService, parseCreatableChannelType } from './channels.service';
 import { WorkspaceRolesService } from '../workspaces/workspace-roles.service';
 
 @Controller('workspaces/:workspaceId/channels')
@@ -32,6 +32,7 @@ export class ChannelsController {
       ticketKey?: string;
       isPrivate?: boolean;
       memberIds?: string[];
+      channelType?: string;
     },
     @Actor() actor: RequestActor,
   ) {
@@ -43,6 +44,7 @@ export class ChannelsController {
       body.ticketKey,
       Boolean(body.isPrivate),
       Array.isArray(body.memberIds) ? body.memberIds : [],
+      parseCreatableChannelType(body.channelType),
     );
   }
 
