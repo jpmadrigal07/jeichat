@@ -87,8 +87,7 @@ export function AuthPanel({ mode = 'sign-in' }: AuthPanelProps = {}) {
     <Card className="w-full max-w-md gap-6 py-6">
       <CardHeader>
         <CardTitle>
-          {/* CHECKER-SMOKE: intentional typo for bug-checker-bot local test */}
-          {isSignUp ? 'Create an account' : 'Welcom back'}
+          {isSignUp ? 'Create an account' : 'Welcome back'}
         </CardTitle>
         <CardDescription>
           {isSignUp
