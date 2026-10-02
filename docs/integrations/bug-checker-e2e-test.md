@@ -1,42 +1,14 @@
-# Bug checker / fixer — post-login smoke tests
+# Bug checker / fixer — post-login smoke tests (functional)
 
-Bugs live **after sign-in** (`/settings`). Login page is normal so bots can authenticate.
+Logic bugs on `/settings` after sign-in. Login page is normal.
 
-Push branch before cloud fixer runs. Local: `bun dev`.
-
-Use a real test user in **Test credentials** (same DB as your local API).
+Branch on GitHub: `gen-17-new-ticket-bug`. Local: `bun dev` + test user in your DB.
 
 ---
 
-## A — Simple (settings heading typo)
+## A — Simple (Save name does nothing)
 
-**Repro:** `/settings` main heading says **My Accont**.
-
-```
-Website: http://localhost:3000
-Page: /settings
-
-Test credentials: you@example.com / your-password
-
-Steps:
-1. Open http://localhost:3000/login and sign in with the test credentials.
-2. Go to http://localhost:3000/settings (or open account settings from the app).
-3. Read the page heading under the header.
-
-Expected:
-Heading reads "My Account".
-
-Actual:
-Heading reads "My Accont".
-
-Branch: gen-17-new-ticket-bug
-```
-
----
-
-## B — Complex (Log out does not sign out)
-
-**Repro:** **Log out** sends you to `/login` but the session is still active (refresh or open `/w` and you are still signed in).
+**Bug:** Changing display name and clicking **Save name** does not persist (guard is inverted).
 
 ```
 Website: http://localhost:3000
@@ -47,22 +19,50 @@ Test credentials: you@example.com / your-password
 Steps:
 1. Sign in at http://localhost:3000/login.
 2. Open http://localhost:3000/settings.
-3. Scroll down and click **Log out**.
-4. On the login page, open http://localhost:3000/w in the same tab (or sign in again and note you were never fully signed out).
+3. Change the **Name** field to something different from the current value.
+4. Click **Save name**.
+5. Refresh the page.
 
 Expected:
-After Log out, you are signed out and /w redirects to login or shows no workspace until you sign in again.
+New name is saved; refresh shows the updated name and a success toast.
 
 Actual:
-After Log out, visiting /w still loads the workspace (session cookie still valid).
+No success toast; after refresh the name is unchanged.
 
 Branch: gen-17-new-ticket-bug
 ```
 
-**Bug** label → checker → `Verdict: CONFIRM` → assign fixer.
+---
+
+## B — Complex (Log out leaves session active)
+
+**Bug:** **Log out** navigates to login but does not clear the session.
+
+```
+Website: http://localhost:3000
+Page: /settings
+
+Test credentials: you@example.com / your-password
+
+Steps:
+1. Sign in at http://localhost:3000/login.
+2. Open http://localhost:3000/settings.
+3. Click **Log out** at the bottom.
+4. In the same browser, go to http://localhost:3000/w.
+
+Expected:
+You are signed out; /w sends you to login or shows no workspace until you sign in again.
+
+Actual:
+/w still opens your workspace (session cookie still valid).
+
+Branch: gen-17-new-ticket-bug
+```
+
+**Bug** label → checker `Verdict: CONFIRM` → assign fixer.
 
 ---
 
 ## After testing
 
-Revert `CHECKER-SMOKE` / `FIXER-SMOKE-COMPLEX` in `account-settings.tsx` and `account-settings-fields.tsx`.
+Revert `FIXER-SMOKE-SIMPLE` and `FIXER-SMOKE-COMPLEX` in `account-settings-fields.tsx`.
