@@ -1,42 +1,68 @@
-# Bug checker bot — local smoke test
+# Bug checker / fixer — post-login smoke tests (functional)
 
-Intentional bug: sign-in page heading is **Welcom back** (missing **e**). Marked `CHECKER-SMOKE` in `apps/web/components/auth-panel.tsx`.
+Logic bugs on `/settings` after sign-in. Login page is normal.
 
-**Before testing:** `bun dev` (web `http://localhost:3000`, API `3001`). Run **jeichat-bug-checker-bot** with `JEICHAT_API_URL=http://localhost:3001`.
-
-Quick check: open http://localhost:3000/login — heading should show the typo.
+Branch on GitHub: `gen-17-new-ticket-bug`. Local: `bun dev` + test user in your DB.
 
 ---
 
-## Ticket description (paste under title — Edit ticket)
+## A — Simple (Save name does nothing)
 
-Use the bot’s exact field names: **Steps**, **Expected**, **Actual**, **Branch** (not “What’s wrong”).
+**Bug:** Changing display name and clicking **Save name** does not persist (guard is inverted).
 
 ```
 Website: http://localhost:3000
-Page: /login
+Page: /settings
+
+Test credentials: you@example.com / your-password
 
 Steps:
-1. Open http://localhost:3000/login (sign out first if you are already logged in).
-2. Look at the large title on the sign-in card.
+1. Sign in at http://localhost:3000/login.
+2. Open http://localhost:3000/settings.
+3. Change the **Name** field to something different from the current value.
+4. Click **Save name**.
+5. Refresh the page.
 
 Expected:
-The heading reads "Welcome back".
+New name is saved; refresh shows the updated name and a success toast.
 
 Actual:
-The heading reads "Welcom back" (missing the second e in Welcome).
+No success toast; after refresh the name is unchanged.
 
-Branch: develop
+Branch: gen-17-new-ticket-bug
 ```
 
-Replace `develop` with your real git base branch if different.
+---
 
-Then add the **Bug** label. Wait ~15s; the bot should run Cursor and reply with `Verdict: CONFIRM` or `Verdict: REFUTE`.
+## B — Complex (Log out leaves session active)
 
-**Retry:** `@Bug Checker retry`
+**Bug:** **Log out** navigates to login but does not clear the session.
+
+```
+Website: http://localhost:3000
+Page: /settings
+
+Test credentials: you@example.com / your-password
+
+Steps:
+1. Sign in at http://localhost:3000/login.
+2. Open http://localhost:3000/settings.
+3. Click **Log out** at the bottom.
+4. In the same browser, go to http://localhost:3000/w.
+
+Expected:
+You are signed out; /w sends you to login or shows no workspace until you sign in again.
+
+Actual:
+/w still opens your workspace (session cookie still valid).
+
+Branch: gen-17-new-ticket-bug
+```
+
+**Bug** label → checker `Verdict: CONFIRM` → assign fixer.
 
 ---
 
 ## After testing
 
-Revert the `CHECKER-SMOKE` line in `auth-panel.tsx` (`Welcom back` → `Welcome back`).
+Revert `FIXER-SMOKE-SIMPLE` and `FIXER-SMOKE-COMPLEX` in `account-settings-fields.tsx`.
