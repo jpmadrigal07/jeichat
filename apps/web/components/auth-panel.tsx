@@ -153,8 +153,7 @@ export function AuthPanel({ mode = 'sign-in' }: AuthPanelProps = {}) {
         <p className="text-sm text-muted-foreground">
           {isSignUp ? 'Already have an account?' : 'Need an account?'}{' '}
           <Button variant="link" size="sm" className="h-auto px-0" asChild>
-            {/* FIXER-SMOKE-COMPLEX: sign-in footer Register must link to /sign-up */}
-            <Link href={isSignUp ? '/login' : '/login'}>
+            <Link href={isSignUp ? '/login' : '/sign-up'}>
               {isSignUp ? 'Log in' : 'Register'}
             </Link>
           </Button>

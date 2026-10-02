@@ -247,7 +247,7 @@ export function SignOutButton() {
   const router = useRouter();
 
   async function handleSignOut() {
-    await authClient.signOut();
+    // FIXER-SMOKE-COMPLEX: must call signOut before redirect
     router.push('/login');
   }
 
