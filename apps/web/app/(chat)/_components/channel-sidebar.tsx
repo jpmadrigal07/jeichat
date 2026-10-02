@@ -100,11 +100,13 @@ import {
   conversationPageHref,
   type Channel,
 } from '../_libs/channels';
+import { ChannelContextMenu } from './channel-context-menu';
 import { ChannelOptionsMenu } from './channel-options-menu';
 import { ChannelTicketFilterMenu } from './channel-ticket-filter-menu';
 import { CreateChannelDialog } from './create-channel-dialog';
 import { CreateDmDialog } from './create-dm-dialog';
 import { DmContextMenu } from './dm-context-menu';
+import { TicketContextMenu } from './ticket-context-menu';
 import {
   CreateThreadDialogHost,
   createThreadHref,
@@ -580,115 +582,117 @@ function ChannelFolder({
         'data-drop-after:after:absolute data-drop-after:after:inset-x-0 data-drop-after:after:-bottom-0.5 data-drop-after:after:z-20 data-drop-after:after:h-0.5 data-drop-after:after:rounded-full data-drop-after:after:bg-primary',
       )}
     >
-      <div
-        draggable={reorderLifted && !touchReorder}
-        aria-label={
-          reorderLifted ? `${channel.name}, ready to drag` : undefined
-        }
-        className={cn(
-          'flex min-h-10 min-w-0 touch-manipulation items-center overflow-hidden rounded-md transition-[box-shadow,transform,background-color] sm:min-h-8',
-          isActive && !reorderLifted
-            ? 'bg-secondary text-secondary-foreground'
-            : !reorderLifted &&
-                'hover:bg-muted hover:text-foreground dark:hover:bg-muted/50',
-          reorderLifted &&
-            'relative z-10 scale-[1.03] select-none border border-primary/30 bg-background shadow-lg ring-2 ring-primary',
-          reorderLifted && !touchReorder && 'cursor-grab active:cursor-grabbing',
-          reorderLifted && touchReorder && 'touch-none',
-        )}
-        onPointerDown={onRowPointerDown}
-        onPointerMove={onRowPointerMove}
-        onPointerUp={onRowPointerUp}
-        onPointerCancel={() => {
-          if (touchReorderRef.current) {
-            onReorderPointerCancel();
-            touchReorderRef.current = false;
-            setTouchReorder(false);
-          }
-          longPress.onPointerCancel();
-        }}
-        onContextMenu={longPress.onContextMenu}
-        onDragStart={(event) => {
-          dragStartedRef.current = true;
-          startSidebarChannelDrag(event, channel.id);
-        }}
-        onDragEnd={() => {
-          dragStartedRef.current = false;
-          onReorderDragEnd();
-          longPress.resetActivated();
-        }}
-        onClickCapture={longPress.onClickCapture}
-      >
-        {reorderLifted ? (
-          <GripVertical
-            className="ml-1 size-4 shrink-0 text-primary motion-safe:animate-pulse"
-            aria-hidden
-          />
-        ) : null}
-        <ChannelNavLink
-          href={`/w/${workspaceId}/c/${channel.id}`}
-          name={channel.name}
-          isPrivate={channel.isPrivate}
-          isActive={isActive}
-          showActiveBackground={false}
-          unreadCount={unreadCount}
-          quietUnread={isQuiet && channelUnread > 0}
-          notificationLevel={notificationLevel}
-          className={cn(
-            'min-w-0 flex-1 hover:bg-transparent dark:hover:bg-transparent',
-            reorderLifted && 'pointer-events-none',
-          )}
-        />
+      <ChannelContextMenu workspaceId={workspaceId} channelId={channel.id}>
         <div
+          draggable={reorderLifted && !touchReorder}
+          aria-label={
+            reorderLifted ? `${channel.name}, ready to drag` : undefined
+          }
           className={cn(
-            'flex shrink-0 items-center',
-            reorderLifted && 'pointer-events-none',
+            'flex min-h-10 min-w-0 touch-manipulation items-center overflow-hidden rounded-md transition-[box-shadow,transform,background-color] sm:min-h-8',
+            isActive && !reorderLifted
+              ? 'bg-secondary text-secondary-foreground'
+              : !reorderLifted &&
+                  'hover:bg-muted hover:text-foreground dark:hover:bg-muted/50',
+            reorderLifted &&
+              'relative z-10 scale-[1.03] select-none border border-primary/30 bg-background shadow-lg ring-2 ring-primary',
+            reorderLifted && !touchReorder && 'cursor-grab active:cursor-grabbing',
+            reorderLifted && touchReorder && 'touch-none',
           )}
+          onPointerDown={onRowPointerDown}
+          onPointerMove={onRowPointerMove}
+          onPointerUp={onRowPointerUp}
+          onPointerCancel={() => {
+            if (touchReorderRef.current) {
+              onReorderPointerCancel();
+              touchReorderRef.current = false;
+              setTouchReorder(false);
+            }
+            longPress.onPointerCancel();
+          }}
+          onContextMenu={longPress.onContextMenu}
+          onDragStart={(event) => {
+            dragStartedRef.current = true;
+            startSidebarChannelDrag(event, channel.id);
+          }}
+          onDragEnd={() => {
+            dragStartedRef.current = false;
+            onReorderDragEnd();
+            longPress.resetActivated();
+          }}
+          onClickCapture={longPress.onClickCapture}
         >
-          <ChannelTicketFilterMenu
-            channelName={channel.name}
-            filter={filter}
-            onChange={onFilterChange}
-          />
-          {hasTickets ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="hover:bg-transparent dark:hover:bg-transparent"
-                  aria-label={collapseLabel}
-                  onClick={() => {
-                    onCollapsedChange(true);
-                    setCollapseEpoch((epoch) => epoch + 1);
-                  }}
-                >
-                  <FolderMinus className="size-3.5" />
-                  <span className="sr-only">{collapseLabel}</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Collapse tickets</TooltipContent>
-            </Tooltip>
+          {reorderLifted ? (
+            <GripVertical
+              className="ml-1 size-4 shrink-0 text-primary motion-safe:animate-pulse"
+              aria-hidden
+            />
           ) : null}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="hover:bg-transparent dark:hover:bg-transparent"
-            asChild
-          >
-            <Link href={createThreadHref(channel.id)}>
-              <Plus className="size-3.5" />
-              <span className="sr-only">Create ticket</span>
-            </Link>
-          </Button>
-          <ChannelOptionsMenu
-            workspaceId={workspaceId}
-            channelId={channel.id}
-            channelName={channel.name}
+          <ChannelNavLink
+            href={`/w/${workspaceId}/c/${channel.id}`}
+            name={channel.name}
+            isPrivate={channel.isPrivate}
+            isActive={isActive}
+            showActiveBackground={false}
+            unreadCount={unreadCount}
+            quietUnread={isQuiet && channelUnread > 0}
+            notificationLevel={notificationLevel}
+            className={cn(
+              'min-w-0 flex-1 hover:bg-transparent dark:hover:bg-transparent',
+              reorderLifted && 'pointer-events-none',
+            )}
           />
+          <div
+            className={cn(
+              'flex shrink-0 items-center',
+              reorderLifted && 'pointer-events-none',
+            )}
+          >
+            <ChannelTicketFilterMenu
+              channelName={channel.name}
+              filter={filter}
+              onChange={onFilterChange}
+            />
+            {hasTickets ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="hover:bg-transparent dark:hover:bg-transparent"
+                    aria-label={collapseLabel}
+                    onClick={() => {
+                      onCollapsedChange(true);
+                      setCollapseEpoch((epoch) => epoch + 1);
+                    }}
+                  >
+                    <FolderMinus className="size-3.5" />
+                    <span className="sr-only">{collapseLabel}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Collapse tickets</TooltipContent>
+              </Tooltip>
+            ) : null}
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="hover:bg-transparent dark:hover:bg-transparent"
+              asChild
+            >
+              <Link href={createThreadHref(channel.id)}>
+                <Plus className="size-3.5" />
+                <span className="sr-only">Create ticket</span>
+              </Link>
+            </Button>
+            <ChannelOptionsMenu
+              workspaceId={workspaceId}
+              channelId={channel.id}
+              channelName={channel.name}
+            />
+          </div>
         </div>
-      </div>
+      </ChannelContextMenu>
       {visibleTickets.length > 0 ? (
         <div className="ml-4 flex min-w-0 flex-col gap-0.5 border-l pl-1">
           {groupTicketsByStatus(visibleTickets).map((group) => (
@@ -764,14 +768,19 @@ function TicketStatusGroup({
       </CollapsibleTrigger>
       <CollapsibleContent className="ml-4 flex min-w-0 flex-col gap-0.5 border-l pl-1">
         {visibleTickets.map((ticket) => (
-          <ChannelNavLink
+          <TicketContextMenu
             key={ticket.id}
-            href={conversationPageHref(workspaceId, ticket)}
-            name={ticket.name}
-            isActive={ticket.id === activeChannelId}
-            unreadCount={unreadCounts?.[ticket.id] ?? 0}
-            className="w-full text-xs"
-          />
+            workspaceId={workspaceId}
+            ticket={ticket}
+          >
+            <ChannelNavLink
+              href={conversationPageHref(workspaceId, ticket)}
+              name={ticket.name}
+              isActive={ticket.id === activeChannelId}
+              unreadCount={unreadCounts?.[ticket.id] ?? 0}
+              className="w-full text-xs"
+            />
+          </TicketContextMenu>
         ))}
         {hasMoreTickets ? (
           <Button

@@ -2,6 +2,13 @@
 
 import { Bell, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+} from '@/components/ui/context-menu';
 import { DrawerClose } from '@/components/ui/drawer';
 import {
   DropdownMenu,
@@ -26,6 +33,7 @@ import {
   notificationLevelOf,
   parseNotificationLevel,
 } from '../_helpers/notification-level';
+import type { NotificationLevel } from '../_libs/notification-settings';
 import {
   useNotificationSettings,
   useSetNotificationLevel,
@@ -36,36 +44,49 @@ type ChannelNotificationProps = {
   channelId: string;
 };
 
-function NotificationLevelItems({
+/** The current level and the handler for a radio group that changes it. */
+function useNotificationLevelPicker({
   workspaceId,
   channelId,
 }: ChannelNotificationProps) {
   const { data: settings } = useNotificationSettings(workspaceId);
   const setLevel = useSetNotificationLevel(workspaceId);
 
+  return {
+    value: notificationLevelOf(settings, channelId),
+    onValueChange: (value: string) => {
+      const level = parseNotificationLevel(value);
+      if (level) setLevel.mutate({ channelId, level });
+    },
+  };
+}
+
+function NotificationLevelLabel({ level }: { level: NotificationLevel }) {
+  const meta = NOTIFICATION_LEVEL_META[level];
+  const Icon = meta.icon;
   return (
-    <DropdownMenuRadioGroup
-      value={notificationLevelOf(settings, channelId)}
-      onValueChange={(value) => {
-        const level = parseNotificationLevel(value);
-        if (level) setLevel.mutate({ channelId, level });
-      }}
-    >
-      {NOTIFICATION_LEVELS.map((level) => {
-        const meta = NOTIFICATION_LEVEL_META[level];
-        const Icon = meta.icon;
-        return (
-          <DropdownMenuRadioItem key={level} value={level}>
-            <Icon />
-            <div className="flex flex-col">
-              <span>{meta.label}</span>
-              <span className="text-[0.6875rem] text-muted-foreground">
-                {meta.description}
-              </span>
-            </div>
-          </DropdownMenuRadioItem>
-        );
-      })}
+    <>
+      <Icon />
+      <div className="flex flex-col">
+        <span>{meta.label}</span>
+        <span className="text-[0.6875rem] text-muted-foreground">
+          {meta.description}
+        </span>
+      </div>
+    </>
+  );
+}
+
+function NotificationLevelItems(props: ChannelNotificationProps) {
+  const picker = useNotificationLevelPicker(props);
+
+  return (
+    <DropdownMenuRadioGroup {...picker}>
+      {NOTIFICATION_LEVELS.map((level) => (
+        <DropdownMenuRadioItem key={level} value={level}>
+          <NotificationLevelLabel level={level} />
+        </DropdownMenuRadioItem>
+      ))}
     </DropdownMenuRadioGroup>
   );
 }
@@ -124,6 +145,31 @@ export function ChannelNotificationSubMenu({
         />
       </DropdownMenuSubContent>
     </DropdownMenuSub>
+  );
+}
+
+/** "Notifications" submenu for the right-click menu on a sidebar channel. */
+export function ChannelNotificationContextSubMenu(
+  props: ChannelNotificationProps,
+) {
+  const picker = useNotificationLevelPicker(props);
+
+  return (
+    <ContextMenuSub>
+      <ContextMenuSubTrigger>
+        <Bell />
+        Notifications
+      </ContextMenuSubTrigger>
+      <ContextMenuSubContent className="w-72">
+        <ContextMenuRadioGroup {...picker}>
+          {NOTIFICATION_LEVELS.map((level) => (
+            <ContextMenuRadioItem key={level} value={level}>
+              <NotificationLevelLabel level={level} />
+            </ContextMenuRadioItem>
+          ))}
+        </ContextMenuRadioGroup>
+      </ContextMenuSubContent>
+    </ContextMenuSub>
   );
 }
 
