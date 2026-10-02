@@ -45,7 +45,8 @@ export function AccountSettings({ user }: { user: User }) {
       <main className="flex-1 overflow-y-auto p-6">
         <div className="flex max-w-lg flex-col gap-6">
           <div>
-            <h1 className="text-lg font-semibold">My Account</h1>
+            {/* CHECKER-SMOKE: post-login settings typo */}
+            <h1 className="text-lg font-semibold">My Accont</h1>
             <p className="text-sm text-muted-foreground">
               Update your photo, name, and password, or sign out of JeiChat.
             </p>

@@ -1,61 +1,68 @@
-# Bug checker / fixer — local smoke tests
+# Bug checker / fixer — post-login smoke tests
 
-Push branch with bugs before cloud fixer runs. Local repro: `bun dev` → http://localhost:3000
+Bugs live **after sign-in** (`/settings`). Login page is normal so bots can authenticate.
 
-Markers in code: `CHECKER-SMOKE` (simple), `FIXER-SMOKE-COMPLEX` (behavior).
+Push branch before cloud fixer runs. Local: `bun dev`.
 
----
-
-## A — Simple (heading typo)
-
-**Repro:** `/login` title says **Welcom back**.
-
-```
-Website: http://localhost:3000
-Page: /login
-
-Steps:
-1. Open http://localhost:3000/login.
-2. Read the card title.
-
-Expected:
-Title reads "Welcome back".
-
-Actual:
-Title reads "Welcom back".
-
-Branch: develop
-```
+Use a real test user in **Test credentials** (same DB as your local API).
 
 ---
 
-## B — Complex (broken Register link)
+## A — Simple (settings heading typo)
 
-**Repro:** On `/login`, **Register** keeps you on login instead of `/sign-up`.
+**Repro:** `/settings` main heading says **My Accont**.
 
 ```
 Website: http://localhost:3000
-Page: /login
+Page: /settings
+
+Test credentials: you@example.com / your-password
 
 Steps:
-1. Open http://localhost:3000/login.
-2. At the bottom, click the "Register" link.
+1. Open http://localhost:3000/login and sign in with the test credentials.
+2. Go to http://localhost:3000/settings (or open account settings from the app).
+3. Read the page heading under the header.
 
 Expected:
-You navigate to the sign-up page (URL contains /sign-up).
+Heading reads "My Account".
 
 Actual:
-URL stays on /login; sign-up form never appears.
+Heading reads "My Accont".
 
-Branch: develop
+Branch: gen-17-new-ticket-bug
 ```
 
-Use **Bug** label → checker **CONFIRM** → assign fixer → checker message `Verdict: CONFIRM` in thread (fixer gate).
+---
 
-**Retry:** `@Bug Checker retry` / `@Fixer bot retry` (your bot names).
+## B — Complex (Log out does not sign out)
+
+**Repro:** **Log out** sends you to `/login` but the session is still active (refresh or open `/w` and you are still signed in).
+
+```
+Website: http://localhost:3000
+Page: /settings
+
+Test credentials: you@example.com / your-password
+
+Steps:
+1. Sign in at http://localhost:3000/login.
+2. Open http://localhost:3000/settings.
+3. Scroll down and click **Log out**.
+4. On the login page, open http://localhost:3000/w in the same tab (or sign in again and note you were never fully signed out).
+
+Expected:
+After Log out, you are signed out and /w redirects to login or shows no workspace until you sign in again.
+
+Actual:
+After Log out, visiting /w still loads the workspace (session cookie still valid).
+
+Branch: gen-17-new-ticket-bug
+```
+
+**Bug** label → checker → `Verdict: CONFIRM` → assign fixer.
 
 ---
 
 ## After testing
 
-Revert `CHECKER-SMOKE` and `FIXER-SMOKE-COMPLEX` in `apps/web/components/auth-panel.tsx`.
+Revert `CHECKER-SMOKE` / `FIXER-SMOKE-COMPLEX` in `account-settings.tsx` and `account-settings-fields.tsx`.
