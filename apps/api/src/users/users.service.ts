@@ -122,7 +122,7 @@ export class UsersService {
   private publicAvatarUrl(userId: string, file: string): string {
     const base = (
       process.env.BETTER_AUTH_URL ??
-      `http://localhost:${process.env.PORT ?? 3001}`
+      `http://localhost:${process.env.PORT ?? 3002}`
     ).replace(/\/+$/, '');
     return `${base}${avatarPublicPath(userId, file)}`;
   }

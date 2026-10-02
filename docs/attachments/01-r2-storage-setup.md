@@ -16,7 +16,7 @@ In the Cloudflare dashboard:
 ```json
 [
   {
-    "AllowedOrigins": ["http://localhost:3000", "https://<prod-web-origin>"],
+    "AllowedOrigins": ["http://localhost:3001", "https://<prod-web-origin>"],
     "AllowedMethods": ["PUT", "GET", "HEAD"],
     "AllowedHeaders": ["content-type", "content-length"],
     "ExposeHeaders": ["etag"],
@@ -110,7 +110,7 @@ In `storage.config.ts`, fail fast if any of `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
 | Symptom | Cause | Fix |
 |---|---|---|
 | `presign` → 201, then OPTIONS → **403**, PUT → **CORS error** | CORS not set on the bucket named in `R2_BUCKET` | Add the policy in §1.1 step 3 on **that** bucket |
-| `No 'Access-Control-Allow-Origin' header` | Same — R2 rejected the preflight | Confirm origin is exactly `http://localhost:3000` (no trailing slash) |
+| `No 'Access-Control-Allow-Origin' header` | Same — R2 rejected the preflight | Confirm origin is exactly `http://localhost:3001` (no trailing slash) |
 | `Access-Control-Request-Headers: content-type` blocked | `content-type` not in `AllowedHeaders` | Add `content-type` or use `"*"` for local dev |
 
 `curl` uploads from the terminal do **not** use CORS; only the browser does. A working presign API does not mean browser uploads work until bucket CORS is configured.

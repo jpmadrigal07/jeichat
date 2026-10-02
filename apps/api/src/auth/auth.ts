@@ -67,8 +67,8 @@ const cookieDomain = resolveAuthCookieDomain();
 
 export const auth = betterAuth({
   secret: resolveSecret(),
-  baseURL: process.env.BETTER_AUTH_URL ?? 'http://localhost:3001',
-  trustedOrigins: (process.env.WEB_ORIGIN ?? 'http://localhost:3000')
+  baseURL: process.env.BETTER_AUTH_URL ?? 'http://localhost:3002',
+  trustedOrigins: (process.env.WEB_ORIGIN ?? 'http://localhost:3001')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),

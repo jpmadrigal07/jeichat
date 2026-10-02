@@ -5,7 +5,7 @@
       "name": "web",
       "runtimeExecutable": "bun",
       "runtimeArgs": ["run", "dev"],
-      "port": 3000,
+      "port": 3001,
       "cwd": "apps/web",
       "autoPort": false
     },
@@ -13,7 +13,7 @@
       "name": "api",
       "runtimeExecutable": "bun",
       "runtimeArgs": ["run", "dev"],
-      "port": 3001,
+      "port": 3002,
       "cwd": "apps/api",
       "autoPort": false
     }

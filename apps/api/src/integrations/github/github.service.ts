@@ -109,13 +109,13 @@ export class GithubIntegrationService {
   }
 
   private webOrigin(): string {
-    return (process.env.WEB_ORIGIN ?? 'http://localhost:3000').split(',')[0]!.trim();
+    return (process.env.WEB_ORIGIN ?? 'http://localhost:3001').split(',')[0]!.trim();
   }
 
   private apiPublicUrl(): string {
     const explicit = process.env.GITHUB_PUBLIC_API_URL?.trim();
     if (explicit) return explicit.replace(/\/+$/, '');
-    const port = process.env.PORT ?? '3001';
+    const port = process.env.PORT ?? '3002';
     return `http://localhost:${port}`;
   }
 

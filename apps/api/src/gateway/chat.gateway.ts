@@ -26,7 +26,7 @@ interface AuthenticatedSocket extends Socket {
 
 @WebSocketGateway({
   cors: {
-    origin: (process.env.WEB_ORIGIN ?? 'http://localhost:3000')
+    origin: (process.env.WEB_ORIGIN ?? 'http://localhost:3001')
       .split(',')
       .map((o) => o.trim()),
     credentials: true,

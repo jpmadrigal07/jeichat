@@ -43,7 +43,7 @@ function toPublic(row: PreviewRow): MessageLinkPreviewPublic {
 @Injectable()
 export class LinkPreviewsService {
   private readonly logger = new Logger(LinkPreviewsService.name);
-  private readonly appOrigins = (process.env.WEB_ORIGIN ?? 'http://localhost:3000')
+  private readonly appOrigins = (process.env.WEB_ORIGIN ?? 'http://localhost:3001')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);

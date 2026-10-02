@@ -24,7 +24,7 @@ const action = arg('action', 'reopened');
 const prNumber = Number(arg('pr', '5'));
 const secret = process.env.GITHUB_WEBHOOK_SECRET;
 const target =
-  process.env.GITHUB_WEBHOOK_TARGET_URL ?? 'http://localhost:3001/integrations/github/webhook';
+  process.env.GITHUB_WEBHOOK_TARGET_URL ?? 'http://localhost:3002/integrations/github/webhook';
 
 if (!secret) {
   console.error('Missing GITHUB_WEBHOOK_SECRET in .env');

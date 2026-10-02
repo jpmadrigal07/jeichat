@@ -23,7 +23,7 @@ const branch = arg('branch', 'feat/GEN-14-test-github-automation');
 const secret = process.env.GITHUB_WEBHOOK_SECRET;
 const target =
   process.env.GITHUB_WEBHOOK_TARGET_URL ??
-  'http://localhost:3001/integrations/github/webhook';
+  'http://localhost:3002/integrations/github/webhook';
 
 if (!secret) {
   console.error('Missing GITHUB_WEBHOOK_SECRET in .env');

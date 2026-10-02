@@ -70,7 +70,7 @@ function absoluteUrl(value: string | null | undefined) {
   try {
     return new URL(
       value,
-      process.env.BETTER_AUTH_URL ?? 'http://localhost:3001',
+      process.env.BETTER_AUTH_URL ?? 'http://localhost:3002',
     ).toString();
   } catch {
     return undefined;

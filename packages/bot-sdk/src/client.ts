@@ -30,7 +30,7 @@ type ChannelPatch = {
 
 function defaultApiUrl() {
   return (
-    process.env.JEICHAT_API_URL?.replace(/\/$/, "") ?? "http://localhost:3001"
+    process.env.JEICHAT_API_URL?.replace(/\/$/, "") ?? "http://localhost:3002"
   );
 }
 

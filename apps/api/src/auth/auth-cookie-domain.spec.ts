@@ -29,8 +29,8 @@ describe('resolveAuthCookieDomain', () => {
   it('stays host-only on localhost', () => {
     expect(
       resolveAuthCookieDomain({
-        BETTER_AUTH_URL: 'http://localhost:3001',
-        WEB_ORIGIN: 'http://localhost:3000',
+        BETTER_AUTH_URL: 'http://localhost:3002',
+        WEB_ORIGIN: 'http://localhost:3001',
       }),
     ).toBeUndefined();
   });

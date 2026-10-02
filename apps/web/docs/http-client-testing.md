@@ -15,7 +15,7 @@ Open `/` and scroll to **HTTP client demos**. Three cards run side by side:
 ## Prerequisites
 
 - From the repo root: `bun run dev` (runs API + web via Turborepo), or run `apps/api` and `apps/web` separately.
-- `apps/web/.env`: `NEXT_PUBLIC_API_URL=http://localhost:3001` (or your API port).
+- `apps/web/.env`: `NEXT_PUBLIC_API_URL=http://localhost:3002` (or your API port).
 
 ## Scenarios
 
