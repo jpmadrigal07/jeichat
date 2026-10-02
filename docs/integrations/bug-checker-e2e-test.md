@@ -1,42 +1,61 @@
-# Bug checker bot — local smoke test
+# Bug checker / fixer — local smoke tests
 
-Intentional bug: sign-in page heading is **Welcom back** (missing **e**). Marked `CHECKER-SMOKE` in `apps/web/components/auth-panel.tsx`.
+Push branch with bugs before cloud fixer runs. Local repro: `bun dev` → http://localhost:3000
 
-**Before testing:** `bun dev` (web `http://localhost:3000`, API `3001`). Run **jeichat-bug-checker-bot** with `JEICHAT_API_URL=http://localhost:3001`.
-
-Quick check: open http://localhost:3000/login — heading should show the typo.
+Markers in code: `CHECKER-SMOKE` (simple), `FIXER-SMOKE-COMPLEX` (behavior).
 
 ---
 
-## Ticket description (paste under title — Edit ticket)
+## A — Simple (heading typo)
 
-Use the bot’s exact field names: **Steps**, **Expected**, **Actual**, **Branch** (not “What’s wrong”).
+**Repro:** `/login` title says **Welcom back**.
 
 ```
 Website: http://localhost:3000
 Page: /login
 
 Steps:
-1. Open http://localhost:3000/login (sign out first if you are already logged in).
-2. Look at the large title on the sign-in card.
+1. Open http://localhost:3000/login.
+2. Read the card title.
 
 Expected:
-The heading reads "Welcome back".
+Title reads "Welcome back".
 
 Actual:
-The heading reads "Welcom back" (missing the second e in Welcome).
+Title reads "Welcom back".
 
 Branch: develop
 ```
 
-Replace `develop` with your real git base branch if different.
+---
 
-Then add the **Bug** label. Wait ~15s; the bot should run Cursor and reply with `Verdict: CONFIRM` or `Verdict: REFUTE`.
+## B — Complex (broken Register link)
 
-**Retry:** `@Bug Checker retry`
+**Repro:** On `/login`, **Register** keeps you on login instead of `/sign-up`.
+
+```
+Website: http://localhost:3000
+Page: /login
+
+Steps:
+1. Open http://localhost:3000/login.
+2. At the bottom, click the "Register" link.
+
+Expected:
+You navigate to the sign-up page (URL contains /sign-up).
+
+Actual:
+URL stays on /login; sign-up form never appears.
+
+Branch: develop
+```
+
+Use **Bug** label → checker **CONFIRM** → assign fixer → checker message `Verdict: CONFIRM` in thread (fixer gate).
+
+**Retry:** `@Bug Checker retry` / `@Fixer bot retry` (your bot names).
 
 ---
 
 ## After testing
 
-Revert the `CHECKER-SMOKE` line in `auth-panel.tsx` (`Welcom back` → `Welcome back`).
+Revert `CHECKER-SMOKE` and `FIXER-SMOKE-COMPLEX` in `apps/web/components/auth-panel.tsx`.
