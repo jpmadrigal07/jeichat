@@ -7,14 +7,18 @@ import {
   createChannel,
   createOrGetDm,
   createThread,
+  hideDm,
+  unhideDm,
   updateChannel,
   deleteChannel,
   channelsQueryKey,
   channelThreadsQueryKey,
   archivedChannelThreadsQueryKey,
   fetchArchivedChannelThreads,
+  unreadCountsQueryKey,
   type Channel,
   type ChannelThread,
+  type UnreadCounts,
   type UpdateChannelPayload,
 } from '../_libs/channels';
 import {
@@ -224,6 +228,47 @@ export function useCreateOrGetDm(workspaceId: string) {
       queryClient.invalidateQueries({
         queryKey: channelsQueryKey(workspaceId),
       });
+    },
+  });
+}
+
+/** Removes a DM from the sidebar list; the conversation itself is kept. */
+export function useHideDm(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (channelId: string) => hideDm(workspaceId, channelId),
+    onSuccess: ({ channelId, dmHiddenAt }) => {
+      queryClient.setQueryData<Channel[]>(
+        channelsQueryKey(workspaceId),
+        (old) =>
+          old?.map((channel) =>
+            channel.id === channelId ? { ...channel, dmHiddenAt } : channel,
+          ),
+      );
+      // The server marks the DM read as it hides it.
+      queryClient.setQueryData<UnreadCounts>(
+        unreadCountsQueryKey(workspaceId),
+        (old) => (old ? { ...old, [channelId]: 0 } : old),
+      );
+    },
+  });
+}
+
+/** Brings a removed DM back into the sidebar list. */
+export function useUnhideDm(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (channelId: string) => unhideDm(workspaceId, channelId),
+    onSuccess: ({ channelId }) => {
+      queryClient.setQueryData<Channel[]>(
+        channelsQueryKey(workspaceId),
+        (old) =>
+          old?.map((channel) =>
+            channel.id === channelId
+              ? { ...channel, dmHiddenAt: null }
+              : channel,
+          ),
+      );
     },
   });
 }

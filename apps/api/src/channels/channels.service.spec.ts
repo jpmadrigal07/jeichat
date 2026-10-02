@@ -36,6 +36,18 @@ describe('ChannelsService DM protection', () => {
     );
   });
 
+  it('only lets direct messages be removed from the list', async () => {
+    await expect(
+      buildService('channel').hideDm('ws-1', 'chan-1', 'me'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('only lets direct messages be restored to the list', async () => {
+    await expect(
+      buildService('channel').unhideDm('ws-1', 'chan-1', 'me'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('does not apply the DM rule to a regular channel', async () => {
     const service = buildService('channel');
 

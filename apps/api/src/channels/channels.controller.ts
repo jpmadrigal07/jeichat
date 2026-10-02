@@ -154,6 +154,24 @@ export class ChannelsController {
     return this.channelsService.markAsRead(workspaceId, id, session.user.id);
   }
 
+  @Post(':id/hide')
+  hideDm(
+    @Param('workspaceId') workspaceId: string,
+    @Param('id') id: string,
+    @Session() session: UserSession<typeof auth>,
+  ) {
+    return this.channelsService.hideDm(workspaceId, id, session.user.id);
+  }
+
+  @Post(':id/unhide')
+  unhideDm(
+    @Param('workspaceId') workspaceId: string,
+    @Param('id') id: string,
+    @Session() session: UserSession<typeof auth>,
+  ) {
+    return this.channelsService.unhideDm(workspaceId, id, session.user.id);
+  }
+
   @Post(':id/role-permissions')
   assignRole(
     @Param('workspaceId') workspaceId: string,

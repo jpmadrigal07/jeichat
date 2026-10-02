@@ -24,6 +24,11 @@ export const channelMembers = pgTable(
     addedAt: timestamp('added_at', { withTimezone: true })
       .defaultNow()
       .notNull(),
+    /**
+     * Set when this member removes a DM from their sidebar list. The DM stays
+     * hidden until a message newer than this arrives or they reopen it.
+     */
+    dmHiddenAt: timestamp('dm_hidden_at', { withTimezone: true }),
   },
   (table) => [
     uniqueIndex('channel_members_channel_id_user_id_unq').on(

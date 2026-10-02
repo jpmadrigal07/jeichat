@@ -13,8 +13,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { PresenceAvatar } from '@chat/_components/presence-avatar';
-import { useCreateOrGetDm } from '../_hooks/use-channels';
+import { useChannels, useCreateOrGetDm, useUnhideDm } from '../_hooks/use-channels';
 import { useWorkspaceMembers } from '../_hooks/use-workspaces';
+import { removedDmsWithDepartedPeers } from '../_helpers/group-channels';
 
 export function CreateDmDialog({
   workspaceId,
@@ -26,13 +27,27 @@ export function CreateDmDialog({
   children: React.ReactNode;
 }) {
   const createDm = useCreateOrGetDm(workspaceId);
+  const unhideDm = useUnhideDm(workspaceId);
   const { data: members } = useWorkspaceMembers(workspaceId);
+  const { data: channels } = useChannels(workspaceId);
   const router = useRouter();
   const closeRef = useRef<HTMLButtonElement>(null);
 
   const inviteableMembers = (members ?? []).filter(
     (member) => member.userId !== currentUserId && !member.isBot,
   );
+
+  const removedDms = removedDmsWithDepartedPeers(channels ?? []);
+  const pending = createDm.isPending || unhideDm.isPending;
+
+  function restoreDm(channelId: string) {
+    unhideDm.mutate(channelId, {
+      onSuccess: () => {
+        closeRef.current?.click();
+        router.push(`/w/${workspaceId}/c/${channelId}`);
+      },
+    });
+  }
 
   function startDm(targetUserId: string) {
     createDm.mutate(targetUserId, {
@@ -63,7 +78,7 @@ export function CreateDmDialog({
                   type="button"
                   variant="ghost"
                   className="justify-start gap-2 px-2"
-                  disabled={createDm.isPending}
+                  disabled={pending}
                   onClick={() => startDm(member.userId)}
                 >
                   <PresenceAvatar
@@ -77,6 +92,35 @@ export function CreateDmDialog({
                 </Button>
               ))
             )}
+            {removedDms.length > 0 ? (
+              <>
+                <p className="px-2 pt-3 text-xs font-medium text-muted-foreground">
+                  Removed conversations
+                </p>
+                {removedDms.map((channel) => (
+                  <Button
+                    key={channel.id}
+                    type="button"
+                    variant="ghost"
+                    className="justify-start gap-2 px-2"
+                    disabled={pending}
+                    onClick={() => restoreDm(channel.id)}
+                  >
+                    <PresenceAvatar
+                      userId={channel.dmPeer.id}
+                      name={channel.dmPeer.name}
+                      image={channel.dmPeer.image}
+                      size="sm"
+                      showOffline
+                    />
+                    <span className="truncate">{channel.dmPeer.name}</span>
+                    <span className="ml-auto shrink-0 text-xs font-normal text-muted-foreground">
+                      Left workspace
+                    </span>
+                  </Button>
+                ))}
+              </>
+            ) : null}
           </div>
         </ScrollArea>
         <DialogClose ref={closeRef} className="sr-only">

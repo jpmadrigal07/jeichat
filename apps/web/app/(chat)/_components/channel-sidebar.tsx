@@ -104,6 +104,7 @@ import { ChannelOptionsMenu } from './channel-options-menu';
 import { ChannelTicketFilterMenu } from './channel-ticket-filter-menu';
 import { CreateChannelDialog } from './create-channel-dialog';
 import { CreateDmDialog } from './create-dm-dialog';
+import { DmContextMenu } from './dm-context-menu';
 import {
   CreateThreadDialogHost,
   createThreadHref,
@@ -849,22 +850,29 @@ function DirectMessagesNav({
           </p>
         ) : (
           dms.map((channel) => (
-            <DmNavLink
+            <DmContextMenu
               key={channel.id}
-              href={`/w/${workspaceId}/c/${channel.id}`}
+              workspaceId={workspaceId}
+              channelId={channel.id}
               name={channelDisplayName(channel)}
-              peer={
-                channel.dmPeer
-                  ? {
-                      userId: channel.dmPeer.id,
-                      name: channel.dmPeer.name,
-                      image: channel.dmPeer.image,
-                    }
-                  : undefined
-              }
               isActive={channel.id === activeChannelId}
-              unreadCount={unreadCounts?.[channel.id] ?? 0}
-            />
+            >
+              <DmNavLink
+                href={`/w/${workspaceId}/c/${channel.id}`}
+                name={channelDisplayName(channel)}
+                peer={
+                  channel.dmPeer
+                    ? {
+                        userId: channel.dmPeer.id,
+                        name: channel.dmPeer.name,
+                        image: channel.dmPeer.image,
+                      }
+                    : undefined
+                }
+                isActive={channel.id === activeChannelId}
+                unreadCount={unreadCounts?.[channel.id] ?? 0}
+              />
+            </DmContextMenu>
           ))
         )}
       </CollapsibleContent>

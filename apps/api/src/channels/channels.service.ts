@@ -188,6 +188,8 @@ export class ChannelsService {
       );
 
     if (existing) {
+      // Starting a conversation from "New message" puts it back in the sidebar.
+      await this.clearDmHidden(existing.id, userId);
       const [withPeers] = await this.withDmPeers([existing], userId);
       const [enriched] = await this.withThreadAttachments([withPeers]);
       return enriched;
@@ -540,7 +542,8 @@ export class ChannelsService {
     const visible = await this.listViewableChannels(workspaceId, userId);
     const withPeers = await this.withDmPeers(visible, userId);
     const withActivity = await this.withDmLastMessageAt(withPeers);
-    return this.withThreadAttachments(withActivity);
+    const withHidden = await this.withDmHiddenAt(withActivity, userId);
+    return this.withThreadAttachments(withHidden);
   }
 
   async findOne(workspaceId: string, id: string, userId: string) {
@@ -1119,6 +1122,76 @@ export class ChannelsService {
       });
   }
 
+  /**
+   * Removes a DM from the caller's sidebar list. Nothing is deleted and the
+   * other participant is unaffected; the DM comes back when a newer message
+   * arrives or the caller starts it again. Anything unread is marked read so
+   * a hidden conversation can't leave a badge nobody can see.
+   */
+  async hideDm(workspaceId: string, channelId: string, userId: string) {
+    const channel = await this.findOne(workspaceId, channelId, userId);
+    if (channel.channelType !== CHANNEL_TYPE.DM) {
+      throw new BadRequestException(
+        'Only direct messages can be removed from your list',
+      );
+    }
+
+    const now = new Date();
+    const hidden = await this.drizzle.db
+      .update(channelMembers)
+      .set({ dmHiddenAt: now })
+      .where(
+        and(
+          eq(channelMembers.channelId, channelId),
+          eq(channelMembers.userId, userId),
+        ),
+      )
+      .returning({ channelId: channelMembers.channelId });
+    if (hidden.length === 0) {
+      throw new NotFoundException('Channel not found');
+    }
+
+    await this.drizzle.db
+      .insert(channelReads)
+      .values({ userId, channelId, lastReadAt: now })
+      .onConflictDoUpdate({
+        target: [channelReads.userId, channelReads.channelId],
+        set: { lastReadAt: now },
+      });
+
+    return { channelId, dmHiddenAt: now };
+  }
+
+  /**
+   * Puts a removed DM back in the caller's sidebar list. Needed for DMs whose
+   * other participant has left the workspace: they can't be started again or
+   * message back, so this is the only way such a conversation returns.
+   */
+  async unhideDm(workspaceId: string, channelId: string, userId: string) {
+    const channel = await this.findOne(workspaceId, channelId, userId);
+    if (channel.channelType !== CHANNEL_TYPE.DM) {
+      throw new BadRequestException(
+        'Only direct messages can be restored to your list',
+      );
+    }
+
+    await this.clearDmHidden(channelId, userId);
+    return { channelId, dmHiddenAt: null };
+  }
+
+  private async clearDmHidden(channelId: string, userId: string) {
+    await this.drizzle.db
+      .update(channelMembers)
+      .set({ dmHiddenAt: null })
+      .where(
+        and(
+          eq(channelMembers.channelId, channelId),
+          eq(channelMembers.userId, userId),
+          isNotNull(channelMembers.dmHiddenAt),
+        ),
+      );
+  }
+
   async remove(workspaceId: string, id: string, userId: string) {
     const existing = await this.findOne(workspaceId, id, userId);
     this.assertNotDm(existing, 'Direct messages cannot be deleted');
@@ -1405,6 +1478,45 @@ export class ChannelsService {
         row.channelType === CHANNEL_TYPE.DM
           ? (peerByChannel.get(row.id) ?? null)
           : null,
+    }));
+  }
+
+  /** When the viewer removed each DM from their sidebar list, if they did. */
+  private async withDmHiddenAt<
+    T extends { id: string; channelType: string },
+  >(
+    rows: T[],
+    viewerId: string,
+  ): Promise<Array<T & { dmHiddenAt: Date | null }>> {
+    const dmChannelIds = rows
+      .filter((row) => row.channelType === CHANNEL_TYPE.DM)
+      .map((row) => row.id);
+
+    if (dmChannelIds.length === 0) {
+      return rows.map((row) => ({ ...row, dmHiddenAt: null }));
+    }
+
+    const hidden = await this.drizzle.db
+      .select({
+        channelId: channelMembers.channelId,
+        dmHiddenAt: channelMembers.dmHiddenAt,
+      })
+      .from(channelMembers)
+      .where(
+        and(
+          inArray(channelMembers.channelId, dmChannelIds),
+          eq(channelMembers.userId, viewerId),
+          isNotNull(channelMembers.dmHiddenAt),
+        ),
+      );
+
+    const hiddenAtByChannel = new Map(
+      hidden.map((row) => [row.channelId, row.dmHiddenAt]),
+    );
+
+    return rows.map((row) => ({
+      ...row,
+      dmHiddenAt: hiddenAtByChannel.get(row.id) ?? null,
     }));
   }
 

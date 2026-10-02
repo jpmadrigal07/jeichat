@@ -50,6 +50,8 @@ export type Channel = {
   updatedAt: string;
   /** Newest message time; only populated for DMs, null until the first message. */
   lastMessageAt?: string | null;
+  /** When the viewer removed this DM from their list; only populated for DMs. */
+  dmHiddenAt?: string | null;
   attachments?: ThreadAttachment[];
   labels?: TicketLabel[];
   watchers?: TicketWatcher[];
@@ -112,6 +114,28 @@ export async function createOrGetDm(
   const { data } = await api.post<Channel>(
     `/workspaces/${workspaceId}/channels/dms`,
     { userId: targetUserId },
+  );
+  return data;
+}
+
+/** Removes a DM from the viewer's sidebar list; the conversation is kept. */
+export async function hideDm(
+  workspaceId: string,
+  channelId: string,
+): Promise<{ channelId: string; dmHiddenAt: string }> {
+  const { data } = await api.post<{ channelId: string; dmHiddenAt: string }>(
+    `/workspaces/${workspaceId}/channels/${channelId}/hide`,
+  );
+  return data;
+}
+
+/** Puts a removed DM back in the viewer's sidebar list. */
+export async function unhideDm(
+  workspaceId: string,
+  channelId: string,
+): Promise<{ channelId: string; dmHiddenAt: null }> {
+  const { data } = await api.post<{ channelId: string; dmHiddenAt: null }>(
+    `/workspaces/${workspaceId}/channels/${channelId}/unhide`,
   );
   return data;
 }
