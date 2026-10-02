@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   isRunnableSearch,
   parseSearchQuery,
+  withoutIncompleteFilter,
 } from '../_helpers/parse-search-query';
 import {
   searchQueryKey,
@@ -31,12 +32,16 @@ function useDebouncedValue(value: string, delay: number) {
 
 export function useWorkspaceSearch(workspaceId: string, query: string) {
   const parsed = parseSearchQuery(query);
-  const debouncedQuery = useDebouncedValue(query.trim(), 250);
+  // Judge runnability before trimming: the space after a trailing `from:name`
+  // is what marks that filter as finished rather than still being typed.
+  const debouncedQuery = useDebouncedValue(query, 250);
   const runnable = isRunnableSearch(parseSearchQuery(debouncedQuery));
+  // A filter still being typed would otherwise be searched for as plain text.
+  const searchText = withoutIncompleteFilter(debouncedQuery).trim();
 
   const results = useQuery({
-    queryKey: searchQueryKey(workspaceId, debouncedQuery),
-    queryFn: ({ signal }) => searchWorkspace(workspaceId, debouncedQuery, { signal }),
+    queryKey: searchQueryKey(workspaceId, searchText),
+    queryFn: ({ signal }) => searchWorkspace(workspaceId, searchText, { signal }),
     enabled: Boolean(workspaceId) && runnable,
   });
 

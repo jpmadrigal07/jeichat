@@ -9,6 +9,7 @@ export type DocumentTitleRoute =
   | { kind: 'inbox'; workspaceId: string }
   | { kind: 'my-tickets'; workspaceId: string }
   | { kind: 'members'; workspaceId: string }
+  | { kind: 'search'; workspaceId: string }
   | { kind: 'workspace-settings'; workspaceId: string }
   | { kind: 'channel'; workspaceId: string; channelId: string }
   | { kind: 'channel-settings'; workspaceId: string; channelId: string };
@@ -63,6 +64,11 @@ export function parseDocumentTitleRoute(pathname: string): DocumentTitleRoute {
   const members = pathname.match(/^\/w\/([^/]+)\/members(?:\/|$)/);
   if (members?.[1]) {
     return { kind: 'members', workspaceId: members[1] };
+  }
+
+  const search = pathname.match(/^\/w\/([^/]+)\/search(?:\/|$)/);
+  if (search?.[1]) {
+    return { kind: 'search', workspaceId: search[1] };
   }
 
   const ticket = pathname.match(/^\/w\/([^/]+)\/c\/[^/]+\/b\/([^/]+)(?:\/|$)/);
@@ -176,6 +182,9 @@ export function buildDocumentTitle({
       break;
     case 'members':
       title = joinTitleParts(['Members', workspaceName, APP_TITLE]);
+      break;
+    case 'search':
+      title = joinTitleParts(['Search', workspaceName, APP_TITLE]);
       break;
     case 'channel':
     case 'channel-settings':

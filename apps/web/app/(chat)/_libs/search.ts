@@ -18,6 +18,13 @@ export type SearchHit = {
   };
 };
 
+/** Matches the API's default page size; it has no pagination or total count. */
+export const SEARCH_RESULT_LIMIT = 25;
+
+export function searchPageHref(workspaceId: string) {
+  return `/w/${workspaceId}/search`;
+}
+
 export function searchQueryKey(workspaceId: string, q: string) {
   return ['workspaces', workspaceId, 'search', q] as const;
 }
@@ -29,7 +36,7 @@ export async function searchWorkspace(
 ): Promise<SearchHit[]> {
   const { data } = await api.get<SearchHit[]>(
     `/workspaces/${workspaceId}/search`,
-    { params: { q }, signal: ctx?.signal },
+    { params: { q, limit: SEARCH_RESULT_LIMIT }, signal: ctx?.signal },
   );
   return data;
 }
