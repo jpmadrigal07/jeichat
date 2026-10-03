@@ -5,5 +5,8 @@ const chatFooterShellClass =
 /** User bar: vertically center profile in the footer. */
 export const chatUserFooterClass = `${chatFooterShellClass} border-t flex items-center`;
 
+/** Voice channel call bar: join button or call controls, centered. */
+export const chatVoiceFooterClass = `${chatFooterShellClass} border-t flex flex-col items-center justify-center gap-2`;
+
 /** Message input footer. */
 export const chatMessageFooterClass = `${chatFooterShellClass} border-t flex items-end`;

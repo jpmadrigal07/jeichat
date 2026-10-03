@@ -24,40 +24,61 @@ import { channelPageHref } from '../_libs/channels';
 
 /** Mute, deafen, and hang up for the call you're in. */
 export function VoiceControlButtons({
-  size = 'sm',
+  size = 'panel',
   className,
 }: {
-  size?: 'sm' | 'lg';
+  /** `panel` stretches the three buttons across the sidebar's voice panel. */
+  size?: 'panel' | 'lg';
   className?: string;
 }) {
-  const { canSpeak, isMuted, isDeafened, toggleMute, toggleDeafen, leave } =
-    useVoice();
-  const buttonSize = size === 'lg' ? 'icon-lg' : 'icon';
-  const buttonClass = size === 'lg' ? 'size-10 rounded-full' : undefined;
-  const iconClass = size === 'lg' ? 'size-5' : undefined;
+  const {
+    canSpeak,
+    isMuted,
+    isDeafened,
+    connectionState,
+    isJoining,
+    toggleMute,
+    toggleDeafen,
+    leave,
+  } = useVoice();
+  // Mute/deafen only mean something once the call is up; until then they stay neutral.
+  const connected =
+    !isJoining && connectionState === ConnectionState.Connected;
+  const showMuted = connected && isMuted;
+  const showDeafened = connected && isDeafened;
+  const buttonSize = size === 'lg' ? 'icon-lg' : 'default';
+  const buttonClass = size === 'lg' ? 'size-10 rounded-full' : 'h-8 w-full';
+  const iconClass = size === 'lg' ? 'size-5' : 'size-4';
 
-  const muteLabel = !canSpeak
-    ? 'You can only listen in this channel'
-    : isMuted
-      ? 'Unmute'
-      : 'Mute';
+  const muteLabel = !connected
+    ? 'Connecting…'
+    : !canSpeak
+      ? 'You can only listen in this channel'
+      : isMuted
+        ? 'Unmute'
+        : 'Mute';
   const deafenLabel = isDeafened ? 'Undeafen' : 'Deafen';
 
   return (
-    <div className={cn('flex items-center gap-1', className)}>
+    <div
+      className={cn(
+        size === 'lg' ? 'flex items-center gap-3' : 'grid grid-cols-3 gap-1',
+        className,
+      )}
+    >
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
             type="button"
-            variant={isMuted ? 'destructive' : 'ghost'}
+            variant={showMuted ? 'destructive' : 'ghost'}
             size={buttonSize}
             className={buttonClass}
             aria-label={muteLabel}
-            aria-pressed={isMuted}
-            disabled={!canSpeak}
+            aria-pressed={showMuted}
+            disabled={!connected || !canSpeak}
             onClick={toggleMute}
           >
-            {isMuted ? (
+            {showMuted ? (
               <MicOff className={iconClass} />
             ) : (
               <Mic className={iconClass} />
@@ -70,14 +91,15 @@ export function VoiceControlButtons({
         <TooltipTrigger asChild>
           <Button
             type="button"
-            variant={isDeafened ? 'destructive' : 'ghost'}
+            variant={showDeafened ? 'destructive' : 'ghost'}
             size={buttonSize}
             className={buttonClass}
             aria-label={deafenLabel}
-            aria-pressed={isDeafened}
+            aria-pressed={showDeafened}
+            disabled={!connected}
             onClick={toggleDeafen}
           >
-            {isDeafened ? (
+            {showDeafened ? (
               <HeadphoneOff className={iconClass} />
             ) : (
               <Headphones className={iconClass} />
@@ -140,35 +162,33 @@ export function VoiceConnectionPanel() {
   const connected = connectionState === ConnectionState.Connected && !isJoining;
 
   return (
-    <div className="shrink-0 border-t px-2 pt-2">
+    <div className="shrink-0 border-t p-4">
       <div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-2">
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="min-w-0 flex-1">
-            <p
-              className={cn(
-                'truncate text-xs font-semibold',
-                connected ? 'text-online' : 'text-muted-foreground',
-              )}
-              role="status"
-            >
-              {connectionLabel(connectionState, isJoining)}
-            </p>
-            <Link
-              href={channelPageHref(
-                activeChannel.workspaceId,
-                activeChannel.channelId,
-              )}
-              className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <Volume2 className="size-3 shrink-0" />
-              <span className="truncate">
-                {channel?.name ?? 'Voice channel'}
-                {workspace ? ` / ${workspace.name}` : null}
-              </span>
-            </Link>
-          </div>
-          <VoiceControlButtons />
+        <div className="min-w-0 px-1">
+          <p
+            className={cn(
+              'truncate text-xs font-semibold',
+              connected ? 'text-online' : 'text-muted-foreground',
+            )}
+            role="status"
+          >
+            {connectionLabel(connectionState, isJoining)}
+          </p>
+          <Link
+            href={channelPageHref(
+              activeChannel.workspaceId,
+              activeChannel.channelId,
+            )}
+            className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <Volume2 className="size-3 shrink-0" />
+            <span className="truncate">
+              {channel?.name ?? 'Voice channel'}
+              {workspace ? ` / ${workspace.name}` : null}
+            </span>
+          </Link>
         </div>
+        <VoiceControlButtons />
         {connected && !canPlayAudio ? (
           <Button
             type="button"

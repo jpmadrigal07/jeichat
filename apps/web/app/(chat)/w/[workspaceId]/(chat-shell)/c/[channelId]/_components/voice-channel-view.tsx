@@ -21,6 +21,7 @@ import { ChatPane } from '@chat/_components/chat-pane';
 import { ChannelTypeIcon } from '@chat/_components/channel-type-icon';
 import { VoiceControlButtons } from '@chat/_components/voice-controls';
 import { VoiceChannelParticipants } from '@chat/_components/voice-participant-list';
+import { chatVoiceFooterClass } from '@chat/_helpers/chat-footer-classes';
 import { useIsActiveVoiceChannel, useVoice } from '@chat/_hooks/use-voice';
 import type { Channel } from '@chat/_libs/channels';
 
@@ -96,7 +97,7 @@ export function VoiceChannelView({
           }
         />
       </div>
-      <div className="flex shrink-0 flex-col items-center gap-2 border-t px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className={chatVoiceFooterClass}>
         {isConnectedHere && !canSpeak ? (
           <p className="text-xs text-muted-foreground">
             You can listen but not talk in this channel.
