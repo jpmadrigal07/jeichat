@@ -9,7 +9,6 @@ import {
 
 export function groupChannelsByParent(channels: Channel[]) {
   const topLevel: Channel[] = [];
-  const voice: Channel[] = [];
   const dms: Channel[] = [];
   const threadsByParent = new Map<string, Channel[]>();
 
@@ -27,11 +26,6 @@ export function groupChannelsByParent(channels: Channel[]) {
       continue;
     }
 
-    if (channel.channelType === 'voice') {
-      voice.push(channel);
-      continue;
-    }
-
     topLevel.push(channel);
   }
 
@@ -44,13 +38,7 @@ export function groupChannelsByParent(channels: Channel[]) {
   }
 
   dms.sort((a, b) => dmActivityTime(b) - dmActivityTime(a));
-  voice.sort(
-    (a, b) =>
-      Date.parse(a.createdAt) - Date.parse(b.createdAt) ||
-      a.name.localeCompare(b.name),
-  );
-
-  return { topLevel, voice, dms, threadsByParent };
+  return { topLevel, dms, threadsByParent };
 }
 
 /**

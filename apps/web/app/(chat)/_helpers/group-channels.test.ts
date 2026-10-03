@@ -144,14 +144,14 @@ describe('groupChannelsByParent voice channels', () => {
     return { ...dm(id, createdAt), channelType, isPrivate: false };
   }
 
-  it('lists voice channels apart from text channels, oldest first', () => {
-    const { topLevel, voice } = groupChannelsByParent([
+  it('keeps voice channels in the channel list alongside text channels', () => {
+    const { topLevel, dms } = groupChannelsByParent([
       channel('lounge', 'voice', '2026-03-01T00:00:00.000Z'),
       channel('general', 'channel', '2026-01-01T00:00:00.000Z'),
       channel('standup', 'voice', '2026-02-01T00:00:00.000Z'),
     ]);
 
-    expect(topLevel.map((c) => c.id)).toEqual(['general']);
-    expect(voice.map((c) => c.id)).toEqual(['standup', 'lounge']);
+    expect(topLevel.map((c) => c.id)).toEqual(['lounge', 'general', 'standup']);
+    expect(dms).toEqual([]);
   });
 });

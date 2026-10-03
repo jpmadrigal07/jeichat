@@ -30,6 +30,8 @@ type ChannelOptionsMenuProps = {
   workspaceId: string;
   channelId: string;
   channelName: string;
+  /** Voice channels have no messages to be notified about. */
+  showNotifications?: boolean;
 };
 
 /**
@@ -40,6 +42,7 @@ export function ChannelOptionsMenu({
   workspaceId,
   channelId,
   channelName,
+  showNotifications = true,
 }: ChannelOptionsMenuProps) {
   const isMobile = useIsMobile();
   const settingsHref = `/w/${workspaceId}/c/${channelId}/settings`;
@@ -81,14 +84,18 @@ export function ChannelOptionsMenu({
             </DrawerClose>
           </div>
 
-          <Separator className="mx-3 data-horizontal:w-auto" />
+          {showNotifications ? (
+            <>
+              <Separator className="mx-3 data-horizontal:w-auto" />
 
-          <div className="p-2">
-            <ChannelNotificationDrawerItems
-              workspaceId={workspaceId}
-              channelId={channelId}
-            />
-          </div>
+              <div className="p-2">
+                <ChannelNotificationDrawerItems
+                  workspaceId={workspaceId}
+                  channelId={channelId}
+                />
+              </div>
+            </>
+          ) : null}
         </DrawerContent>
       </Drawer>
     );
@@ -104,10 +111,12 @@ export function ChannelOptionsMenu({
             Channel Settings
           </Link>
         </DropdownMenuItem>
-        <ChannelNotificationSubMenu
-          workspaceId={workspaceId}
-          channelId={channelId}
-        />
+        {showNotifications ? (
+          <ChannelNotificationSubMenu
+            workspaceId={workspaceId}
+            channelId={channelId}
+          />
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

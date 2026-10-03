@@ -11,6 +11,7 @@ import {
 } from 'react';
 import {
   AtSign,
+  AudioLines,
   BellOff,
   Plus,
   ChevronDown,
@@ -115,8 +116,9 @@ import { PresenceAvatar } from './presence-avatar';
 import { UnreadBadge } from './unread-badge';
 import { channelDisplayName } from '../_helpers/channel-display';
 import { UserBar } from './user-bar';
-import { VoiceChannelsNav } from './voice-channels-nav';
 import { VoiceConnectionPanel } from './voice-controls';
+import { VoiceChannelParticipants } from './voice-participant-list';
+import { useIsActiveVoiceChannel, useVoice } from '../_hooks/use-voice';
 import { HistoryNavButtons } from './history-nav-buttons';
 import { ResizableSidebar } from './resizable-sidebar';
 import { WorkspaceSwitcher } from './workspace-switcher';
@@ -180,7 +182,7 @@ export function ChannelSidebar({ user }: { user: User }) {
   }, [cancelChannelReorder, liftedChannelId]);
 
   const activeWorkspace = workspaces?.find((ws) => ws.id === workspaceId);
-  const { topLevel, voice, dms, threadsByParent } = groupChannelsByParent(
+  const { topLevel, dms, threadsByParent } = groupChannelsByParent(
     channels ?? [],
   );
   const orderedTopLevel = sortTopLevel(topLevel);
@@ -424,13 +426,6 @@ export function ChannelSidebar({ user }: { user: User }) {
                 </div>
               </div>
 
-              <VoiceChannelsNav
-                workspaceId={workspaceId}
-                currentUserId={user.id}
-                channels={voice}
-                activeChannelId={activeChannelId}
-              />
-
               <DirectMessagesNav
                 workspaceId={workspaceId}
                 currentUserId={user.id}
@@ -490,6 +485,10 @@ function ChannelFolder({
   onReorderPointerCancel: () => void;
 }) {
   const isActive = channel.id === activeChannelId;
+  // Voice channels share the list (and its ordering) but hold people, not tickets.
+  const isVoice = channel.channelType === 'voice';
+  const { join } = useVoice();
+  const isVoiceConnected = useIsActiveVoiceChannel(workspaceId, channel.id);
   const visibleTickets = filterSidebarTickets(
     tickets,
     filter,
@@ -594,7 +593,11 @@ function ChannelFolder({
         'data-drop-after:after:absolute data-drop-after:after:inset-x-0 data-drop-after:after:-bottom-0.5 data-drop-after:after:z-20 data-drop-after:after:h-0.5 data-drop-after:after:rounded-full data-drop-after:after:bg-primary',
       )}
     >
-      <ChannelContextMenu workspaceId={workspaceId} channelId={channel.id}>
+      <ChannelContextMenu
+        workspaceId={workspaceId}
+        channelId={channel.id}
+        showNotifications={!isVoice}
+      >
         <div
           draggable={reorderLifted && !touchReorder}
           aria-label={
@@ -644,11 +647,23 @@ function ChannelFolder({
             href={`/w/${workspaceId}/c/${channel.id}`}
             name={channel.name}
             isPrivate={channel.isPrivate}
+            isVoice={isVoice}
+            voiceConnected={isVoiceConnected}
+            onClick={
+              isVoice
+                ? (event) => {
+                    // Opening in a new tab shouldn't pull you into the call here.
+                    if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+                    // Clicking a voice channel joins it, as in Discord.
+                    join({ workspaceId, channelId: channel.id });
+                  }
+                : undefined
+            }
             isActive={isActive}
             showActiveBackground={false}
-            unreadCount={unreadCount}
-            quietUnread={isQuiet && channelUnread > 0}
-            notificationLevel={notificationLevel}
+            unreadCount={isVoice ? 0 : unreadCount}
+            quietUnread={!isVoice && isQuiet && channelUnread > 0}
+            notificationLevel={isVoice ? 'all' : notificationLevel}
             className={cn(
               'min-w-0 flex-1 hover:bg-transparent dark:hover:bg-transparent',
               reorderLifted && 'pointer-events-none',
@@ -660,12 +675,14 @@ function ChannelFolder({
               reorderLifted && 'pointer-events-none',
             )}
           >
-            <ChannelTicketFilterMenu
-              channelName={channel.name}
-              filter={filter}
-              onChange={onFilterChange}
-            />
-            {hasTickets ? (
+            {isVoice ? null : (
+              <ChannelTicketFilterMenu
+                channelName={channel.name}
+                filter={filter}
+                onChange={onFilterChange}
+              />
+            )}
+            {hasTickets && !isVoice ? (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -686,26 +703,36 @@ function ChannelFolder({
                 <TooltipContent>Collapse tickets</TooltipContent>
               </Tooltip>
             ) : null}
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="hover:bg-transparent dark:hover:bg-transparent"
-              asChild
-            >
-              <Link href={createThreadHref(channel.id)}>
-                <Plus className="size-3.5" />
-                <span className="sr-only">Create ticket</span>
-              </Link>
-            </Button>
+            {isVoice ? null : (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="hover:bg-transparent dark:hover:bg-transparent"
+                asChild
+              >
+                <Link href={createThreadHref(channel.id)}>
+                  <Plus className="size-3.5" />
+                  <span className="sr-only">Create ticket</span>
+                </Link>
+              </Button>
+            )}
             <ChannelOptionsMenu
               workspaceId={workspaceId}
               channelId={channel.id}
               channelName={channel.name}
+              showNotifications={!isVoice}
             />
           </div>
         </div>
       </ChannelContextMenu>
-      {visibleTickets.length > 0 ? (
+      {isVoice ? (
+        <VoiceChannelParticipants
+          workspaceId={workspaceId}
+          channelId={channel.id}
+          variant="sidebar"
+        />
+      ) : null}
+      {!isVoice && visibleTickets.length > 0 ? (
         <div className="ml-4 flex min-w-0 flex-col gap-0.5 border-l pl-1">
           {groupTicketsByStatus(visibleTickets).map((group) => (
             <TicketStatusGroup
@@ -964,6 +991,9 @@ function ChannelNavLink({
   icon: Icon,
   avatar,
   isPrivate,
+  isVoice = false,
+  voiceConnected = false,
+  onClick,
   isActive,
   unreadCount,
   onlineCount = 0,
@@ -977,6 +1007,10 @@ function ChannelNavLink({
   icon?: typeof Inbox;
   avatar?: { userId: string; name: string; image: string | null };
   isPrivate?: boolean;
+  isVoice?: boolean;
+  /** You're in this voice channel's call. */
+  voiceConnected?: boolean;
+  onClick?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
   isActive: boolean;
   unreadCount: number;
   /** Green badge with the number of people online; hidden when zero. */
@@ -1008,7 +1042,7 @@ function ChannelNavLink({
       )}
       asChild
     >
-      <Link href={href}>
+      <Link href={href} onClick={onClick}>
         {avatar ? (
           <PresenceAvatar
             userId={avatar.userId}
@@ -1020,12 +1054,22 @@ function ChannelNavLink({
         ) : isPrivate !== undefined ? (
           <ChannelTypeIcon
             isPrivate={isPrivate}
-            className={cn(iconClass, 'size-4.5')}
+            isVoice={isVoice}
+            className={cn(
+              voiceConnected ? 'text-online' : iconClass,
+              'size-4.5',
+            )}
           />
         ) : Icon ? (
           <Icon className={cn('size-4.5', iconClass)} />
         ) : null}
         <span className="min-w-0 flex-1 truncate">{name}</span>
+        {voiceConnected ? (
+          <AudioLines
+            className="size-3.5 shrink-0 text-online"
+            aria-label="You're connected"
+          />
+        ) : null}
         {notificationLevel === 'muted' ? (
           <BellOff className="size-3 shrink-0 text-muted-foreground" />
         ) : notificationLevel === 'mentions' ? (
