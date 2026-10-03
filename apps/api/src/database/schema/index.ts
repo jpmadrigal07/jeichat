@@ -22,3 +22,4 @@ export * from './channel-notification-settings';
 export * from './push-subscriptions';
 export * from './bots';
 export * from './github-integration';
+export * from './channel-webhooks';

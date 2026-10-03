@@ -48,6 +48,7 @@ export type MessageReplyTo = {
     name: string;
     image: string | null;
     isBot?: boolean;
+    isWebhook?: boolean;
   } | null;
 };
 
@@ -62,6 +63,7 @@ export type Message = {
     name: string;
     image: string | null;
     isBot?: boolean;
+    isWebhook?: boolean;
   } | null;
   attachments: MessageAttachment[];
   reactions: MessageReaction[];

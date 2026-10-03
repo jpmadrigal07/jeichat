@@ -13,6 +13,7 @@ import {
   attachments,
   bots,
   channelMembers,
+  channelWebhooks,
   channelWatchers,
   channels,
   messages,
@@ -68,6 +69,7 @@ export type MessageReplyToPublic = {
     name: string | null;
     image: string | null;
     isBot: boolean;
+    isWebhook: boolean;
   } | null;
 };
 
@@ -83,6 +85,7 @@ type MessageListRow = {
     name: string | null;
     image: string | null;
     isBot: boolean;
+    isWebhook: boolean;
   } | null;
 };
 
@@ -90,6 +93,10 @@ export const MAX_PINNED_MESSAGES = 50;
 
 const pinnedByUser = alias(user, 'pinned_by_user');
 const reactionUser = alias(user, 'reaction_user');
+
+/** Sender badges; need left joins on `bots` and `channelWebhooks` by sender. */
+const senderIsBotSql = sql<boolean>`(${bots.userId} is not null)`;
+const senderIsWebhookSql = sql<boolean>`(${channelWebhooks.userId} is not null)`;
 
 @Injectable()
 export class MessagesService {
@@ -262,19 +269,25 @@ export class MessagesService {
         sender: {
           name: user.name,
           image: user.image,
-          isBot: sql<boolean>`(${bots.userId} is not null)`,
+          isBot: senderIsBotSql,
+          isWebhook: senderIsWebhookSql,
         },
       })
       .from(messages)
       .leftJoin(user, eq(messages.senderId, user.id))
       .leftJoin(bots, eq(bots.userId, messages.senderId))
+      .leftJoin(channelWebhooks, eq(channelWebhooks.userId, messages.senderId))
       .where(inArray(messages.id, unique));
 
     for (const row of rows) {
       mapped.set(row.id, {
         ...row,
         sender: row.sender
-          ? { ...row.sender, isBot: row.sender.isBot === true }
+          ? {
+              ...row.sender,
+              isBot: row.sender.isBot === true,
+              isWebhook: row.sender.isWebhook === true,
+            }
           : null,
       });
     }
@@ -316,12 +329,14 @@ export class MessagesService {
         sender: {
           name: user.name,
           image: user.image,
-          isBot: sql<boolean>`(${bots.userId} is not null)`,
+          isBot: senderIsBotSql,
+          isWebhook: senderIsWebhookSql,
         },
       })
       .from(messages)
       .leftJoin(user, eq(messages.senderId, user.id))
       .leftJoin(bots, eq(bots.userId, messages.senderId))
+      .leftJoin(channelWebhooks, eq(channelWebhooks.userId, messages.senderId))
       .where(eq(messages.id, messageId));
 
     if (!row) throw new NotFoundException('Message not found');
@@ -434,6 +449,37 @@ export class MessagesService {
         .handleChatCommand(channel.workspaceId, channelId, senderId, content)
         .catch(() => undefined);
     }
+    return message;
+  }
+
+  /**
+   * Posts as a webhook's synthetic user. The caller has already authenticated
+   * the webhook secret, which only grants this one channel, so no role check.
+   * Mentions are left as plain text: a leaked URL must not be able to ping
+   * people or flood their inboxes.
+   */
+  async createFromWebhook(
+    channel: typeof channels.$inferSelect,
+    senderId: string,
+    content: string,
+  ) {
+    const messageId = crypto.randomUUID();
+    const now = new Date();
+    await this.drizzle.db.insert(messages).values({
+      id: messageId,
+      channelId: channel.id,
+      senderId,
+      content,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const message = await this.findOneWithAttachments(messageId, senderId);
+    this.chatGateway.emitNewMessage(channel.id, message);
+    this.scheduleLinkPreviews(channel.id, messageId, content);
+    await this.notifyMessageRecipients(channel, senderId, message, content, {
+      resolveMentions: false,
+    });
     return message;
   }
 
@@ -600,12 +646,14 @@ export class MessagesService {
         sender: {
           name: user.name,
           image: user.image,
-          isBot: sql<boolean>`(${bots.userId} is not null)`,
+          isBot: senderIsBotSql,
+          isWebhook: senderIsWebhookSql,
         },
       })
       .from(messages)
       .leftJoin(user, eq(messages.senderId, user.id))
       .leftJoin(bots, eq(bots.userId, messages.senderId))
+      .leftJoin(channelWebhooks, eq(channelWebhooks.userId, messages.senderId))
       .where(and(...conditions))
       .orderBy(
         params.direction === 'newer'
@@ -644,7 +692,11 @@ export class MessagesService {
       linkPreviews: linkPreviewsGrouped.get(row.id) ?? [],
       replyTo: row.replyToId ? (replyToById.get(row.replyToId) ?? null) : null,
       sender: row.sender
-        ? { ...row.sender, isBot: row.sender.isBot === true }
+        ? {
+            ...row.sender,
+            isBot: row.sender.isBot === true,
+            isWebhook: row.sender.isWebhook === true,
+          }
         : null,
     }));
   }
@@ -977,12 +1029,14 @@ export class MessagesService {
         updatedAt: messages.updatedAt,
         senderName: user.name,
         senderImage: user.image,
-        senderIsBot: sql<boolean>`(${bots.userId} is not null)`,
+        senderIsBot: senderIsBotSql,
+        senderIsWebhook: senderIsWebhookSql,
       })
       .from(pinnedMessages)
       .innerJoin(messages, eq(pinnedMessages.messageId, messages.id))
       .leftJoin(user, eq(messages.senderId, user.id))
       .leftJoin(bots, eq(bots.userId, messages.senderId))
+      .leftJoin(channelWebhooks, eq(channelWebhooks.userId, messages.senderId))
       .leftJoin(pinnedByUser, eq(pinnedMessages.pinnedBy, pinnedByUser.id))
       .where(eq(pinnedMessages.channelId, channelId))
       .orderBy(desc(pinnedMessages.pinnedAt));
@@ -1023,6 +1077,7 @@ export class MessagesService {
               name: row.senderName,
               image: row.senderImage,
               isBot: Boolean(row.senderIsBot),
+              isWebhook: Boolean(row.senderIsWebhook),
             }
           : null,
         attachments: grouped.get(row.messageId) ?? [],
@@ -1045,9 +1100,15 @@ export class MessagesService {
       attachments?: { filename: string }[];
     },
     content: string,
+    options: { resolveMentions: boolean } = { resolveMentions: true },
   ) {
     const { toastRecipientIds, quietRecipientIds, commentInboxRecipientIds } =
-      await this.listMessageNotificationRecipients(channel, senderId, content);
+      await this.listMessageNotificationRecipients(
+        channel,
+        senderId,
+        content,
+        options,
+      );
 
     if (
       toastRecipientIds.length === 0 &&
@@ -1124,13 +1185,16 @@ export class MessagesService {
     channel: typeof channels.$inferSelect,
     senderId: string,
     content: string,
+    options: { resolveMentions: boolean },
   ) {
-    const mentionedIds = await this.inboxService.resolveMentionedUserIds({
-      workspaceId: channel.workspaceId,
-      channelId: channel.id,
-      actorId: senderId,
-      content,
-    });
+    const mentionedIds = options.resolveMentions
+      ? await this.inboxService.resolveMentionedUserIds({
+          workspaceId: channel.workspaceId,
+          channelId: channel.id,
+          actorId: senderId,
+          content,
+        })
+      : [];
     const senderIsBot = await this.botsService.isBotUser(senderId);
 
     if (channel.parentId) {

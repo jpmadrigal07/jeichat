@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Archive,
   Bell,
@@ -10,17 +10,18 @@ import {
   Shield,
   Trash2,
   Users,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Skeleton } from '@/components/ui/skeleton';
-import { ChatPageHeader } from '@chat/_components/chat-page-header';
-import { useChannels } from '@chat/_hooks/use-channels';
+  Webhook,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ChatPageHeader } from "@chat/_components/chat-page-header";
+import { useChannels } from "@chat/_hooks/use-channels";
 import {
   channelBreadcrumbLabel,
   isDmChannel,
   isVoiceChannel,
-} from '@chat/_helpers/channel-display';
-import { channelPageHref } from '@chat/_libs/channels';
+} from "@chat/_helpers/channel-display";
+import { channelPageHref } from "@chat/_libs/channels";
 
 type NavItem = {
   href: string;
@@ -42,48 +43,54 @@ export function ChannelSettingsShell({
   const pathname = usePathname();
   const { data: channels, isLoading } = useChannels(workspaceId);
   const channel = channels?.find((ch) => ch.id === channelId);
-  // Tickets, their GitHub sync, and message notifications only exist in text channels.
+  // Tickets, their GitHub sync, webhooks, and message notifications only exist in text channels.
   const hasTickets =
     !channel?.parentId && !isDmChannel(channel) && !isVoiceChannel(channel);
 
   const navItems: NavItem[] = [
     {
       href: `/w/${workspaceId}/c/${channelId}/settings/info`,
-      label: 'General',
+      label: "General",
       icon: Info,
     },
     {
       href: `/w/${workspaceId}/c/${channelId}/settings/permissions`,
-      label: 'Permissions',
+      label: "Permissions",
       icon: Shield,
     },
     {
       href: `/w/${workspaceId}/c/${channelId}/settings/members`,
-      label: 'Members',
+      label: "Members",
       icon: Users,
       visible: !channel?.parentId,
     },
     {
       href: `/w/${workspaceId}/c/${channelId}/settings/notifications`,
-      label: 'Notifications',
+      label: "Notifications",
       icon: Bell,
       visible: hasTickets,
     },
     {
       href: `/w/${workspaceId}/c/${channelId}/settings/github`,
-      label: 'GitHub',
+      label: "GitHub",
       icon: GitBranch,
       visible: hasTickets,
     },
     {
+      href: `/w/${workspaceId}/c/${channelId}/settings/webhooks`,
+      label: "Webhooks",
+      icon: Webhook,
+      visible: hasTickets,
+    },
+    {
       href: `/w/${workspaceId}/c/${channelId}/settings/archived`,
-      label: 'Archived tickets',
+      label: "Archived tickets",
       icon: Archive,
       visible: hasTickets,
     },
     {
       href: `/w/${workspaceId}/c/${channelId}/settings/delete`,
-      label: 'Delete channel',
+      label: "Delete channel",
       icon: Trash2,
       destructive: true,
     },
@@ -101,26 +108,26 @@ export function ChannelSettingsShell({
           label: channelBreadcrumbLabel(channel),
           href: channelHref,
         },
-        { label: 'Settings' },
+        { label: "Settings" },
       ]
     : [
         {
           label: channelBreadcrumbLabel(channel),
           href: channelHref,
         },
-        { label: 'Settings', href: settingsHome },
-        { label: activeItem?.label ?? 'Settings' },
+        { label: "Settings", href: settingsHome },
+        { label: activeItem?.label ?? "Settings" },
       ];
 
   const linearTitle = onSettingsHome
-    ? 'Settings'
-    : (activeItem?.label ?? 'Settings');
+    ? "Settings"
+    : (activeItem?.label ?? "Settings");
   const linearParent = onSettingsHome
     ? {
         label: channelBreadcrumbLabel(channel),
         href: channelHref,
       }
-    : { label: 'Settings', href: settingsHome };
+    : { label: "Settings", href: settingsHome };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
@@ -132,7 +139,7 @@ export function ChannelSettingsShell({
         <ChatPageHeader
           backHref={onSettingsHome ? channelHref : settingsHome}
           backLabel={
-            onSettingsHome ? 'Back to channel' : 'Back to channel settings'
+            onSettingsHome ? "Back to channel" : "Back to channel settings"
           }
           linearTitle={linearTitle}
           linearParent={linearParent}
@@ -143,10 +150,10 @@ export function ChannelSettingsShell({
       <div className="flex min-h-0 flex-1">
         <aside
           className={cn(
-            'w-56 shrink-0 border-r p-3',
+            "w-56 shrink-0 border-r p-3",
             onSettingsHome
-              ? 'max-md:w-full max-md:flex-1 max-md:overflow-y-auto max-md:border-r-0'
-              : 'max-md:hidden',
+              ? "max-md:w-full max-md:flex-1 max-md:overflow-y-auto max-md:border-r-0"
+              : "max-md:hidden",
           )}
         >
           <nav className="flex flex-col gap-1">
@@ -161,12 +168,12 @@ export function ChannelSettingsShell({
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      'flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
+                      "flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
                       isActive
-                        ? 'bg-accent font-medium text-accent-foreground'
-                        : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
+                        ? "bg-accent font-medium text-accent-foreground"
+                        : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
                       item.destructive &&
-                        'text-destructive hover:text-destructive',
+                        "text-destructive hover:text-destructive",
                     )}
                   >
                     <Icon className="h-4 w-4 shrink-0" />
@@ -179,8 +186,8 @@ export function ChannelSettingsShell({
 
         <main
           className={cn(
-            'min-w-0 flex-1 overflow-y-auto p-6',
-            onSettingsHome && 'max-md:hidden',
+            "min-w-0 flex-1 overflow-y-auto p-6",
+            onSettingsHome && "max-md:hidden",
           )}
         >
           {children}

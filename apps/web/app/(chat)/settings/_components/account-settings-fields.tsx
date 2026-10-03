@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import toast from 'react-hot-toast';
-import { Camera, Loader2, LogOut } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
+import { useRef } from "react";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
+import { Camera, Loader2, LogOut } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
   Field,
   FieldDescription,
@@ -13,16 +13,16 @@ import {
   FieldLabel,
   FieldLegend,
   FieldSet,
-} from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import { authClient } from '@/lib/auth-client';
-import { personInitials } from '../../_helpers/ticket-fields';
+} from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { authClient } from "@/lib/auth-client";
+import { personInitials } from "../../_helpers/ticket-fields";
 import {
   useChangePassword,
   useUpdateProfileName,
   useUploadProfilePhoto,
-} from '../_hooks/use-profile';
-import { AVATAR_ACCEPT_ATTR } from '../_libs/profile';
+} from "../_hooks/use-profile";
+import { AVATAR_ACCEPT_ATTR } from "@chat/_libs/avatar-upload";
 
 export type ProfileUser = {
   id: string;
@@ -42,7 +42,7 @@ export function ProfileIdentityFields({ user }: { user: ProfileUser }) {
   function handleSaveName(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const name = String(
-      new FormData(event.currentTarget).get('name') ?? '',
+      new FormData(event.currentTarget).get("name") ?? "",
     ).trim();
     if (!name || name === user.name) return;
     updateName.mutate(name, {
@@ -51,7 +51,7 @@ export function ProfileIdentityFields({ user }: { user: ProfileUser }) {
           name: data.name,
           image: data.image ?? undefined,
         });
-        toast.success('Name updated');
+        toast.success("Name updated");
         router.refresh();
       },
     });
@@ -59,7 +59,7 @@ export function ProfileIdentityFields({ user }: { user: ProfileUser }) {
 
   function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0];
-    event.currentTarget.value = '';
+    event.currentTarget.value = "";
     if (!file) return;
     uploadPhoto.mutate(file, {
       onSuccess: async (data) => {
@@ -67,7 +67,7 @@ export function ProfileIdentityFields({ user }: { user: ProfileUser }) {
           name: data.name,
           image: data.image ?? undefined,
         });
-        toast.success('Photo updated');
+        toast.success("Photo updated");
         router.refresh();
       },
     });
@@ -102,7 +102,7 @@ export function ProfileIdentityFields({ user }: { user: ProfileUser }) {
             ) : (
               <Camera data-icon="inline-start" />
             )}
-            {uploadPhoto.isPending ? 'Uploading…' : 'Change photo'}
+            {uploadPhoto.isPending ? "Uploading…" : "Change photo"}
           </Button>
         </div>
         <FieldDescription>JPG, PNG, GIF, or WebP. Max 2 MB.</FieldDescription>
@@ -156,20 +156,22 @@ export function ChangePasswordForm() {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
-    const currentPassword = String(data.get('currentPassword') ?? '');
-    const newPassword = String(data.get('newPassword') ?? '');
-    const confirmPassword = String(data.get('confirmPassword') ?? '');
+    const currentPassword = String(data.get("currentPassword") ?? "");
+    const newPassword = String(data.get("newPassword") ?? "");
+    const confirmPassword = String(data.get("confirmPassword") ?? "");
 
     if (newPassword.length < MIN_PASSWORD_LENGTH) {
-      toast.error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`);
+      toast.error(
+        `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
+      );
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast.error('New passwords do not match');
+      toast.error("New passwords do not match");
       return;
     }
     if (newPassword === currentPassword) {
-      toast.error('New password must be different from the current one');
+      toast.error("New password must be different from the current one");
       return;
     }
 
@@ -178,7 +180,7 @@ export function ChangePasswordForm() {
       {
         onSuccess: () => {
           form.reset();
-          toast.success('Password updated');
+          toast.success("Password updated");
         },
       },
     );
@@ -248,7 +250,7 @@ export function SignOutButton() {
 
   async function handleSignOut() {
     await authClient.signOut();
-    router.push('/login');
+    router.push("/login");
   }
 
   return (

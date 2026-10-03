@@ -22,6 +22,7 @@ import { PushModule } from './push/push.module';
 import { BotsModule } from './bots/bots.module';
 import { GithubIntegrationModule } from './integrations/github/github.module';
 import { VoiceModule } from './voice/voice.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 // Load .env from repo root (works from apps/api/dist or apps/api/src) or cwd
 const envFilePath =
@@ -55,6 +56,7 @@ const envFilePath =
     BotsModule,
     GithubIntegrationModule,
     VoiceModule,
+    WebhooksModule,
   ],
   controllers: [AppController],
   providers: [AppService],
