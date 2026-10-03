@@ -117,7 +117,7 @@ describe('WebhooksService.execute', () => {
   it.each([
     ['missing content', {}],
     ['blank content', { content: '   ' }],
-    ['non-string content', { content: 5 }],
+    ['an array body', ['hi']],
     ['oversized content', { content: 'x'.repeat(4001) }],
   ])('rejects %s', async (_label, body) => {
     await expect(

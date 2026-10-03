@@ -212,8 +212,10 @@ export function ChannelWebhooksPanel({
               </pre>
               <p className="text-xs text-muted-foreground">
                 Send JSON with a <code>content</code> string (up to 4,000
-                characters, Markdown supported). Add <code>?wait=true</code> to
-                get the created message back instead of an empty 204.
+                characters, Markdown supported). Services that send their own
+                JSON, like Coolify, also work: their fields are listed in the
+                message. Add <code>?wait=true</code> to get the created message
+                back instead of an empty 204.
               </p>
             </div>
           </div>

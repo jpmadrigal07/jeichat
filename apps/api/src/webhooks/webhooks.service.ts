@@ -15,9 +15,9 @@ import { MessagesService } from '../messages/messages.service';
 import { UsersService } from '../users/users.service';
 import { PERMISSIONS } from '../workspaces/permissions';
 import { WorkspacePermissionsService } from '../workspaces/workspace-permissions.service';
+import { formatWebhookPayload } from './webhook-payload';
 import {
   MAX_WEBHOOKS_PER_CHANNEL,
-  WEBHOOK_CONTENT_MAX_LENGTH,
   generateWebhookToken,
   normalizeWebhookName,
   webhookPublicUrl,
@@ -291,7 +291,7 @@ export class WebhooksService {
       throw new WebhookRateLimitedException(60);
     }
 
-    const content = parseWebhookContent(body);
+    const content = formatWebhookPayload(body);
     if (!isWebhookChannel(row.channel)) {
       throw new ForbiddenException('This channel no longer accepts webhooks');
     }
@@ -405,22 +405,6 @@ export class WebhooksService {
 /** Top-level text channels only: no DMs, voice rooms, or ticket threads. */
 function isWebhookChannel(channel: ChannelRow): boolean {
   return channel.channelType === 'channel' && !channel.parentId;
-}
-
-function parseWebhookContent(body: unknown): string {
-  const content =
-    body && typeof body === 'object' && 'content' in body
-      ? body.content
-      : undefined;
-  if (typeof content !== 'string' || !content.trim()) {
-    throw new BadRequestException('content is required');
-  }
-  if (content.length > WEBHOOK_CONTENT_MAX_LENGTH) {
-    throw new BadRequestException(
-      `content must be at most ${WEBHOOK_CONTENT_MAX_LENGTH} characters`,
-    );
-  }
-  return content;
 }
 
 function toPublic(row: {
