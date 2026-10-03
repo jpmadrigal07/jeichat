@@ -21,6 +21,10 @@ import type {
 import { ComposerTagPicker } from '@chat/_components/composer-tag-picker';
 import { useComposerTagPicker } from '@chat/_hooks/use-composer-tag-picker';
 import { useIsMobile } from '@/hooks/use-mobile';
+import {
+  readComposerDraft,
+  writeComposerDraft,
+} from '../_helpers/composer-draft';
 import { shouldSubmitOnEnter } from '../_helpers/enter-to-submit';
 import {
   markdownShortcutForKey,
@@ -46,6 +50,8 @@ export type ComposerReplyTo = {
 
 type MessageInputProps = {
   channelName: string | undefined;
+  /** Text typed but not sent is kept in localStorage under this key. */
+  draftKey: string;
   currentUserId: string;
   workspaceId: string;
   members: MentionableMember[];
@@ -92,6 +98,7 @@ function messageComposerPlaceholder(
 
 export function MessageInput({
   channelName,
+  draftKey,
   currentUserId,
   workspaceId,
   members,
@@ -128,6 +135,7 @@ export function MessageInput({
     localMessages: mentionMessages,
     allowAllMention,
     onValueChange: (value) => {
+      writeComposerDraft(draftKey, value);
       setHasText(!!value.trim());
       const textarea = textareaRef.current;
       if (!textarea) return;
@@ -136,6 +144,21 @@ export function MessageInput({
       highlight.syncHighlight();
     },
   });
+
+  // localStorage isn't readable during SSR, so the draft is restored after
+  // hydration into the uncontrolled textarea.
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    const draft = readComposerDraft(draftKey);
+    if (!textarea || !draft || textarea.value) return;
+    textarea.value = draft;
+    textarea.setSelectionRange(draft.length, draft.length);
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+    setHasText(true);
+    highlight.syncHighlight();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- restore once per draft key
+  }, [draftKey]);
 
   useEffect(() => {
     focusTextarea(textareaRef.current);
@@ -239,6 +262,7 @@ export function MessageInput({
     if ((!value && !hasAttachments) || !canSend) return;
 
     onSend(value, uploads.readyServerIds);
+    writeComposerDraft(draftKey, '');
 
     if (textareaRef.current) {
       textareaRef.current.value = '';
@@ -327,6 +351,7 @@ export function MessageInput({
               onInput={(e) => {
                 handleAutoResize(e);
                 handleInput();
+                writeComposerDraft(draftKey, e.currentTarget.value);
                 setHasText(!!e.currentTarget.value.trim());
                 picker.syncFromTextarea();
                 highlight.syncHighlight();
