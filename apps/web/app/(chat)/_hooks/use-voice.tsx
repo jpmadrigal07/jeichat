@@ -35,6 +35,7 @@ import {
   VOICE_DEAFENED_ATTRIBUTE,
   voiceParticipantsQueryKey,
 } from '../_libs/voice';
+import { playVoiceSound } from '../_helpers/voice-sounds';
 import { useVoiceParticipantsSocket } from './use-voice-participants';
 
 export type VoiceChannelRef = { workspaceId: string; channelId: string };
@@ -176,6 +177,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     onSuccess: (session) => {
       sessionRef.current = session;
       announce(session);
+      playVoiceSound('join');
     },
   });
 
@@ -187,6 +189,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       sessionRef.current = null;
       if (!left) return;
       announce(left);
+      playVoiceSound('leave');
       if (reason === DisconnectReason.DUPLICATE_IDENTITY) {
         toast('You joined voice from another tab or device.');
       } else if (reason !== DisconnectReason.CLIENT_INITIATED) {
@@ -198,11 +201,25 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       if (publication.source !== Track.Source.ScreenShare) return;
       if (sessionRef.current) announce(sessionRef.current);
     };
+    // Everyone in the call chimes for themselves when someone joins or leaves.
+    // Deafened means hear nothing, cues included (your own join/leave still plays).
+    const isDeafened = () =>
+      room.localParticipant.attributes[VOICE_DEAFENED_ATTRIBUTE] === 'true';
+    const handleParticipantConnected = () => {
+      if (!isDeafened()) playVoiceSound('join');
+    };
+    const handleParticipantDisconnected = () => {
+      if (!isDeafened()) playVoiceSound('leave');
+    };
     room.on(RoomEvent.Disconnected, handleDisconnected);
     room.on(RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished);
+    room.on(RoomEvent.ParticipantConnected, handleParticipantConnected);
+    room.on(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected);
     return () => {
       room.off(RoomEvent.Disconnected, handleDisconnected);
       room.off(RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished);
+      room.off(RoomEvent.ParticipantConnected, handleParticipantConnected);
+      room.off(RoomEvent.ParticipantDisconnected, handleParticipantDisconnected);
     };
     // `announce` only reads the stable queryClient.
     // eslint-disable-next-line react-hooks/exhaustive-deps
