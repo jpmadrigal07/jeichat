@@ -1,0 +1,152 @@
+'use client';
+
+import Link from 'next/link';
+import {
+  Archive,
+  Calendar,
+  CircleDot,
+  Eye,
+  GitBranch,
+  Link2,
+  Plus,
+  SignalMedium,
+  Tag,
+  Unlink,
+  UserRound,
+} from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { useChannels } from '@chat/_hooks/use-channels';
+import { isTicketArchived } from '@chat/_helpers/ticket-fields';
+import { channelPageHref, conversationPageHref } from '@chat/_libs/channels';
+import {
+  isParentChannelEventType,
+  type TicketEvent,
+} from '../_libs/channel-events';
+import { formatTicketEvent } from '../_helpers/format-ticket-event';
+
+type TicketActivityItemProps = {
+  event: TicketEvent;
+  workspaceId: string;
+  showTicket?: boolean;
+};
+
+function formatTime(dateStr: string): string {
+  return new Date(dateStr).toLocaleTimeString([], {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function formatFullDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleString([], {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function EventIcon({ type }: { type: TicketEvent['type'] }) {
+  const className = 'size-3.5';
+  switch (type) {
+    case 'ticket_created':
+      return <Plus className={className} />;
+    case 'status_changed':
+      return <CircleDot className={className} />;
+    case 'priority_changed':
+      return <SignalMedium className={className} />;
+    case 'assignee_changed':
+      return <UserRound className={className} />;
+    case 'due_changed':
+      return <Calendar className={className} />;
+    case 'labels_changed':
+      return <Tag className={className} />;
+    case 'watchers_changed':
+      return <Eye className={className} />;
+    case 'archived_changed':
+      return <Archive className={className} />;
+    case 'github_status_changed':
+      return <CircleDot className={className} />;
+    case 'github_repo_linked':
+    case 'github_setup_started':
+      return <Link2 className={className} />;
+    case 'github_repo_unlinked':
+      return <Unlink className={className} />;
+    case 'github_pull_request':
+      return <GitBranch className={className} />;
+  }
+}
+
+export function TicketActivityItem({
+  event,
+  workspaceId,
+  showTicket = false,
+}: TicketActivityItemProps) {
+  const copy = formatTicketEvent(event);
+  const ticket = event.ticket;
+  const { data: channels } = useChannels(workspaceId);
+  const ticketChannel = ticket
+    ? channels?.find((item) => item.id === ticket.id)
+    : undefined;
+  const ticketArchived = Boolean(
+    ticket && isTicketArchived(ticketChannel ?? {}),
+  );
+  const showTicketLink =
+    Boolean(ticket) &&
+    showTicket &&
+    isParentChannelEventType(event.type) &&
+    !ticketArchived;
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-1.5 text-xs text-muted-foreground">
+      <span className="flex size-8 shrink-0 items-center justify-center">
+        <EventIcon type={event.type} />
+      </span>
+      <p className="min-w-0 flex-1">
+        <span className="font-medium text-foreground/80">{copy.actorName}</span>{' '}
+        {ticket && showTicket && isParentChannelEventType(event.type) ? (
+          <>
+            {copy.verb}{' '}
+            {showTicketLink ? (
+              <Link
+                href={
+                  ticketChannel
+                    ? conversationPageHref(workspaceId, ticketChannel)
+                    : channelPageHref(workspaceId, ticket.id)
+                }
+                title={ticket.name}
+                className="font-medium text-primary underline-offset-2 hover:underline"
+              >
+                #{ticket.displayId}
+              </Link>
+            ) : (
+              <span className="font-medium text-foreground/80">
+                #{ticket.displayId}
+              </span>
+            )}{' '}
+            {ticket.name}
+            {copy.detail ? ` ${copy.detail}` : null}
+          </>
+        ) : (
+          copy.text
+        )}
+      </p>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="shrink-0 cursor-default">
+            {formatTime(event.createdAt)}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          {formatFullDate(event.createdAt)}
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}

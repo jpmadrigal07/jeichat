@@ -1,185 +1,164 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
+import Link from 'next/link';
+import { Loader2 } from 'lucide-react';
 import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import { authClient } from '@/lib/auth-client';
-import { cn } from '@/lib/utils';
-
-const inputClass =
-  'flex h-8 w-full rounded-md border border-border bg-background px-2 text-xs outline-none ring-offset-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30';
 
 export type AuthPanelInitialSession = Awaited<
   ReturnType<typeof authClient.getSession>
 >;
 
+export type AuthMode = 'sign-in' | 'sign-up';
+
 type AuthPanelProps = {
-  /** From {@link getServerSession} on the server — avoids an empty flash before `useSession` finishes. */
+  mode?: AuthMode;
   initialSession?: AuthPanelInitialSession;
 };
 
-export function AuthPanel({ initialSession }: AuthPanelProps = {}) {
-  const sessionState = authClient.useSession();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in');
+export function AuthPanel({ mode = 'sign-in' }: AuthPanelProps = {}) {
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const isSignUp = mode === 'sign-up';
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setPending(true);
-    try {
+  function enterApp() {
+    window.location.assign('/w');
+  }
+
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const email = String(data.get('email') ?? '').trim();
+    const password = String(data.get('password') ?? '');
+    const name = String(data.get('name') ?? '').trim();
+
+    startTransition(async () => {
+      setError(null);
       if (mode === 'sign-up') {
         const { error: err } = await authClient.signUp.email({
           email,
           password,
-          name: name.trim() || email.split('@')[0] || 'User',
+          name: name || email.split('@')[0] || 'User',
         });
-        if (err) setError(err.message ?? 'Sign up failed');
-      } else {
-        const { error: err } = await authClient.signIn.email({
-          email,
-          password,
-        });
-        if (err) setError(err.message ?? 'Sign in failed');
+        if (err) {
+          setError(err.message ?? 'Sign up failed');
+          return;
+        }
+        enterApp();
+        return;
       }
-    } finally {
-      setPending(false);
-    }
+
+      const { error: err } = await authClient.signIn.email({
+        email,
+        password,
+      });
+      if (err) {
+        setError(err.message ?? 'Sign in failed');
+        return;
+      }
+      enterApp();
+    });
   }
 
-  async function handleSignOut() {
-    setError(null);
-    await authClient.signOut();
-  }
-
-  const user = sessionState.isPending
-    ? (initialSession?.error == null && initialSession?.data?.user
-        ? initialSession.data.user
-        : sessionState.data?.user)
-    : sessionState.data?.user;
+  const submitLabel = pending
+    ? 'Please wait...'
+    : isSignUp
+      ? 'Create account'
+      : 'Log in';
 
   return (
-    <Card className="max-w-md">
+    <Card className="w-full max-w-md gap-6 py-6">
       <CardHeader>
-        <CardTitle>Better Auth</CardTitle>
+        <CardTitle>
+          {isSignUp ? 'Create an account' : 'Welcome back'}
+        </CardTitle>
         <CardDescription>
-          Sessions are issued by the Nest API (
-          <code className="rounded bg-muted px-1 py-0.5 text-[0.65rem]">
-            {baseURLDisplay()}
-          </code>
-          ). Enable{' '}
-          <code className="rounded bg-muted px-1 py-0.5 text-[0.65rem]">
-            NEXT_PUBLIC_API_CREDENTIALS=true
-          </code>{' '}
-          for cookie credentials on API calls.
+          {isSignUp
+            ? 'Join your team on JeiChat.'
+            : "We're glad you're here."}
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        {user ? (
-          <div className="flex flex-col gap-3">
-            <p className="text-sm">
-              Signed in as{' '}
-              <span className="font-medium">{user.name ?? user.email}</span>
-            </p>
-            <Button type="button" variant="outline" onClick={handleSignOut}>
-              Sign out
-            </Button>
-          </div>
-        ) : (
-          <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant={mode === 'sign-in' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => {
-                  setMode('sign-in');
-                  setError(null);
-                }}
-              >
-                Sign in
-              </Button>
-              <Button
-                type="button"
-                variant={mode === 'sign-up' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => {
-                  setMode('sign-up');
-                  setError(null);
-                }}
-              >
-                Sign up
-              </Button>
-            </div>
-            {mode === 'sign-up' ? (
-              <label className="flex flex-col gap-1 text-xs">
-                Name
-                <input
-                  className={cn(inputClass)}
+
+      <CardContent>
+        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+          <FieldGroup>
+            {isSignUp ? (
+              <Field>
+                <FieldLabel htmlFor="auth-name">Name</FieldLabel>
+                <Input
+                  id="auth-name"
+                  name="name"
                   autoComplete="name"
-                  value={name}
-                  onChange={(ev) => setName(ev.target.value)}
                   placeholder="Ada Lovelace"
                 />
-              </label>
+              </Field>
             ) : null}
-            <label className="flex flex-col gap-1 text-xs">
-              Email
-              <input
-                className={cn(inputClass)}
+            <Field>
+              <FieldLabel htmlFor="auth-email">Email</FieldLabel>
+              <Input
+                id="auth-email"
+                name="email"
                 type="email"
                 autoComplete="email"
-                required
-                value={email}
-                onChange={(ev) => setEmail(ev.target.value)}
                 placeholder="you@example.com"
-              />
-            </label>
-            <label className="flex flex-col gap-1 text-xs">
-              Password
-              <input
-                className={cn(inputClass)}
-                type="password"
-                autoComplete={
-                  mode === 'sign-up' ? 'new-password' : 'current-password'
-                }
                 required
-                value={password}
-                onChange={(ev) => setPassword(ev.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="auth-password">Password</FieldLabel>
+              <Input
+                id="auth-password"
+                name="password"
+                type="password"
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
                 placeholder="••••••••"
                 minLength={8}
+                required
               />
-            </label>
-            {error ? (
-              <p className="text-xs text-destructive" role="alert">
-                {error}
-              </p>
+              {isSignUp ? (
+                <FieldDescription>At least 8 characters.</FieldDescription>
+              ) : null}
+            </Field>
+          </FieldGroup>
+
+          {error ? <FieldError>{error}</FieldError> : null}
+
+          <Button type="submit" size="lg" className="w-full" disabled={pending}>
+            {pending ? (
+              <Loader2 data-icon="inline-start" className="animate-spin" />
             ) : null}
-            <Button type="submit" disabled={pending}>
-              {pending
-                ? 'Working…'
-                : mode === 'sign-up'
-                  ? 'Create account'
-                  : 'Sign in'}
-            </Button>
-          </form>
-        )}
+            {submitLabel}
+          </Button>
+        </form>
       </CardContent>
+
+      <CardFooter>
+        <p className="text-sm text-muted-foreground">
+          {isSignUp ? 'Already have an account?' : 'Need an account?'}{' '}
+          <Button variant="link" size="sm" className="h-auto px-0" asChild>
+            <Link href={isSignUp ? '/login' : '/sign-up'}>
+              {isSignUp ? 'Log in' : 'Register'}
+            </Link>
+          </Button>
+        </p>
+      </CardFooter>
     </Card>
   );
-}
-
-function baseURLDisplay(): string {
-  const url = process.env.NEXT_PUBLIC_API_URL;
-  return url && url.length > 0 ? url : '(set NEXT_PUBLIC_API_URL)';
 }

@@ -39,9 +39,13 @@ export class DrizzleService implements OnModuleInit, OnModuleDestroy {
     this.db = drizzle(this.pool, { schema });
   }
 
+  async ping(): Promise<void> {
+    await this.pool.query('SELECT 1');
+  }
+
   async onModuleInit() {
     try {
-      await this.pool.query('SELECT NOW()');
+      await this.ping();
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);

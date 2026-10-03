@@ -287,7 +287,7 @@ export default async function Page() {
 ```env
 # Better Auth
 BETTER_AUTH_SECRET=                        # Required, 32+ chars (openssl rand -base64 32)
-BETTER_AUTH_URL=http://localhost:3001       # API URL where /api/auth/* is served
+BETTER_AUTH_URL=http://localhost:3002       # API URL where /api/auth/* is served
 
 # Database
 DATABASE_URL=                              # PostgreSQL connection string (omit for local SQLite)
@@ -297,15 +297,41 @@ PG_POOL_MAX=10                             # pg Pool max connections
 UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
 
+# Cloudflare R2 (S3-compatible) — chat attachments
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET=jeichat-attachments-dev
+R2_PUBLIC_URL=                          # Optional: only if using a public custom domain
+R2_PRESIGN_EXPIRES_SECONDS=600          # Presigned URL TTL (10 min default)
+R2_MAX_UPLOAD_BYTES=26214400            # 25 MiB per file
+
+# LiveKit — voice channels (optional; voice endpoints return 503 without them)
+LIVEKIT_URL=wss://<project>.livekit.cloud  # Or a self-hosted server URL
+LIVEKIT_API_KEY=
+LIVEKIT_API_SECRET=
+LIVEKIT_API_URL=                        # Optional: server-API URL if different from LIVEKIT_URL
+LIVEKIT_ROOM_PREFIX=                    # Optional: e.g. dev- to share one project across envs
+
 # API (Nest)
-PORT=3001
-WEB_ORIGIN=http://localhost:3000           # CORS allowed origin
+PORT=3002
+WEB_ORIGIN=http://localhost:3001           # CORS allowed origin
 CORS_CREDENTIALS=                          # Set to 'false' to disable credentials
 
 # Web (Next.js)
-NEXT_PUBLIC_API_URL=http://localhost:3001
+NEXT_PUBLIC_API_URL=http://localhost:3002
 NEXT_PUBLIC_API_CREDENTIALS=true           # Required for session cookies cross-origin
 ```
+
+---
+
+## Voice Channels (LiveKit)
+
+Voice channels are `channels` rows with `channel_type = 'voice'` (no ticket key, no tickets). Audio runs browser ↔ LiveKit; the API never carries media.
+
+- **API (`apps/api/src/voice/`)** mints join tokens (`POST /workspaces/:id/voice/:channelId/token`; identity = user ID, `canPublish` = `SEND_MESSAGES`), lists participants per channel from LiveKit's server API (`GET /workspaces/:id/voice/participants`, 3 s cache), and broadcasts `voice_participants_changed` to `workspace:<id>` on `POST …/sync` (sent by the client after joining/leaving) and on LiveKit webhooks (`POST /voice/webhook`).
+- **Self-hosting** is env-only: the token response carries `serverUrl`, so the web app never hardcodes a LiveKit URL. Room names are `${LIVEKIT_ROOM_PREFIX}${channelId}`.
+- **Web**: `VoiceProvider` (`app/(chat)/_hooks/use-voice.tsx`) wraps the `(chat)` layout and owns one LiveKit `Room`, so a call survives navigation and workspace switches. Use `useVoice()` for join/leave/mute/deafen. Deafen is a participant attribute (`deafened`) so others see it.
 
 ---
 
@@ -764,7 +790,7 @@ bun run check-types  # Type-check all workspaces
 ### API (`apps/api/`)
 
 ```bash
-bun run dev          # NestJS watch mode (port 3001)
+bun run dev          # NestJS watch mode (port 3002)
 bun run build        # Compile to dist/
 bun run start:prod   # Production server (node dist/main)
 bun run test         # Jest unit tests
@@ -778,7 +804,7 @@ bun run db:studio    # Open Drizzle Studio web UI
 ### Web (`apps/web/`)
 
 ```bash
-bun run dev          # Next.js dev server (port 3000)
+bun run dev          # Next.js dev server (port 3001)
 bun run build        # Production build
 bun run lint         # ESLint (zero warnings enforced)
 bun run check-types  # Type generation + TypeScript check

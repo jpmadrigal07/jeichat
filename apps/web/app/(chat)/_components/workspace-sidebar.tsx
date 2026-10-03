@@ -1,0 +1,51 @@
+'use client';
+
+import { useWorkspaces } from '../_hooks/use-workspaces';
+import { useGlobalUnreadSocket } from '../_hooks/use-global-unread-socket';
+import { useWorkspacePresenceSocket } from '../_hooks/use-presence';
+import { WorkspaceSwitcher } from './workspace-switcher';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useParams } from 'next/navigation';
+
+type User = {
+  id: string;
+  name: string;
+  email: string;
+  image?: string | null;
+};
+
+export function WorkspaceSidebar({ user }: { user: User }) {
+  const { data: workspaces, isLoading } = useWorkspaces();
+  const params = useParams<{
+    workspaceId?: string;
+    channelId?: string;
+    ticketId?: string;
+  }>();
+
+  useGlobalUnreadSocket({
+    workspaces: workspaces ?? [],
+    activeChannelId: params.ticketId ?? params.channelId,
+    userId: user.id,
+  });
+  useWorkspacePresenceSocket();
+
+  return (
+    <div className="flex h-full w-[72px] flex-col items-center gap-2 border-r bg-sidebar py-3">
+      {isLoading ? (
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-12 rounded-2xl" />
+          ))}
+        </div>
+      ) : (
+        <WorkspaceSwitcher
+          workspaces={workspaces ?? []}
+          activeWorkspaceId={params.workspaceId}
+          user={user}
+        />
+      )}
+      <Separator className="mx-auto w-8" />
+    </div>
+  );
+}

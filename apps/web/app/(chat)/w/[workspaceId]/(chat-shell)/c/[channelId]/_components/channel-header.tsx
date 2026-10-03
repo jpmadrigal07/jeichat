@@ -1,0 +1,401 @@
+'use client';
+
+import { Suspense, useRef } from 'react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { Columns3, MessageSquare, MessageSquarePlus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from '@/components/ui/toggle-group';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
+  channelBoardHref,
+  channelPageHref,
+  type Channel,
+  type TicketLayout,
+} from '@chat/_libs/channels';
+import { createThreadHref } from '@chat/_components/create-thread-dialog';
+import {
+  ChatPageHeader,
+  type ChatLinearParent,
+} from '@chat/_components/chat-page-header';
+import type { ChatCrumb } from '@chat/_components/chat-breadcrumbs';
+import { ExportDialog } from './export-dialog';
+import { PinnedMessagesPopoverHost } from './pinned-messages-popover';
+import {
+  ChannelHeaderOverflowMenu,
+  type ChannelHeaderOverflowMenuProps,
+} from './channel-header-overflow-menu';
+import { ChannelNotificationMenu } from '@chat/_components/channel-notification-menu';
+import {
+  WorkspaceSearch,
+  type WorkspaceSearchHandle,
+} from '@chat/_components/workspace-search';
+import { ChannelTypeIcon } from '@chat/_components/channel-type-icon';
+import { PresenceAvatar } from '@chat/_components/presence-avatar';
+import {
+  channelBreadcrumbLabel,
+  channelDisplayName,
+  isDmChannel,
+} from '@chat/_helpers/channel-display';
+import { TicketArchiveMenu } from './ticket-property-menus';
+
+type ChannelViewMode = 'messages' | 'threads';
+
+type ChannelHeaderProps = {
+  channel: Channel | undefined;
+  parentChannel: Channel | undefined;
+  channelId: string;
+  workspaceId: string;
+  view: ChannelViewMode;
+  layout: TicketLayout;
+};
+
+export function ChannelHeader({
+  channel,
+  parentChannel,
+  channelId,
+  workspaceId,
+  view,
+  layout,
+}: ChannelHeaderProps) {
+  const searchRef = useRef<WorkspaceSearchHandle>(null);
+  const isThread = Boolean(channel?.parentId);
+  const isDm = isDmChannel(channel);
+  const onBoard = view === 'threads' && !isThread;
+
+  const backHref =
+    isThread && parentChannel
+      ? channelPageHref(workspaceId, parentChannel.id)
+      : `/w/${workspaceId}`;
+
+  const backLabel =
+    isThread && parentChannel
+      ? `Back to ${channelBreadcrumbLabel(parentChannel)}`
+      : 'Back to channels';
+
+  // On mobile, search lives in the "…" drawer instead of its own icon.
+  function openSearch() {
+    searchRef.current?.open();
+  }
+
+  const crumbs = buildChannelHeaderCrumbs({
+    channel,
+    parentChannel,
+    onBoard,
+    workspaceId,
+  });
+
+  const { linearTitle, linearParent } = buildChannelHeaderLinear({
+    channel,
+    parentChannel,
+    onBoard,
+    workspaceId,
+  });
+
+  // Tickets lead with their parent channel, so the # / lock icon belongs to it.
+  const crumbChannel = isThread ? parentChannel : channel;
+  const leading =
+    isDm && channel?.dmPeer ? (
+      <PresenceAvatar
+        userId={channel.dmPeer.id}
+        name={channel.dmPeer.name}
+        image={channel.dmPeer.image}
+        size="sm"
+        showOffline
+        className="shrink-0"
+      />
+    ) : !isDm && crumbChannel ? (
+      <ChannelTypeIcon
+        isPrivate={crumbChannel.isPrivate}
+        className="h-4 w-4 shrink-0 text-muted-foreground max-md:hidden"
+      />
+    ) : null;
+
+  return (
+    <ChatPageHeader
+      backHref={backHref}
+      backLabel={backLabel}
+      linearTitle={linearTitle}
+      linearParent={linearParent}
+      crumbs={crumbs}
+      leading={leading}
+      actions={
+        <>
+          {isThread && channel ? (
+            <TicketArchiveMenu
+              workspaceId={workspaceId}
+              channelId={channel.id}
+              parentChannelId={channel.parentId}
+              archivedAt={channel.archivedAt}
+              variant="button"
+              className="max-md:hidden"
+            />
+          ) : null}
+          {!isThread && channel && !isDm ? (
+            <Suspense
+              fallback={
+                <ChannelHeaderTicketActions
+                  channelId={channelId}
+                  workspaceId={workspaceId}
+                  view={view}
+                  layout={layout}
+                />
+              }
+            >
+              <ChannelHeaderTicketActionsFromSearch
+                channelId={channelId}
+                workspaceId={workspaceId}
+                view={view}
+                layout={layout}
+              />
+            </Suspense>
+          ) : null}
+          <div className="hidden shrink-0 items-center gap-1 md:flex">
+            {!isThread && channel && !isDm ? (
+              <ChannelNotificationMenu
+                workspaceId={workspaceId}
+                channelId={channelId}
+              />
+            ) : null}
+            <ExportDialog channelId={channelId} channel={channel} />
+            <PinnedMessagesPopoverHost channelId={channelId} />
+          </div>
+          <Suspense
+            fallback={
+              <ChannelHeaderOverflowMenu
+                workspaceId={workspaceId}
+                channelId={channelId}
+                channel={channel}
+                parentChannel={parentChannel}
+                view={view}
+                layout={layout}
+                isThread={isThread}
+                isTicketChannel={Boolean(!isThread && channel && !isDm)}
+                onOpenSearch={openSearch}
+              />
+            }
+          >
+            <ChannelHeaderOverflowMenuFromSearch
+              workspaceId={workspaceId}
+              channelId={channelId}
+              channel={channel}
+              parentChannel={parentChannel}
+              view={view}
+              layout={layout}
+              isThread={isThread}
+              isTicketChannel={Boolean(!isThread && channel && !isDm)}
+              onOpenSearch={openSearch}
+            />
+          </Suspense>
+          <div className="md:ml-3">
+            <WorkspaceSearch
+              ref={searchRef}
+              workspaceId={workspaceId}
+              showMobileTrigger={false}
+            />
+          </div>
+        </>
+      }
+    />
+  );
+}
+
+function buildChannelHeaderLinear({
+  channel,
+  parentChannel,
+  onBoard,
+  workspaceId,
+}: {
+  channel: Channel | undefined;
+  parentChannel: Channel | undefined;
+  onBoard: boolean;
+  workspaceId: string;
+}): { linearTitle: string; linearParent?: ChatLinearParent[] } {
+  if (channel?.parentId && parentChannel) {
+    return {
+      linearTitle: channel ? channelDisplayName(channel) : 'Ticket',
+      linearParent: [
+        {
+          label: channelBreadcrumbLabel(parentChannel),
+          href: channelPageHref(workspaceId, parentChannel.id),
+        },
+        {
+          label: 'Board',
+          href: channelBoardHref(workspaceId, parentChannel.id),
+        },
+      ],
+    };
+  }
+
+  if (!channel) {
+    return { linearTitle: 'Loading…' };
+  }
+
+  if (onBoard && !isDmChannel(channel)) {
+    return {
+      linearTitle: 'Board',
+      linearParent: [
+        {
+          label: channelBreadcrumbLabel(channel),
+          href: channelPageHref(workspaceId, channel.id),
+        },
+      ],
+    };
+  }
+
+  return {
+    linearTitle: channelBreadcrumbLabel(channel),
+  };
+}
+
+function buildChannelHeaderCrumbs({
+  channel,
+  parentChannel,
+  onBoard,
+  workspaceId,
+}: {
+  channel: Channel | undefined;
+  parentChannel: Channel | undefined;
+  onBoard: boolean;
+  workspaceId: string;
+}): ChatCrumb[] {
+  if (channel?.parentId && parentChannel) {
+    // The leading ChannelTypeIcon already renders the # / lock, so use the bare name.
+    return [
+      {
+        label: channelDisplayName(parentChannel),
+        href: channelPageHref(workspaceId, parentChannel.id),
+      },
+      {
+        label: 'Board',
+        href: channelBoardHref(workspaceId, parentChannel.id),
+      },
+      {
+        label: channel ? channelDisplayName(channel) : 'Ticket',
+      },
+    ];
+  }
+
+  if (!channel) {
+    return [{ label: 'Loading…' }];
+  }
+
+  // The leading ChannelTypeIcon already renders the # / lock, so use the bare name.
+  if (onBoard && !isDmChannel(channel)) {
+    return [
+      {
+        label: channelDisplayName(channel),
+        href: channelPageHref(workspaceId, channel.id),
+      },
+      { label: 'Board' },
+    ];
+  }
+
+  return [{ label: channelDisplayName(channel) }];
+}
+
+function ChannelHeaderTicketActionsFromSearch(
+  props: Omit<ChannelHeaderTicketActionsProps, 'search'>,
+) {
+  const searchParams = useSearchParams();
+  return <ChannelHeaderTicketActions {...props} search={searchParams} />;
+}
+
+function ChannelHeaderOverflowMenuFromSearch(
+  props: Omit<ChannelHeaderOverflowMenuProps, 'createThreadHref' | 'search'>,
+) {
+  const searchParams = useSearchParams();
+  const createThreadHrefValue = createThreadHref(
+    props.channelId,
+    props.view === 'threads'
+      ? { layout: props.layout, search: searchParams }
+      : undefined,
+  );
+  return (
+    <ChannelHeaderOverflowMenu
+      {...props}
+      createThreadHref={createThreadHrefValue}
+      search={searchParams}
+    />
+  );
+}
+
+type ChannelHeaderTicketActionsProps = {
+  channelId: string;
+  workspaceId: string;
+  view: ChannelViewMode;
+  layout: TicketLayout;
+  search?: Pick<URLSearchParams, 'toString'>;
+};
+
+function ChannelHeaderTicketActions({
+  channelId,
+  workspaceId,
+  view,
+  layout,
+  search,
+}: ChannelHeaderTicketActionsProps) {
+  const mode = view === 'threads' ? 'threads' : 'messages';
+
+  return (
+    <>
+      <ToggleGroup
+        type="single"
+        value={mode}
+        variant="outline"
+        size="sm"
+        spacing={0}
+        aria-label="Channel view"
+        className="max-md:hidden"
+      >
+        <ToggleGroupItem value="messages" asChild>
+          <Link href={channelPageHref(workspaceId, channelId)}>
+            <MessageSquare data-icon="inline-start" />
+            <span className="max-md:sr-only">Chat</span>
+          </Link>
+        </ToggleGroupItem>
+        <ToggleGroupItem value="threads" asChild>
+          <Link
+            href={channelBoardHref(
+              workspaceId,
+              channelId,
+              layout,
+              search,
+            )}
+          >
+            <Columns3 data-icon="inline-start" />
+            <span className="max-md:sr-only">Board</span>
+          </Link>
+        </ToggleGroupItem>
+      </ToggleGroup>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            asChild
+            className="max-md:hidden"
+          >
+            <Link
+              href={createThreadHref(
+                channelId,
+                view === 'threads' ? { layout, search } : undefined,
+              )}
+            >
+              <MessageSquarePlus />
+              <span className="sr-only">Create ticket</span>
+            </Link>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Create ticket</TooltipContent>
+      </Tooltip>
+    </>
+  );
+}

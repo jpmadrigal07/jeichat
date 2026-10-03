@@ -1,0 +1,459 @@
+'use client';
+
+import type { QueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  fetchChannels,
+  createChannel,
+  createOrGetDm,
+  createThread,
+  hideDm,
+  unhideDm,
+  updateChannel,
+  deleteChannel,
+  channelsQueryKey,
+  channelThreadsQueryKey,
+  archivedChannelThreadsQueryKey,
+  fetchArchivedChannelThreads,
+  unreadCountsQueryKey,
+  type Channel,
+  type ChannelThread,
+  type UnreadCounts,
+  type UpdateChannelPayload,
+} from '../_libs/channels';
+import {
+  channelEventsQueryKey,
+  type TicketEvent,
+} from '../w/[workspaceId]/(chat-shell)/c/[channelId]/_libs/channel-events';
+
+function isChannelThreadsQuery(
+  queryKey: readonly unknown[],
+  workspaceId: string,
+  kind: 'threads' | 'archived-threads' = 'threads',
+) {
+  return (
+    queryKey[0] === 'workspaces' &&
+    queryKey[1] === workspaceId &&
+    queryKey[2] === 'channels' &&
+    queryKey[4] === kind
+  );
+}
+
+export function applyChannelPatch<T extends Channel>(
+  channel: T,
+  vars: UpdateChannelPayload & { channelId: string },
+): T {
+  const remove = new Set(vars.removeAttachmentIds ?? []);
+  return {
+    ...channel,
+    name: vars.name ?? channel.name,
+    description:
+      vars.description === undefined ? channel.description : vars.description,
+    ticketKey:
+      vars.ticketKey === undefined ? channel.ticketKey : vars.ticketKey,
+    status: vars.status === undefined ? channel.status : vars.status,
+    boardPosition:
+      vars.status === undefined || vars.status === channel.status
+        ? channel.boardPosition
+        : null,
+    priority: vars.priority === undefined ? channel.priority : vars.priority,
+    assigneeId:
+      vars.assigneeId === undefined ? channel.assigneeId : vars.assigneeId,
+    dueAt: vars.dueAt === undefined ? channel.dueAt : vars.dueAt,
+    archivedAt:
+      vars.archived === undefined
+        ? channel.archivedAt
+        : vars.archived
+          ? (channel.archivedAt ?? new Date().toISOString())
+          : null,
+    isPrivate:
+      vars.isPrivate === undefined ? channel.isPrivate : vars.isPrivate,
+    labels: vars.labels === undefined ? channel.labels : vars.labels,
+    watchers: vars.watchers === undefined ? channel.watchers : vars.watchers,
+    attachments: (channel.attachments ?? []).filter(
+      (attachment) => !remove.has(attachment.id),
+    ),
+  };
+}
+
+/** Keep Properties / board cards in sync when ticket fields change via websocket. */
+export function patchChannelFromTicketEvent(
+  queryClient: QueryClient,
+  workspaceId: string,
+  event: TicketEvent,
+) {
+  const ticketId = event.channelId;
+  let patch: (UpdateChannelPayload & { channelId: string }) | null = null;
+
+  switch (event.type) {
+    case 'status_changed':
+      if (typeof event.toValue === 'string') {
+        patch = { channelId: ticketId, status: event.toValue };
+      }
+      break;
+    case 'priority_changed':
+      if (typeof event.toValue === 'string') {
+        patch = { channelId: ticketId, priority: event.toValue };
+      }
+      break;
+    case 'assignee_changed': {
+      const to = event.toValue;
+      const assigneeId =
+        to && typeof to === 'object' && 'id' in to && typeof to.id === 'string'
+          ? to.id
+          : null;
+      patch = { channelId: ticketId, assigneeId };
+      break;
+    }
+    case 'due_changed':
+      patch = {
+        channelId: ticketId,
+        dueAt:
+          typeof event.toValue === 'string'
+            ? event.toValue
+            : event.toValue === null
+              ? null
+              : undefined,
+      };
+      if (patch.dueAt === undefined) patch = null;
+      break;
+    case 'labels_changed':
+      if (Array.isArray(event.toValue)) {
+        patch = {
+          channelId: ticketId,
+          labels: event.toValue as Channel['labels'],
+        };
+      }
+      break;
+    case 'watchers_changed':
+      if (Array.isArray(event.toValue)) {
+        patch = {
+          channelId: ticketId,
+          watchers: event.toValue as Channel['watchers'],
+        };
+      }
+      break;
+    case 'archived_changed':
+      if (typeof event.toValue === 'boolean') {
+        patch = { channelId: ticketId, archived: event.toValue };
+      }
+      break;
+    default:
+      break;
+  }
+
+  if (!patch) return;
+
+  queryClient.setQueryData<Channel[]>(channelsQueryKey(workspaceId), (old) =>
+    old?.map((channel) =>
+      channel.id === ticketId ? applyChannelPatch(channel, patch) : channel,
+    ),
+  );
+
+  if (!event.parentId) return;
+
+  queryClient.setQueriesData<ChannelThread[]>(
+    {
+      predicate: (query) => isChannelThreadsQuery(query.queryKey, workspaceId),
+    },
+    (old) =>
+      old?.map((thread) =>
+        thread.id === ticketId ? applyChannelPatch(thread, patch) : thread,
+      ),
+  );
+  queryClient.setQueriesData<ChannelThread[]>(
+    {
+      predicate: (query) =>
+        isChannelThreadsQuery(query.queryKey, workspaceId, 'archived-threads'),
+    },
+    (old) =>
+      old?.map((thread) =>
+        thread.id === ticketId ? applyChannelPatch(thread, patch) : thread,
+      ),
+  );
+}
+
+/** Move a DM to the top of the sidebar as soon as a message arrives in it. */
+export function bumpDmLastMessageAt(
+  queryClient: QueryClient,
+  workspaceId: string,
+  channelId: string,
+  messageCreatedAt: string,
+) {
+  queryClient.setQueryData<Channel[]>(channelsQueryKey(workspaceId), (old) => {
+    const target = old?.find((channel) => channel.id === channelId);
+    if (!old || target?.channelType !== 'dm') return old;
+    const known = target.lastMessageAt;
+    if (known && Date.parse(known) >= Date.parse(messageCreatedAt)) return old;
+    return old.map((channel) =>
+      channel.id === channelId
+        ? { ...channel, lastMessageAt: messageCreatedAt }
+        : channel,
+    );
+  });
+}
+
+export function useChannels(workspaceId: string) {
+  return useQuery({
+    queryKey: channelsQueryKey(workspaceId),
+    queryFn: ({ signal }) => fetchChannels(workspaceId, { signal }),
+    enabled: !!workspaceId,
+  });
+}
+
+export function useCreateChannel(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: {
+      name: string;
+      description?: string;
+      ticketKey?: string;
+      isPrivate?: boolean;
+      memberIds?: string[];
+      channelType?: 'channel' | 'voice';
+    }) => createChannel(workspaceId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: channelsQueryKey(workspaceId),
+      });
+    },
+  });
+}
+
+export function useCreateOrGetDm(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (targetUserId: string) =>
+      createOrGetDm(workspaceId, targetUserId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: channelsQueryKey(workspaceId),
+      });
+    },
+  });
+}
+
+/** Removes a DM from the sidebar list; the conversation itself is kept. */
+export function useHideDm(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (channelId: string) => hideDm(workspaceId, channelId),
+    onSuccess: ({ channelId, dmHiddenAt }) => {
+      queryClient.setQueryData<Channel[]>(
+        channelsQueryKey(workspaceId),
+        (old) =>
+          old?.map((channel) =>
+            channel.id === channelId ? { ...channel, dmHiddenAt } : channel,
+          ),
+      );
+      // The server marks the DM read as it hides it.
+      queryClient.setQueryData<UnreadCounts>(
+        unreadCountsQueryKey(workspaceId),
+        (old) => (old ? { ...old, [channelId]: 0 } : old),
+      );
+    },
+  });
+}
+
+/** Brings a removed DM back into the sidebar list. */
+export function useUnhideDm(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (channelId: string) => unhideDm(workspaceId, channelId),
+    onSuccess: ({ channelId }) => {
+      queryClient.setQueryData<Channel[]>(
+        channelsQueryKey(workspaceId),
+        (old) =>
+          old?.map((channel) =>
+            channel.id === channelId
+              ? { ...channel, dmHiddenAt: null }
+              : channel,
+          ),
+      );
+    },
+  });
+}
+
+export function useCreateThread(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      channelId,
+      name,
+      description,
+      attachmentIds,
+      status,
+      assigneeId,
+    }: {
+      channelId: string;
+      name: string;
+      description?: string;
+      attachmentIds?: string[];
+      status?: string;
+      assigneeId?: string | null;
+    }) =>
+      createThread(workspaceId, channelId, {
+        name,
+        description,
+        attachmentIds,
+        status,
+        assigneeId,
+      }),
+    onSuccess: (thread, { channelId }) => {
+      queryClient.invalidateQueries({
+        queryKey: channelsQueryKey(workspaceId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: channelThreadsQueryKey(workspaceId, channelId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: channelEventsQueryKey(workspaceId, channelId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: channelEventsQueryKey(workspaceId, thread.id),
+      });
+    },
+  });
+}
+
+export function useUpdateChannel(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      channelId,
+      labels: _labels,
+      watchers: _watchers,
+      ...payload
+    }: UpdateChannelPayload & { channelId: string }) =>
+      updateChannel(workspaceId, channelId, payload),
+    onMutate: async (vars) => {
+      await queryClient.cancelQueries({
+        queryKey: channelsQueryKey(workspaceId),
+      });
+      const previous = queryClient.getQueryData<Channel[]>(
+        channelsQueryKey(workspaceId),
+      );
+      const previousThreads = queryClient.getQueriesData<ChannelThread[]>({
+        predicate: (query) =>
+          isChannelThreadsQuery(query.queryKey, workspaceId) ||
+          isChannelThreadsQuery(query.queryKey, workspaceId, 'archived-threads'),
+      });
+      queryClient.setQueryData<Channel[]>(
+        channelsQueryKey(workspaceId),
+        (old) =>
+          old?.map((channel) =>
+            channel.id === vars.channelId
+              ? applyChannelPatch(channel, vars)
+              : channel,
+          ),
+      );
+      queryClient.setQueriesData<ChannelThread[]>(
+        {
+          predicate: (query) =>
+            isChannelThreadsQuery(query.queryKey, workspaceId),
+        },
+        (old) => {
+          if (!old) return old;
+          if (vars.archived === true) {
+            return old.filter((thread) => thread.id !== vars.channelId);
+          }
+          return old.map((thread) =>
+            thread.id === vars.channelId
+              ? applyChannelPatch(thread, vars)
+              : thread,
+          );
+        },
+      );
+      queryClient.setQueriesData<ChannelThread[]>(
+        {
+          predicate: (query) =>
+            isChannelThreadsQuery(query.queryKey, workspaceId, 'archived-threads'),
+        },
+        (old) => {
+          if (!old) return old;
+          if (vars.archived === false) {
+            return old.filter((thread) => thread.id !== vars.channelId);
+          }
+          return old.map((thread) =>
+            thread.id === vars.channelId
+              ? applyChannelPatch(thread, vars)
+              : thread,
+          );
+        },
+      );
+      return { previous, previousThreads };
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(
+          channelsQueryKey(workspaceId),
+          context.previous,
+        );
+      }
+      context?.previousThreads?.forEach(([queryKey, data]) => {
+        queryClient.setQueryData(queryKey, data);
+      });
+    },
+    onSuccess: (updated, vars) => {
+      queryClient.setQueryData<Channel[]>(
+        channelsQueryKey(workspaceId),
+        (old) =>
+          old?.map((channel) => {
+            if (channel.id !== updated.id) return channel;
+            const replacedImages = Boolean(
+              vars.addAttachmentIds?.length || vars.removeAttachmentIds?.length,
+            );
+            return {
+              ...channel,
+              ...updated,
+              attachments: replacedImages
+                ? (updated.attachments ?? [])
+                : (channel.attachments ?? updated.attachments ?? []),
+            };
+          }),
+      );
+      if (updated.parentId) {
+        queryClient.invalidateQueries({
+          queryKey: channelThreadsQueryKey(workspaceId, updated.parentId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: archivedChannelThreadsQueryKey(
+            workspaceId,
+            updated.parentId,
+          ),
+        });
+        queryClient.invalidateQueries({
+          queryKey: channelEventsQueryKey(workspaceId, updated.parentId),
+        });
+      }
+      queryClient.invalidateQueries({
+        queryKey: channelEventsQueryKey(workspaceId, updated.id),
+      });
+    },
+  });
+}
+
+export function useDeleteChannel(workspaceId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (channelId: string) => deleteChannel(workspaceId, channelId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: channelsQueryKey(workspaceId),
+      });
+    },
+  });
+}
+
+export function useArchivedChannelThreads(
+  workspaceId: string,
+  channelId: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: archivedChannelThreadsQueryKey(workspaceId, channelId),
+    queryFn: ({ signal }) =>
+      fetchArchivedChannelThreads(workspaceId, channelId, { signal }),
+    enabled: !!workspaceId && !!channelId && enabled,
+  });
+}

@@ -1,0 +1,399 @@
+'use client';
+
+import {
+  useRef,
+  useCallback,
+  useEffect,
+  useState,
+  type ClipboardEvent,
+} from 'react';
+import { SendHorizonal, Smile, X } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
+import { chatMessageFooterClass } from '@chat/_helpers/chat-footer-classes';
+import type { MentionableMember } from '@chat/_helpers/mentions';
+import type {
+  TaggableChannel,
+  TaggableMessage,
+  TaggableTicket,
+} from '@chat/_helpers/ticket-mentions';
+import { ComposerTagPicker } from '@chat/_components/composer-tag-picker';
+import { useComposerTagPicker } from '@chat/_hooks/use-composer-tag-picker';
+import { useIsMobile } from '@/hooks/use-mobile';
+import {
+  readComposerDraft,
+  writeComposerDraft,
+} from '../_helpers/composer-draft';
+import { shouldSubmitOnEnter } from '../_helpers/enter-to-submit';
+import {
+  markdownShortcutForKey,
+  replaceSelection,
+  wrapAsMarkdownLink,
+  wrapSelection,
+} from '../_helpers/markdown-shortcuts';
+import { messageReplySnippet } from '../_helpers/message-reply';
+import { useComposerTagHighlight } from '../_hooks/use-composer-tag-highlight';
+import { AttachmentPickerButton } from './attachment-picker-button';
+import { AttachmentPreviewTray } from './attachment-preview-tray';
+import { ReactionEmojiPicker } from './reaction-emoji-picker';
+import type { PendingAttachment } from '../_hooks/use-attachment-uploads';
+
+export type ComposerReplyTo = {
+  id: string;
+  content: string;
+  sender: {
+    name: string;
+    image: string | null;
+  } | null;
+};
+
+type MessageInputProps = {
+  channelName: string | undefined;
+  /** Text typed but not sent is kept in localStorage under this key. */
+  draftKey: string;
+  currentUserId: string;
+  workspaceId: string;
+  members: MentionableMember[];
+  tickets: TaggableTicket[];
+  channels: TaggableChannel[];
+  mentionMessages: TaggableMessage[];
+  allowAllMention: boolean;
+  replyTo: ComposerReplyTo | null;
+  onCancelReply: () => void;
+  onSend: (content: string, attachmentIds: string[]) => void;
+  onTyping: () => void;
+  sendDisabled?: boolean;
+  uploads: {
+    items: PendingAttachment[];
+    addFiles: (files: File[]) => void;
+    remove: (localId: string) => void;
+    retry: (localId: string) => void;
+    isAnyUploading: boolean;
+    readyServerIds: string[];
+  };
+};
+
+function focusTextarea(textarea: HTMLTextAreaElement | null) {
+  requestAnimationFrame(() => {
+    textarea?.focus();
+  });
+}
+
+/** Keeps desktop placeholder on one line; full name stays in the header. */
+const DESKTOP_MESSAGE_PLACEHOLDER_MAX = 48;
+
+function messageComposerPlaceholder(
+  channelName: string | undefined,
+  isMobile: boolean,
+): string {
+  if (isMobile) return 'Write a message…';
+  const name = channelName?.trim() || '…';
+  const label =
+    name.length > DESKTOP_MESSAGE_PLACEHOLDER_MAX
+      ? `${name.slice(0, DESKTOP_MESSAGE_PLACEHOLDER_MAX - 1)}…`
+      : name;
+  return `Message #${label}`;
+}
+
+export function MessageInput({
+  channelName,
+  draftKey,
+  currentUserId,
+  workspaceId,
+  members,
+  tickets,
+  channels,
+  mentionMessages,
+  allowAllMention,
+  replyTo,
+  onCancelReply,
+  onSend,
+  onTyping,
+  sendDisabled,
+  uploads,
+}: MessageInputProps) {
+  const isMobile = useIsMobile();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wasSendDisabledRef = useRef(false);
+  const emojiCaretRef = useRef<number | null>(null);
+  const [hasText, setHasText] = useState(false);
+  const highlight = useComposerTagHighlight({
+    textareaRef,
+    members,
+    tickets,
+    channels,
+  });
+  const picker = useComposerTagPicker({
+    textareaRef,
+    workspaceId,
+    members,
+    currentUserId,
+    tickets,
+    channels,
+    localMessages: mentionMessages,
+    allowAllMention,
+    onValueChange: (value) => {
+      writeComposerDraft(draftKey, value);
+      setHasText(!!value.trim());
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+      highlight.syncHighlight();
+    },
+  });
+
+  // localStorage isn't readable during SSR, so the draft is restored after
+  // hydration into the uncontrolled textarea.
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    const draft = readComposerDraft(draftKey);
+    if (!textarea || !draft || textarea.value) return;
+    textarea.value = draft;
+    textarea.setSelectionRange(draft.length, draft.length);
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+    setHasText(true);
+    highlight.syncHighlight();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- restore once per draft key
+  }, [draftKey]);
+
+  useEffect(() => {
+    focusTextarea(textareaRef.current);
+  }, [channelName, replyTo?.id]);
+
+  useEffect(() => {
+    if (wasSendDisabledRef.current && !sendDisabled) {
+      focusTextarea(textareaRef.current);
+    }
+    wasSendDisabledRef.current = !!sendDisabled;
+  }, [sendDisabled]);
+
+  const handleInput = useCallback(() => {
+    if (typingTimeoutRef.current) return;
+    onTyping();
+    typingTimeoutRef.current = setTimeout(() => {
+      typingTimeoutRef.current = null;
+    }, 2000);
+  }, [onTyping]);
+
+  const canSend =
+    !uploads.isAnyUploading &&
+    (hasText || uploads.readyServerIds.length > 0) &&
+    !sendDisabled;
+  const hasContent =
+    hasText || uploads.items.some((item) => item.status !== 'error');
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (picker.handlePickerKeyDown(e)) return;
+
+    if (e.key === 'Escape' && replyTo) {
+      e.preventDefault();
+      onCancelReply();
+      return;
+    }
+
+    if ((e.metaKey || e.ctrlKey) && !e.altKey) {
+      const shortcut = markdownShortcutForKey(e.key);
+      if (shortcut) {
+        e.preventDefault();
+        applyMarkdownShortcut(shortcut);
+        return;
+      }
+    }
+
+    if (shouldSubmitOnEnter(e)) {
+      e.preventDefault();
+      submit();
+    }
+  }
+
+  function applyMarkdownShortcut(
+    shortcut: Exclude<ReturnType<typeof markdownShortcutForKey>, null>,
+  ) {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart ?? 0;
+    const end = textarea.selectionEnd ?? start;
+    const next =
+      shortcut === 'link'
+        ? wrapAsMarkdownLink(textarea.value, start, end)
+        : wrapSelection(
+            textarea.value,
+            start,
+            end,
+            shortcut.prefix,
+            shortcut.suffix,
+          );
+    textarea.value = next.value;
+    textarea.setSelectionRange(next.selectionStart, next.selectionEnd);
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function insertEmoji(emoji: string) {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart ?? textarea.value.length;
+    const end = textarea.selectionEnd ?? start;
+    const next = replaceSelection(textarea.value, start, end, emoji);
+    textarea.value = next.value;
+    textarea.setSelectionRange(next.selectionStart, next.selectionEnd);
+    emojiCaretRef.current = next.selectionEnd;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  /** The unfocused textarea can lose its caret while the picker is open, so re-apply it on refocus. */
+  function refocusAfterEmojiPicker() {
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      const caret = emojiCaretRef.current;
+      emojiCaretRef.current = null;
+      if (caret !== null) textarea.setSelectionRange(caret, caret);
+    });
+  }
+
+  function submit() {
+    const value = textareaRef.current?.value.trim() ?? '';
+    const hasAttachments = uploads.readyServerIds.length > 0;
+    if ((!value && !hasAttachments) || !canSend) return;
+
+    onSend(value, uploads.readyServerIds);
+    writeComposerDraft(draftKey, '');
+
+    if (textareaRef.current) {
+      textareaRef.current.value = '';
+      textareaRef.current.style.height = 'auto';
+    }
+    setHasText(false);
+    picker.syncFromTextarea();
+    highlight.syncHighlight();
+    focusTextarea(textareaRef.current);
+  }
+
+  function handleAutoResize(e: React.FormEvent<HTMLTextAreaElement>) {
+    const target = e.currentTarget;
+    target.style.height = 'auto';
+    target.style.height = `${Math.min(target.scrollHeight, 200)}px`;
+  }
+
+  return (
+    <div className={chatMessageFooterClass}>
+      <div className="relative flex w-full flex-col rounded-lg border bg-muted/30 px-3 py-2">
+        <ComposerTagPicker
+          mentionOpen={picker.mentionOpen}
+          mentionAll={picker.mentionAll}
+          mentionMembers={picker.mentionMembers}
+          hashOpen={picker.hashOpen}
+          hashItems={picker.hashItems}
+          selectedIndex={picker.selectedIndex}
+          isSearching={picker.isSearching}
+          onMention={picker.applyMention}
+          onMentionAll={picker.applyAllMention}
+          onHashItem={picker.applyHashItem}
+        />
+        {replyTo ? (
+          <div className="mb-2 flex items-start justify-between gap-2 border-b border-border/60 pb-2">
+            <div className="min-w-0">
+              <p className="text-xs font-medium">
+                Replying to {replyTo.sender?.name ?? 'a message'}
+              </p>
+              <p className="truncate text-xs text-muted-foreground">
+                {replyTo.content
+                  ? messageReplySnippet(replyTo.content)
+                  : 'Original message'}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0"
+              onClick={onCancelReply}
+            >
+              <X />
+              <span className="sr-only">Cancel reply</span>
+            </Button>
+          </div>
+        ) : null}
+        <AttachmentPreviewTray
+          items={uploads.items}
+          onRemove={uploads.remove}
+          onRetry={uploads.retry}
+          className="border-b border-border/60 pb-2 mb-2"
+        />
+        <div className="flex items-end gap-2">
+          <AttachmentPickerButton onAdd={uploads.addFiles} />
+          <div className="relative min-w-0 flex-1">
+            <div
+              ref={highlight.highlightRef}
+              aria-hidden
+              className="pointer-events-none absolute inset-0 overflow-hidden py-0.5 text-sm/relaxed wrap-break-word whitespace-pre-wrap text-transparent"
+            />
+            <Textarea
+              ref={textareaRef}
+              placeholder={messageComposerPlaceholder(channelName, isMobile)}
+              className="relative h-7 min-h-7 max-h-[200px] field-sizing-fixed resize-none border-0 bg-transparent px-0 py-0.5 text-sm/relaxed shadow-none md:text-sm/relaxed focus-visible:ring-0 dark:bg-transparent"
+              rows={1}
+              autoFocus
+              onKeyDown={handleKeyDown}
+              onPaste={(event: ClipboardEvent<HTMLTextAreaElement>) => {
+                const files = Array.from(event.clipboardData?.files ?? []);
+                if (!files.length) return;
+                event.preventDefault();
+                uploads.addFiles(files);
+              }}
+              onSelect={picker.syncFromTextarea}
+              onScroll={highlight.syncHighlightScroll}
+              onInput={(e) => {
+                handleAutoResize(e);
+                handleInput();
+                writeComposerDraft(draftKey, e.currentTarget.value);
+                setHasText(!!e.currentTarget.value.trim());
+                picker.syncFromTextarea();
+                highlight.syncHighlight();
+              }}
+            />
+          </div>
+          <ReactionEmojiPicker
+            align="end"
+            side="top"
+            onSelect={insertEmoji}
+            onCloseAutoFocus={(e) => {
+              e.preventDefault();
+              refocusAfterEmojiPicker();
+            }}
+          >
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7 shrink-0"
+              aria-label="Add emoji"
+            >
+              <Smile />
+            </Button>
+          </ReactionEmojiPicker>
+          <Button
+            size="icon"
+            variant={hasContent ? 'default' : 'ghost'}
+            className={cn(
+              'h-7 w-7 shrink-0',
+              hasContent &&
+                'dark:bg-white dark:text-black dark:hover:bg-white/90',
+            )}
+            aria-label="Send message"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={submit}
+            disabled={!canSend}
+          >
+            <SendHorizonal />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

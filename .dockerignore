@@ -1,0 +1,54 @@
+# Dependencies
+node_modules
+.pnpm-store
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+bun-debug.log*
+
+# Build outputs
+.next
+.turbo
+dist
+build
+*.tsbuildinfo
+
+# Development
+.git
+.gitignore
+.vscode
+.idea
+.cursor
+.claude
+.agents
+
+# Testing
+coverage
+.nyc_output
+apps/api/data
+
+# Misc
+.DS_Store
+*.pem
+*.log
+
+# Documentation / agent files (not needed in the image)
+docs
+.agents
+
+# CI
+.github
+
+# Environment files (provided by Coolify / compose / the host)
+.env
+.env.*
+!.env.example
+
+# Temporary files
+*.swp
+*.swo
+*~
+.tmp
+temp
+tmp

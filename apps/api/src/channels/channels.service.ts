@@ -1,0 +1,2342 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { and, asc, count, eq, gt, inArray, isNotNull, isNull, lt, max, ne, or, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+import { DrizzleService } from '../database/drizzle.service';
+import {
+  attachments,
+  bots,
+  channelEvents,
+  channelLabels,
+  channelMembers,
+  channelReads,
+  channelWatchers,
+  channels,
+  labels,
+  messages,
+  workspaceMembers,
+  workspaces,
+} from '../database/schema';
+import { user } from '../database/schema/auth';
+import { ChatGateway } from '../gateway/chat.gateway';
+import { InboxService } from '../inbox/inbox.service';
+import { StorageService } from '../storage/storage.service';
+import {
+  ATTACHMENT_PURPOSE,
+  attachmentKindLimitMessage,
+  MAX_THREAD_ATTACHMENTS,
+} from '../attachments/attachments.helpers';
+import { isTicketMessageParticipant } from '../messages/message-notification-recipients';
+import { PERMISSIONS } from '../workspaces/permissions';
+import { WorkspacePermissionsService } from '../workspaces/workspace-permissions.service';
+import { WorkspacesService } from '../workspaces/workspaces.service';
+import {
+  completedAtAfterArchiveChange,
+  doneTicketArchiveCutoff,
+  isDoneTicketAutoArchiveEnabled,
+  nextCompletedAt,
+} from './ticket-auto-archive';
+import {
+  isParentChannelEventType,
+  PARENT_CHANNEL_EVENT_TYPES,
+  type TicketEvent,
+  type TicketEventLabel,
+  type TicketEventType,
+  type TicketEventWatcher,
+} from './ticket-events';
+import {
+  DEFAULT_TICKET_PRIORITY,
+  DEFAULT_TICKET_STATUS,
+  parseChannelKey,
+  parseLabelIds,
+  parseTicketDescription,
+  parseTicketDueAt,
+  parseTicketPriority,
+  parseTicketStatus,
+  parseWatcherIds,
+  suggestChannelKey,
+  ticketDisplayId,
+  ticketPrefixOf,
+} from './ticket-fields';
+
+const parentChannels = alias(channels, 'parent_channels');
+
+export const CHANNEL_TYPE = {
+  CHANNEL: 'channel',
+  DM: 'dm',
+  VOICE: 'voice',
+} as const;
+
+/** Channel kinds someone can create directly; DMs come from `createOrGetDm`. */
+export type CreatableChannelType =
+  | typeof CHANNEL_TYPE.CHANNEL
+  | typeof CHANNEL_TYPE.VOICE;
+
+export function parseCreatableChannelType(
+  value: unknown,
+): CreatableChannelType {
+  if (value === undefined || value === null || value === CHANNEL_TYPE.CHANNEL) {
+    return CHANNEL_TYPE.CHANNEL;
+  }
+  if (value === CHANNEL_TYPE.VOICE) return CHANNEL_TYPE.VOICE;
+  throw new BadRequestException('Channel type must be "channel" or "voice"');
+}
+
+type DmPeer = {
+  id: string;
+  name: string;
+  image: string | null;
+  /** False once the peer has left or been removed; the DM turns read-only. */
+  inWorkspace: boolean;
+};
+
+@Injectable()
+export class ChannelsService {
+  constructor(
+    private readonly drizzle: DrizzleService,
+    private readonly workspacesService: WorkspacesService,
+    private readonly workspacePermissionsService: WorkspacePermissionsService,
+    private readonly storage: StorageService,
+    private readonly chatGateway: ChatGateway,
+    private readonly inboxService: InboxService,
+  ) {}
+
+  async create(
+    workspaceId: string,
+    userId: string,
+    name: string,
+    description: string | null,
+    ticketKey?: string | null,
+    isPrivate = false,
+    memberIds: string[] = [],
+    channelType: CreatableChannelType = CHANNEL_TYPE.CHANNEL,
+  ) {
+    await this.workspacesService.verifyMembership(workspaceId, userId);
+
+    const trimmed = name.trim();
+    if (!trimmed) {
+      throw new BadRequestException('Channel name is required');
+    }
+    await this.assertChannelNameAvailable(workspaceId, trimmed, channelType);
+
+    // Voice channels hold no tickets, so they never take a ticket key.
+    const uniqueKey =
+      channelType === CHANNEL_TYPE.VOICE
+        ? null
+        : await this.allocateChannelKey(
+            workspaceId,
+            ticketKey !== undefined && ticketKey !== null && ticketKey.trim()
+              ? parseChannelKey(ticketKey)
+              : suggestChannelKey(trimmed),
+            ticketKey !== undefined &&
+              ticketKey !== null &&
+              ticketKey.trim().length > 0,
+          );
+
+    const now = new Date();
+    const [channel] = await this.drizzle.db
+      .insert(channels)
+      .values({
+        id: crypto.randomUUID(),
+        workspaceId,
+        name: trimmed,
+        description,
+        ticketKey: uniqueKey,
+        channelType,
+        isPrivate,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    const invitedIds = isPrivate
+      ? [...new Set([userId, ...memberIds])]
+      : memberIds;
+
+    await this.addChannelMembers(workspaceId, channel.id, invitedIds, userId);
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
+
+    return channel;
+  }
+
+  async createOrGetDm(
+    workspaceId: string,
+    userId: string,
+    targetUserId: string,
+  ) {
+    if (userId === targetUserId) {
+      throw new BadRequestException('Cannot message yourself');
+    }
+
+    await this.workspacesService.verifyMembership(workspaceId, userId);
+
+    const botRows = await this.drizzle.db
+      .select({ userId: bots.userId })
+      .from(bots)
+      .where(inArray(bots.userId, [userId, targetUserId]));
+    if (botRows.length > 0) {
+      throw new ForbiddenException('Bots cannot use direct messages');
+    }
+
+    const [targetMember] = await this.drizzle.db
+      .select({ userId: workspaceMembers.userId })
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, workspaceId),
+          eq(workspaceMembers.userId, targetUserId),
+        ),
+      );
+
+    if (!targetMember) {
+      throw new BadRequestException('User is not a member of this workspace');
+    }
+
+    const pairKey = this.buildDmPairKey(userId, targetUserId);
+
+    const [existing] = await this.drizzle.db
+      .select()
+      .from(channels)
+      .where(
+        and(
+          eq(channels.workspaceId, workspaceId),
+          eq(channels.channelType, CHANNEL_TYPE.DM),
+          eq(channels.dmPairKey, pairKey),
+        ),
+      );
+
+    if (existing) {
+      // Starting a conversation from "New message" puts it back in the sidebar.
+      await this.clearDmHidden(existing.id, userId);
+      const [withPeers] = await this.withDmPeers([existing], userId);
+      const [enriched] = await this.withThreadAttachments([withPeers]);
+      return enriched;
+    }
+
+    const now = new Date();
+    const [channel] = await this.drizzle.db
+      .insert(channels)
+      .values({
+        id: crypto.randomUUID(),
+        workspaceId,
+        name: 'dm',
+        channelType: CHANNEL_TYPE.DM,
+        dmPairKey: pairKey,
+        isPrivate: true,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    await this.addChannelMembers(
+      workspaceId,
+      channel.id,
+      [userId, targetUserId],
+      userId,
+    );
+
+    const [withPeers] = await this.withDmPeers([channel], userId);
+    const [enriched] = await this.withThreadAttachments([withPeers]);
+    return enriched;
+  }
+
+  async createThread(
+    workspaceId: string,
+    parentId: string,
+    userId: string,
+    name: string,
+    description: string | null,
+    attachmentIds: string[] = [],
+    status?: string,
+    assigneeId?: string | null,
+  ) {
+    const parent = await this.findOne(workspaceId, parentId, userId);
+    if (parent.parentId) {
+      throw new BadRequestException('Cannot create a ticket inside a ticket');
+    }
+    if (parent.channelType === CHANNEL_TYPE.DM) {
+      throw new BadRequestException(
+        'Tickets are not available in direct messages',
+      );
+    }
+    if (parent.channelType === CHANNEL_TYPE.VOICE) {
+      throw new BadRequestException(
+        'Tickets are not available in voice channels',
+      );
+    }
+
+    await this.workspacePermissionsService.assertChannelPermission(
+      workspaceId,
+      parentId,
+      userId,
+      PERMISSIONS.SEND_MESSAGES,
+    );
+
+    const trimmed = name.trim();
+    if (!trimmed) {
+      throw new BadRequestException('Ticket title is required');
+    }
+
+    const trimmedDescription = parseTicketDescription(description);
+
+    if (assigneeId) {
+      await this.assertTicketAssignee(workspaceId, assigneeId);
+    }
+
+    if (attachmentIds.length > MAX_THREAD_ATTACHMENTS) {
+      throw new BadRequestException(
+        `Maximum ${MAX_THREAD_ATTACHMENTS} attachments per ticket`,
+      );
+    }
+
+    const [duplicate] = await this.drizzle.db
+      .select({ id: channels.id })
+      .from(channels)
+      .where(and(eq(channels.parentId, parentId), eq(channels.name, trimmed)));
+
+    if (duplicate) {
+      throw new BadRequestException(
+        'A ticket with this title already exists in this channel',
+      );
+    }
+
+    const attachmentRows = await this.loadClaimableThreadAttachments(
+      parentId,
+      userId,
+      attachmentIds,
+    );
+    const kindError = attachmentKindLimitMessage(attachmentRows, 'ticket');
+    if (kindError) {
+      throw new BadRequestException(kindError);
+    }
+
+    const [lastTicket] = await this.drizzle.db
+      .select({ last: max(channels.ticketNumber) })
+      .from(channels)
+      .where(eq(channels.parentId, parentId));
+
+    const now = new Date();
+    const threadId = crypto.randomUUID();
+    const threadStatus =
+      status === undefined
+        ? DEFAULT_TICKET_STATUS
+        : parseTicketStatus(status);
+    const [thread] = await this.drizzle.db
+      .insert(channels)
+      .values({
+        id: threadId,
+        workspaceId,
+        parentId,
+        name: trimmed,
+        description: trimmedDescription,
+        status: threadStatus,
+        completedAt: threadStatus === 'done' ? now : null,
+        priority: DEFAULT_TICKET_PRIORITY,
+        assigneeId: assigneeId || null,
+        ticketNumber: (lastTicket?.last ?? 0) + 1,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+
+    if (!thread) throw new NotFoundException('Channel not found');
+
+    if (attachmentRows.length) {
+      await this.drizzle.db
+        .update(attachments)
+        .set({
+          channelId: threadId,
+          purpose: ATTACHMENT_PURPOSE.THREAD,
+          status: 'uploaded',
+        })
+        .where(
+          inArray(
+            attachments.id,
+            attachmentRows.map((row) => row.id),
+          ),
+        );
+    }
+
+    const createdEventId = crypto.randomUUID();
+    await this.drizzle.db.insert(channelEvents).values({
+      id: createdEventId,
+      channelId: threadId,
+      actorId: userId,
+      type: 'ticket_created',
+      fromValue: null,
+      toValue: {
+        name: trimmed,
+        ticketNumber: thread?.ticketNumber ?? null,
+      },
+      createdAt: now,
+    });
+    const published = await this.loadTicketEventsByIds([createdEventId]);
+    this.publishTicketEvents(threadId, parentId, published);
+
+    if (assigneeId) {
+      await this.inboxService.notifyAssigned({
+        workspaceId,
+        channelId: threadId,
+        actorId: userId,
+        assigneeId,
+      });
+    }
+
+    if (trimmedDescription) {
+      await this.inboxService.notifyNewMentionsFromContentChange({
+        workspaceId,
+        channelId: threadId,
+        actorId: userId,
+        previousContent: '',
+        nextContent: trimmedDescription,
+      });
+    }
+
+    const [enriched] = await this.withThreadAttachments([thread]);
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
+    return enriched;
+  }
+
+  async listThreads(
+    workspaceId: string,
+    parentId: string,
+    userId: string,
+    archived = false,
+  ) {
+    const parent = await this.findOne(workspaceId, parentId, userId);
+    if (parent.parentId) {
+      throw new BadRequestException('Cannot list tickets of a ticket');
+    }
+    if (parent.channelType === CHANNEL_TYPE.DM) {
+      return [];
+    }
+
+    const threads = await this.drizzle.db
+      .select()
+      .from(channels)
+      .where(
+        and(
+          eq(channels.workspaceId, workspaceId),
+          eq(channels.parentId, parentId),
+          archived
+            ? isNotNull(channels.archivedAt)
+            : isNull(channels.archivedAt),
+        ),
+      );
+
+    if (threads.length === 0) return [];
+
+    const stats = await this.drizzle.db
+      .select({
+        channelId: messages.channelId,
+        messageCount: count(messages.id),
+        lastMessageAt: max(messages.createdAt),
+      })
+      .from(messages)
+      .where(
+        inArray(
+          messages.channelId,
+          threads.map((thread) => thread.id),
+        ),
+      )
+      .groupBy(messages.channelId);
+
+    const statsById = new Map(
+      stats.map((row) => [
+        row.channelId,
+        {
+          messageCount: Number(row.messageCount),
+          lastMessageAt: row.lastMessageAt,
+        },
+      ]),
+    );
+
+    const sorted = threads
+      .map((thread) => {
+        const row = statsById.get(thread.id);
+        return {
+          ...thread,
+          messageCount: row?.messageCount ?? 0,
+          lastMessageAt: row?.lastMessageAt ?? null,
+        };
+      })
+      .toSorted((a, b) => {
+        const aTime = new Date(a.lastMessageAt ?? a.createdAt).getTime();
+        const bTime = new Date(b.lastMessageAt ?? b.createdAt).getTime();
+        return bTime - aTime;
+      });
+
+    return this.withThreadAttachments(sorted);
+  }
+
+  /**
+   * Set the manual board order of one status column. Tickets not already in
+   * `status` are moved there first, so a cross-column drop is one request.
+   */
+  async reorderThreads(
+    workspaceId: string,
+    parentId: string,
+    userId: string,
+    data: { status: string; ticketIds: string[] },
+  ) {
+    const parent = await this.findOne(workspaceId, parentId, userId);
+    if (parent.parentId || parent.channelType === CHANNEL_TYPE.DM) {
+      throw new BadRequestException('Only channels have a ticket board');
+    }
+    await this.workspacePermissionsService.assertChannelPermission(
+      workspaceId,
+      parentId,
+      userId,
+      PERMISSIONS.SEND_MESSAGES,
+    );
+
+    const status = parseTicketStatus(data.status);
+    const ticketIds = Array.isArray(data.ticketIds) ? data.ticketIds : [];
+    if (
+      ticketIds.length === 0 ||
+      ticketIds.some((ticketId) => typeof ticketId !== 'string') ||
+      new Set(ticketIds).size !== ticketIds.length
+    ) {
+      throw new BadRequestException('Invalid ticket order');
+    }
+
+    const tickets = await this.drizzle.db
+      .select({ id: channels.id, status: channels.status })
+      .from(channels)
+      .where(
+        and(
+          eq(channels.workspaceId, workspaceId),
+          eq(channels.parentId, parentId),
+          isNull(channels.archivedAt),
+          inArray(channels.id, ticketIds),
+        ),
+      );
+    if (tickets.length !== ticketIds.length) {
+      throw new BadRequestException('Invalid ticket order');
+    }
+
+    for (const ticket of tickets) {
+      if (ticket.status !== status) {
+        await this.update(workspaceId, ticket.id, userId, { status });
+      }
+    }
+
+    await this.drizzle.db.transaction(async (tx) => {
+      for (const [index, ticketId] of ticketIds.entries()) {
+        await tx
+          .update(channels)
+          .set({ boardPosition: index })
+          .where(eq(channels.id, ticketId));
+      }
+    });
+
+    return this.listThreads(workspaceId, parentId, userId);
+  }
+
+  async listEvents(workspaceId: string, id: string, userId: string) {
+    const channel = await this.findOne(workspaceId, id, userId);
+    if (channel.parentId) {
+      const grouped = await this.loadTicketEvents([id]);
+      return grouped.get(id) ?? [];
+    }
+
+    const children = await this.drizzle.db
+      .select({ id: channels.id })
+      .from(channels)
+      .where(
+        and(
+          eq(channels.workspaceId, workspaceId),
+          eq(channels.parentId, id),
+        ),
+      );
+    const grouped = await this.loadTicketEvents(
+      children.map((child) => child.id),
+      [...PARENT_CHANNEL_EVENT_TYPES],
+    );
+    return [...grouped.values()].flat().toSorted((a, b) => {
+      if (a.createdAt !== b.createdAt) {
+        return a.createdAt < b.createdAt ? -1 : 1;
+      }
+      return a.id < b.id ? -1 : 1;
+    });
+  }
+
+  async findAll(workspaceId: string, userId: string) {
+    const visible = await this.listViewableChannels(workspaceId, userId);
+    const withPeers = await this.withDmPeers(visible, userId);
+    const withActivity = await this.withDmLastMessageAt(withPeers);
+    const withHidden = await this.withDmHiddenAt(withActivity, userId);
+    return this.withThreadAttachments(withHidden);
+  }
+
+  async findOne(workspaceId: string, id: string, userId: string) {
+    await this.workspacesService.verifyMembership(workspaceId, userId);
+
+    const [channel] = await this.drizzle.db
+      .select()
+      .from(channels)
+      .where(and(eq(channels.id, id), eq(channels.workspaceId, workspaceId)));
+
+    if (!channel) throw new NotFoundException('Channel not found');
+
+    const canView = await this.workspacePermissionsService.hasChannelPermission(
+      workspaceId,
+      id,
+      userId,
+      PERMISSIONS.VIEW_CHANNEL,
+    );
+
+    if (!canView) throw new NotFoundException('Channel not found');
+
+    const [withPeers] = await this.withDmPeers([channel], userId);
+    const [enriched] = await this.withThreadAttachments([withPeers]);
+    return enriched;
+  }
+
+  async update(
+    workspaceId: string,
+    id: string,
+    userId: string,
+    data: {
+      name?: string;
+      description?: string | null;
+      ticketKey?: string;
+      addAttachmentIds?: string[];
+      removeAttachmentIds?: string[];
+      status?: string;
+      priority?: string;
+      assigneeId?: string | null;
+      dueAt?: string | null;
+      labelIds?: string[];
+      watcherIds?: string[];
+      isPrivate?: boolean;
+      archived?: boolean;
+    },
+  ) {
+    const existing = await this.findOne(workspaceId, id, userId);
+    const isThread = Boolean(existing.parentId);
+    if (!isThread && existing.channelType === CHANNEL_TYPE.DM) {
+      throw new BadRequestException('Direct messages cannot be edited');
+    }
+    const addAttachmentIds = [...new Set(data.addAttachmentIds ?? [])];
+    const removeAttachmentIds = [...new Set(data.removeAttachmentIds ?? [])];
+
+    const hasTicketFields =
+      data.status !== undefined ||
+      data.priority !== undefined ||
+      data.assigneeId !== undefined ||
+      data.dueAt !== undefined ||
+      data.labelIds !== undefined ||
+      data.watcherIds !== undefined ||
+      data.archived !== undefined;
+
+    if (!isThread && (addAttachmentIds.length || removeAttachmentIds.length)) {
+      throw new BadRequestException('Only tickets can have attachments');
+    }
+    if (!isThread && hasTicketFields) {
+      throw new BadRequestException(
+        'Only tickets have status, priority, assignee, due date, labels, watchers, and archive',
+      );
+    }
+    if (
+      data.ticketKey !== undefined &&
+      (isThread || existing.channelType === CHANNEL_TYPE.VOICE)
+    ) {
+      throw new BadRequestException('Only text channels have a ticket key');
+    }
+    if (isThread && data.isPrivate !== undefined) {
+      throw new BadRequestException(
+        'Tickets inherit privacy from their parent channel',
+      );
+    }
+
+    await this.workspacePermissionsService.assertChannelPermission(
+      workspaceId,
+      id,
+      userId,
+      isThread ? PERMISSIONS.SEND_MESSAGES : PERMISSIONS.MANAGE_CHANNEL,
+    );
+
+    const patch: {
+      name?: string;
+      description?: string | null;
+      ticketKey?: string;
+      isPrivate?: boolean;
+      status?: string;
+      priority?: string;
+      assigneeId?: string | null;
+      dueAt?: Date | null;
+      archivedAt?: Date | null;
+      completedAt?: Date | null;
+      boardPosition?: number | null;
+      updatedAt: Date;
+    } = { updatedAt: new Date() };
+
+    if (data.name !== undefined) {
+      const trimmed = data.name.trim();
+      if (!trimmed) {
+        throw new BadRequestException(
+          isThread ? 'Ticket title is required' : 'Channel name is required',
+        );
+      }
+      if (trimmed !== existing.name) {
+        if (isThread && existing.parentId) {
+          const [duplicate] = await this.drizzle.db
+            .select({ id: channels.id })
+            .from(channels)
+            .where(
+              and(
+                eq(channels.parentId, existing.parentId),
+                eq(channels.name, trimmed),
+                ne(channels.id, id),
+              ),
+            );
+          if (duplicate) {
+            throw new BadRequestException(
+              'A ticket with this title already exists in this channel',
+            );
+          }
+        } else {
+          await this.assertChannelNameAvailable(
+            workspaceId,
+            trimmed,
+            existing.channelType === CHANNEL_TYPE.VOICE
+              ? CHANNEL_TYPE.VOICE
+              : CHANNEL_TYPE.CHANNEL,
+            id,
+          );
+        }
+        patch.name = trimmed;
+      }
+    }
+
+    if (data.description !== undefined) {
+      patch.description = isThread
+        ? parseTicketDescription(data.description)
+        : data.description?.trim() || null;
+    }
+
+    if (data.ticketKey !== undefined) {
+      const nextKey = parseChannelKey(data.ticketKey);
+      if (nextKey !== existing.ticketKey) {
+        await this.assertChannelKeyAvailable(workspaceId, nextKey, id);
+        patch.ticketKey = nextKey;
+      }
+    }
+
+    if (data.isPrivate !== undefined) {
+      patch.isPrivate = data.isPrivate;
+      if (data.isPrivate) {
+        await this.addChannelMembers(workspaceId, id, [userId], userId);
+      }
+    }
+
+    if (data.status !== undefined) {
+      patch.status = parseTicketStatus(data.status);
+      const completedAt = nextCompletedAt(
+        existing.status,
+        patch.status,
+        patch.updatedAt,
+      );
+      if (completedAt !== undefined) {
+        patch.completedAt = completedAt;
+      }
+      if (patch.status !== existing.status) {
+        // Land at the top of the new board column.
+        patch.boardPosition = null;
+      }
+    }
+    if (data.priority !== undefined) {
+      patch.priority = parseTicketPriority(data.priority);
+    }
+    if (data.assigneeId !== undefined) {
+      if (data.assigneeId === null) {
+        patch.assigneeId = null;
+      } else {
+        await this.assertTicketAssignee(workspaceId, data.assigneeId);
+        patch.assigneeId = data.assigneeId;
+      }
+    }
+    if (data.dueAt !== undefined) {
+      patch.dueAt =
+        data.dueAt === null ? null : parseTicketDueAt(data.dueAt);
+    }
+    if (data.archived !== undefined) {
+      const currentlyArchived = existing.archivedAt !== null;
+      if (data.archived !== currentlyArchived) {
+        patch.archivedAt = data.archived ? patch.updatedAt : null;
+        const restoredCompletedAt = completedAtAfterArchiveChange({
+          currentlyArchived,
+          nextArchived: data.archived,
+          nextStatus: patch.status ?? existing.status,
+          now: patch.updatedAt,
+        });
+        if (restoredCompletedAt !== undefined) {
+          patch.completedAt = restoredCompletedAt;
+        }
+      }
+    }
+
+    const nextLabelIds =
+      data.labelIds === undefined ? undefined : parseLabelIds(data.labelIds);
+    if (nextLabelIds?.length) {
+      const found = await this.drizzle.db
+        .select({ id: labels.id })
+        .from(labels)
+        .where(
+          and(
+            eq(labels.workspaceId, workspaceId),
+            inArray(labels.id, nextLabelIds),
+          ),
+        );
+      if (found.length !== nextLabelIds.length) {
+        throw new BadRequestException('Invalid labels');
+      }
+    }
+
+    const nextWatcherIds =
+      data.watcherIds === undefined
+        ? undefined
+        : parseWatcherIds(data.watcherIds);
+    if (nextWatcherIds?.length) {
+      await this.assertTicketWatchers(workspaceId, nextWatcherIds);
+    }
+
+    const addRows = await this.loadClaimableThreadAttachments(
+      id,
+      userId,
+      addAttachmentIds,
+    );
+
+    const eventRows = isThread
+      ? await this.buildTicketEvents({
+          channelId: id,
+          actorId: userId,
+          createdAt: patch.updatedAt,
+          existing: {
+            status: existing.status,
+            priority: existing.priority,
+            assigneeId: existing.assigneeId,
+            dueAt: existing.dueAt,
+            labels: existing.labels,
+            watchers: existing.watchers ?? [],
+            archived: existing.archivedAt !== null,
+          },
+          next: {
+            status: patch.status,
+            priority: patch.priority,
+            assigneeId: patch.assigneeId,
+            dueAt: patch.dueAt,
+            labels:
+              nextLabelIds === undefined
+                ? undefined
+                : await this.loadLabelsByIds(workspaceId, nextLabelIds),
+            watchers:
+              nextWatcherIds === undefined
+                ? undefined
+                : await this.loadWatcherBriefs(nextWatcherIds),
+            archived:
+              patch.archivedAt === undefined
+                ? undefined
+                : patch.archivedAt !== null,
+          },
+        })
+      : [];
+
+    let removedKeys: string[] = [];
+
+    await this.drizzle.db.transaction(async (tx) => {
+      if (addAttachmentIds.length || removeAttachmentIds.length) {
+        const current = await tx
+          .select({
+            id: attachments.id,
+            storageKey: attachments.storageKey,
+            contentType: attachments.contentType,
+          })
+          .from(attachments)
+          .where(
+            and(
+              eq(attachments.channelId, id),
+              eq(attachments.purpose, ATTACHMENT_PURPOSE.THREAD),
+            ),
+          );
+
+        const currentIds = new Set(current.map((row) => row.id));
+        for (const removeId of removeAttachmentIds) {
+          if (!currentIds.has(removeId)) {
+            throw new BadRequestException('Invalid attachment reference');
+          }
+        }
+
+        const removeSet = new Set(removeAttachmentIds);
+        const kept = current.filter((row) => !removeSet.has(row.id));
+        const kindError = attachmentKindLimitMessage(
+          [...kept, ...addRows],
+          'ticket',
+        );
+        if (kindError) {
+          throw new BadRequestException(kindError);
+        }
+
+        removedKeys = current
+          .filter((row) => removeSet.has(row.id))
+          .map((row) => row.storageKey);
+
+        if (removeAttachmentIds.length) {
+          await tx
+            .delete(attachments)
+            .where(inArray(attachments.id, removeAttachmentIds));
+        }
+
+        if (addRows.length) {
+          await tx
+            .update(attachments)
+            .set({
+              purpose: ATTACHMENT_PURPOSE.THREAD,
+              status: 'uploaded',
+              channelId: id,
+            })
+            .where(
+              inArray(
+                attachments.id,
+                addRows.map((row) => row.id),
+              ),
+            );
+        }
+      }
+
+      const shouldPatchChannel =
+        patch.name !== undefined ||
+        patch.ticketKey !== undefined ||
+        patch.isPrivate !== undefined ||
+        data.description !== undefined ||
+        hasTicketFields ||
+        addRows.length > 0 ||
+        removeAttachmentIds.length > 0;
+
+      if (shouldPatchChannel) {
+        await tx.update(channels).set(patch).where(eq(channels.id, id));
+      }
+
+      if (nextLabelIds !== undefined) {
+        await tx
+          .delete(channelLabels)
+          .where(eq(channelLabels.channelId, id));
+        if (nextLabelIds.length) {
+          await tx.insert(channelLabels).values(
+            nextLabelIds.map((labelId) => ({
+              channelId: id,
+              labelId,
+            })),
+          );
+        }
+      }
+
+      if (nextWatcherIds !== undefined) {
+        await tx
+          .delete(channelWatchers)
+          .where(eq(channelWatchers.channelId, id));
+        if (nextWatcherIds.length) {
+          await tx.insert(channelWatchers).values(
+            nextWatcherIds.map((userId) => ({
+              channelId: id,
+              userId,
+            })),
+          );
+        }
+      }
+
+      if (eventRows.length) {
+        await tx.insert(channelEvents).values(eventRows);
+      }
+    });
+
+    await Promise.all(
+      removedKeys.map((key) => this.storage.delete(key).catch(() => undefined)),
+    );
+
+    const [updated] = await this.drizzle.db
+      .select()
+      .from(channels)
+      .where(eq(channels.id, id));
+
+    if (!updated) throw new NotFoundException('Channel not found');
+
+    const [enriched] = await this.withThreadAttachments([updated]);
+
+    if (eventRows.length) {
+      const published = await this.loadTicketEventsByIds(
+        eventRows.map((row) => row.id),
+      );
+      this.publishTicketEvents(id, existing.parentId, published);
+    }
+
+    if (
+      isThread &&
+      patch.assigneeId &&
+      patch.assigneeId !== existing.assigneeId
+    ) {
+      await this.inboxService.notifyAssigned({
+        workspaceId,
+        channelId: id,
+        actorId: userId,
+        assigneeId: patch.assigneeId,
+      });
+    }
+
+    if (isThread && nextWatcherIds !== undefined) {
+      const previousWatcherIds = new Set(
+        (existing.watchers ?? []).map((watcher) => watcher.id),
+      );
+      await this.inboxService.notifyWatched({
+        workspaceId,
+        channelId: id,
+        actorId: userId,
+        watcherIds: nextWatcherIds.filter((watcherId) => !previousWatcherIds.has(watcherId)),
+      });
+    }
+
+    if (
+      isThread &&
+      data.description !== undefined &&
+      patch.description !== existing.description
+    ) {
+      await this.inboxService.notifyNewMentionsFromContentChange({
+        workspaceId,
+        channelId: id,
+        actorId: userId,
+        previousContent: existing.description ?? '',
+        nextContent: patch.description ?? '',
+      });
+    }
+
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
+    return enriched;
+  }
+
+  async archiveStaleDoneTickets(now = new Date()) {
+    const policies = await this.drizzle.db
+      .select({
+        id: workspaces.id,
+        days: workspaces.doneTicketArchiveAfterDays,
+      })
+      .from(workspaces);
+
+    const stale: { id: string; parentId: string | null }[] = [];
+    for (const policy of policies) {
+      if (!isDoneTicketAutoArchiveEnabled(policy.days)) continue;
+      const cutoff = doneTicketArchiveCutoff(now, policy.days);
+      const rows = await this.drizzle.db
+        .select({
+          id: channels.id,
+          parentId: channels.parentId,
+        })
+        .from(channels)
+        .where(
+          and(
+            eq(channels.workspaceId, policy.id),
+            isNotNull(channels.parentId),
+            eq(channels.status, 'done'),
+            isNull(channels.archivedAt),
+            isNotNull(channels.completedAt),
+            lt(channels.completedAt, cutoff),
+          ),
+        );
+      stale.push(...rows);
+    }
+
+    if (stale.length === 0) return 0;
+
+    const eventRows = stale.map((ticket) => ({
+      id: crypto.randomUUID(),
+      channelId: ticket.id,
+      actorId: null,
+      type: 'archived_changed' as const,
+      fromValue: false,
+      toValue: true,
+      createdAt: now,
+    }));
+
+    await this.drizzle.db.transaction(async (tx) => {
+      await tx
+        .update(channels)
+        .set({ archivedAt: now, updatedAt: now })
+        .where(
+          inArray(
+            channels.id,
+            stale.map((ticket) => ticket.id),
+          ),
+        );
+      await tx.insert(channelEvents).values(eventRows);
+    });
+
+    const published = await this.loadTicketEventsByIds(
+      eventRows.map((row) => row.id),
+    );
+    for (const event of published) {
+      this.publishTicketEvents(event.channelId, event.parentId, [event]);
+    }
+
+    return stale.length;
+  }
+
+  async getUnreadCounts(workspaceId: string, userId: string) {
+    await this.workspacesService.verifyMembership(workspaceId, userId);
+
+    const workspaceChannels = await this.listViewableChannels(
+      workspaceId,
+      userId,
+    );
+    const ticketIds = workspaceChannels
+      .filter((channel) => channel.parentId && !channel.archivedAt)
+      .map((channel) => channel.id);
+    const watchersByTicket = await this.loadTicketWatchers(ticketIds);
+
+    const channelIds = workspaceChannels
+      .filter((channel) => {
+        if (!channel.parentId) return true;
+        if (channel.archivedAt) return false;
+        return isTicketMessageParticipant(
+          userId,
+          channel.assigneeId,
+          (watchersByTicket.get(channel.id) ?? []).map((watcher) => watcher.id),
+        );
+      })
+      .map((channel) => channel.id);
+    if (channelIds.length === 0) return {};
+
+    const rows = await this.drizzle.db
+      .select({
+        channelId: messages.channelId,
+        unreadCount: count(messages.id),
+      })
+      .from(messages)
+      .leftJoin(
+        channelReads,
+        and(
+          eq(channelReads.channelId, messages.channelId),
+          eq(channelReads.userId, userId),
+        ),
+      )
+      .where(
+        and(
+          inArray(messages.channelId, channelIds),
+          ne(messages.senderId, userId),
+          or(
+            isNull(channelReads.lastReadAt),
+            gt(messages.createdAt, channelReads.lastReadAt),
+          ),
+        ),
+      )
+      .groupBy(messages.channelId);
+
+    const result: Record<string, number> = {};
+    for (const row of rows) {
+      result[row.channelId] = Number(row.unreadCount);
+    }
+
+    return result;
+  }
+
+  async markAsRead(workspaceId: string, channelId: string, userId: string) {
+    await this.findOne(workspaceId, channelId, userId);
+
+    const now = new Date();
+    await this.drizzle.db
+      .insert(channelReads)
+      .values({
+        userId,
+        channelId,
+        lastReadAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [channelReads.userId, channelReads.channelId],
+        set: { lastReadAt: now },
+      });
+  }
+
+  /**
+   * Removes a DM from the caller's sidebar list. Nothing is deleted and the
+   * other participant is unaffected; the DM comes back when a newer message
+   * arrives or the caller starts it again. Anything unread is marked read so
+   * a hidden conversation can't leave a badge nobody can see.
+   */
+  async hideDm(workspaceId: string, channelId: string, userId: string) {
+    const channel = await this.findOne(workspaceId, channelId, userId);
+    if (channel.channelType !== CHANNEL_TYPE.DM) {
+      throw new BadRequestException(
+        'Only direct messages can be removed from your list',
+      );
+    }
+
+    const now = new Date();
+    const hidden = await this.drizzle.db
+      .update(channelMembers)
+      .set({ dmHiddenAt: now })
+      .where(
+        and(
+          eq(channelMembers.channelId, channelId),
+          eq(channelMembers.userId, userId),
+        ),
+      )
+      .returning({ channelId: channelMembers.channelId });
+    if (hidden.length === 0) {
+      throw new NotFoundException('Channel not found');
+    }
+
+    await this.drizzle.db
+      .insert(channelReads)
+      .values({ userId, channelId, lastReadAt: now })
+      .onConflictDoUpdate({
+        target: [channelReads.userId, channelReads.channelId],
+        set: { lastReadAt: now },
+      });
+
+    return { channelId, dmHiddenAt: now };
+  }
+
+  /**
+   * Puts a removed DM back in the caller's sidebar list. Needed for DMs whose
+   * other participant has left the workspace: they can't be started again or
+   * message back, so this is the only way such a conversation returns.
+   */
+  async unhideDm(workspaceId: string, channelId: string, userId: string) {
+    const channel = await this.findOne(workspaceId, channelId, userId);
+    if (channel.channelType !== CHANNEL_TYPE.DM) {
+      throw new BadRequestException(
+        'Only direct messages can be restored to your list',
+      );
+    }
+
+    await this.clearDmHidden(channelId, userId);
+    return { channelId, dmHiddenAt: null };
+  }
+
+  private async clearDmHidden(channelId: string, userId: string) {
+    await this.drizzle.db
+      .update(channelMembers)
+      .set({ dmHiddenAt: null })
+      .where(
+        and(
+          eq(channelMembers.channelId, channelId),
+          eq(channelMembers.userId, userId),
+          isNotNull(channelMembers.dmHiddenAt),
+        ),
+      );
+  }
+
+  async remove(workspaceId: string, id: string, userId: string) {
+    const existing = await this.findOne(workspaceId, id, userId);
+    this.assertNotDm(existing, 'Direct messages cannot be deleted');
+    await this.workspacePermissionsService.assertChannelPermission(
+      workspaceId,
+      id,
+      userId,
+      PERMISSIONS.MANAGE_CHANNEL,
+    );
+
+    const [target] = await this.drizzle.db
+      .select({
+        parentId: channels.parentId,
+        channelType: channels.channelType,
+      })
+      .from(channels)
+      .where(eq(channels.id, id));
+
+    // A workspace always keeps one text channel; voice channels can all go.
+    if (!target?.parentId && target?.channelType === CHANNEL_TYPE.CHANNEL) {
+      const topLevel = await this.drizzle.db
+        .select({ id: channels.id })
+        .from(channels)
+        .where(
+          and(
+            eq(channels.workspaceId, workspaceId),
+            isNull(channels.parentId),
+            eq(channels.channelType, CHANNEL_TYPE.CHANNEL),
+          ),
+        );
+
+      if (topLevel.length <= 1) {
+        throw new BadRequestException(
+          'Cannot delete the last text channel in a workspace',
+        );
+      }
+    }
+
+    await this.drizzle.db.delete(channels).where(eq(channels.id, id));
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
+  }
+
+  private async listViewableChannels(workspaceId: string, userId: string) {
+    await this.workspacesService.verifyMembership(workspaceId, userId);
+
+    const allChannels = await this.drizzle.db
+      .select()
+      .from(channels)
+      .where(eq(channels.workspaceId, workspaceId));
+
+    const viewableIds =
+      await this.workspacePermissionsService.filterViewableChannelIds(
+        workspaceId,
+        userId,
+        allChannels.map((channel) => channel.id),
+      );
+
+    return allChannels.filter((channel) => viewableIds.has(channel.id));
+  }
+
+  async listMembers(workspaceId: string, channelId: string, userId: string) {
+    const channel = await this.requireTopLevelChannel(
+      workspaceId,
+      channelId,
+      userId,
+    );
+
+    const canManage =
+      await this.workspacePermissionsService.hasChannelPermission(
+        workspaceId,
+        channelId,
+        userId,
+        PERMISSIONS.MANAGE_CHANNEL,
+      );
+
+    const rows = await this.drizzle.db
+      .select({
+        id: channelMembers.id,
+        channelId: channelMembers.channelId,
+        userId: channelMembers.userId,
+        addedBy: channelMembers.addedBy,
+        addedAt: channelMembers.addedAt,
+        name: user.name,
+        email: user.email,
+        image: user.image,
+        isBot: sql<boolean>`(${bots.userId} is not null)`,
+      })
+      .from(channelMembers)
+      .innerJoin(user, eq(channelMembers.userId, user.id))
+      .leftJoin(bots, eq(bots.userId, user.id))
+      .where(eq(channelMembers.channelId, channelId))
+      .orderBy(asc(user.name));
+
+    return {
+      isPrivate: channel.isPrivate,
+      canManage,
+      data: rows.map((row) => ({ ...row, isBot: row.isBot === true })),
+    };
+  }
+
+  async addMember(
+    workspaceId: string,
+    channelId: string,
+    actorId: string,
+    targetUserId: string,
+  ) {
+    const channel = await this.requireTopLevelChannel(
+      workspaceId,
+      channelId,
+      actorId,
+    );
+    this.assertNotDm(channel, 'Direct message participants cannot be changed');
+
+    await this.workspacePermissionsService.assertChannelPermission(
+      workspaceId,
+      channel.id,
+      actorId,
+      PERMISSIONS.MANAGE_CHANNEL,
+    );
+
+    await this.addChannelMembers(
+      workspaceId,
+      channelId,
+      [targetUserId],
+      actorId,
+    );
+
+    const listed = await this.listMembers(workspaceId, channelId, actorId);
+    const member = listed.data.find((row) => row.userId === targetUserId);
+    if (!member) {
+      throw new BadRequestException('User must be a workspace member');
+    }
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
+    return member;
+  }
+
+  async removeMember(
+    workspaceId: string,
+    channelId: string,
+    actorId: string,
+    targetUserId: string,
+  ) {
+    const channel = await this.requireTopLevelChannel(
+      workspaceId,
+      channelId,
+      actorId,
+    );
+    this.assertNotDm(channel, 'Direct message participants cannot be changed');
+
+    await this.workspacePermissionsService.assertChannelPermission(
+      workspaceId,
+      channel.id,
+      actorId,
+      PERMISSIONS.MANAGE_CHANNEL,
+    );
+
+    const deleted = await this.drizzle.db
+      .delete(channelMembers)
+      .where(
+        and(
+          eq(channelMembers.channelId, channelId),
+          eq(channelMembers.userId, targetUserId),
+        ),
+      )
+      .returning({ id: channelMembers.id });
+
+    if (deleted.length === 0) {
+      throw new NotFoundException('Channel member not found');
+    }
+    void this.chatGateway.resyncBotChannelRooms(workspaceId);
+  }
+
+  /**
+   * A DM is a fixed pair, so it can't be deleted or have people added or
+   * removed. The channel permission check lets any DM member through, which is
+   * why this has to be enforced here.
+   */
+  private assertNotDm(channel: { channelType: string }, message: string) {
+    if (channel.channelType === CHANNEL_TYPE.DM) {
+      throw new BadRequestException(message);
+    }
+  }
+
+  private async requireTopLevelChannel(
+    workspaceId: string,
+    channelId: string,
+    userId: string,
+  ) {
+    const channel = await this.findOne(workspaceId, channelId, userId);
+    if (channel.parentId) {
+      throw new BadRequestException(
+        'Tickets inherit members from their parent channel',
+      );
+    }
+    return channel;
+  }
+
+  private async addChannelMembers(
+    workspaceId: string,
+    channelId: string,
+    memberIds: string[],
+    addedBy: string,
+  ) {
+    const uniqueIds = [...new Set(memberIds.filter(Boolean))];
+    if (uniqueIds.length === 0) return;
+
+    const workspaceUsers = await this.drizzle.db
+      .select({ userId: workspaceMembers.userId })
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, workspaceId),
+          inArray(workspaceMembers.userId, uniqueIds),
+        ),
+      );
+    const allowed = new Set(workspaceUsers.map((row) => row.userId));
+
+    const existing = await this.drizzle.db
+      .select({ userId: channelMembers.userId })
+      .from(channelMembers)
+      .where(
+        and(
+          eq(channelMembers.channelId, channelId),
+          inArray(channelMembers.userId, uniqueIds),
+        ),
+      );
+    const already = new Set(existing.map((row) => row.userId));
+
+    const now = new Date();
+    const values = uniqueIds
+      .filter((id) => allowed.has(id) && !already.has(id))
+      .map((id) => ({
+        id: crypto.randomUUID(),
+        channelId,
+        userId: id,
+        addedBy,
+        addedAt: now,
+      }));
+
+    if (values.length === 0) return;
+
+    await this.drizzle.db.insert(channelMembers).values(values);
+  }
+
+  private buildDmPairKey(userId: string, targetUserId: string) {
+    return [userId, targetUserId].sort().join(':');
+  }
+
+  private async withDmPeers<
+    T extends { id: string; channelType: string },
+  >(rows: T[], viewerId: string): Promise<Array<T & { dmPeer: DmPeer | null }>> {
+    const dmChannelIds = rows
+      .filter((row) => row.channelType === CHANNEL_TYPE.DM)
+      .map((row) => row.id);
+
+    if (dmChannelIds.length === 0) {
+      return rows.map((row) => ({ ...row, dmPeer: null }));
+    }
+
+    const peers = await this.drizzle.db
+      .select({
+        channelId: channelMembers.channelId,
+        id: user.id,
+        name: user.name,
+        image: user.image,
+        inWorkspace: sql<boolean>`${workspaceMembers.id} is not null`,
+      })
+      .from(channelMembers)
+      .innerJoin(user, eq(channelMembers.userId, user.id))
+      .innerJoin(channels, eq(channelMembers.channelId, channels.id))
+      .leftJoin(
+        workspaceMembers,
+        and(
+          eq(workspaceMembers.userId, user.id),
+          eq(workspaceMembers.workspaceId, channels.workspaceId),
+        ),
+      )
+      .where(
+        and(
+          inArray(channelMembers.channelId, dmChannelIds),
+          ne(channelMembers.userId, viewerId),
+        ),
+      );
+
+    const peerByChannel = new Map(
+      peers.map((peer) => [peer.channelId, peer]),
+    );
+
+    return rows.map((row) => ({
+      ...row,
+      dmPeer:
+        row.channelType === CHANNEL_TYPE.DM
+          ? (peerByChannel.get(row.id) ?? null)
+          : null,
+    }));
+  }
+
+  /** When the viewer removed each DM from their sidebar list, if they did. */
+  private async withDmHiddenAt<
+    T extends { id: string; channelType: string },
+  >(
+    rows: T[],
+    viewerId: string,
+  ): Promise<Array<T & { dmHiddenAt: Date | null }>> {
+    const dmChannelIds = rows
+      .filter((row) => row.channelType === CHANNEL_TYPE.DM)
+      .map((row) => row.id);
+
+    if (dmChannelIds.length === 0) {
+      return rows.map((row) => ({ ...row, dmHiddenAt: null }));
+    }
+
+    const hidden = await this.drizzle.db
+      .select({
+        channelId: channelMembers.channelId,
+        dmHiddenAt: channelMembers.dmHiddenAt,
+      })
+      .from(channelMembers)
+      .where(
+        and(
+          inArray(channelMembers.channelId, dmChannelIds),
+          eq(channelMembers.userId, viewerId),
+          isNotNull(channelMembers.dmHiddenAt),
+        ),
+      );
+
+    const hiddenAtByChannel = new Map(
+      hidden.map((row) => [row.channelId, row.dmHiddenAt]),
+    );
+
+    return rows.map((row) => ({
+      ...row,
+      dmHiddenAt: hiddenAtByChannel.get(row.id) ?? null,
+    }));
+  }
+
+  /**
+   * Time of the newest message in each DM, for ordering the sidebar list.
+   * A correlated `max()` subquery per DM resolves to one backward lookup on
+   * `messages_channel_id_created_at_idx`, so cost scales with the number of
+   * DMs rather than with message history.
+   */
+  private async withDmLastMessageAt<
+    T extends { id: string; channelType: string },
+  >(rows: T[]): Promise<Array<T & { lastMessageAt: Date | null }>> {
+    const dmChannelIds = rows
+      .filter((row) => row.channelType === CHANNEL_TYPE.DM)
+      .map((row) => row.id);
+
+    if (dmChannelIds.length === 0) {
+      return rows.map((row) => ({ ...row, lastMessageAt: null }));
+    }
+
+    // Drizzle drops table qualifiers for columns interpolated directly into a
+    // single-table select, which would turn `channels.id` below into a bare
+    // `id` that binds to `messages.id` inside the subquery. Identifiers are
+    // not stripped, so the outer reference is spelled out explicitly.
+    const outerChannelId = sql`${sql.identifier('channels')}.${sql.identifier('id')}`;
+    const activity = await this.drizzle.db
+      .select({
+        channelId: channels.id,
+        lastMessageAt: sql<Date | null>`(
+          select max(${messages.createdAt})
+          from ${messages}
+          where ${messages.channelId} = ${outerChannelId}
+        )`.mapWith(messages.createdAt),
+      })
+      .from(channels)
+      .where(inArray(channels.id, dmChannelIds));
+
+    const lastMessageAtByChannel = new Map(
+      activity.map((row) => [row.channelId, row.lastMessageAt]),
+    );
+
+    return rows.map((row) => ({
+      ...row,
+      lastMessageAt: lastMessageAtByChannel.get(row.id) ?? null,
+    }));
+  }
+
+  private async assertTicketAssignee(workspaceId: string, assigneeId: string) {
+    const [member] = await this.drizzle.db
+      .select({ userId: workspaceMembers.userId })
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, workspaceId),
+          eq(workspaceMembers.userId, assigneeId),
+        ),
+      );
+
+    if (!member) {
+      throw new BadRequestException('Assignee must be a workspace member');
+    }
+  }
+
+  private async assertTicketWatchers(workspaceId: string, watcherIds: string[]) {
+    const found = await this.drizzle.db
+      .select({ userId: workspaceMembers.userId })
+      .from(workspaceMembers)
+      .where(
+        and(
+          eq(workspaceMembers.workspaceId, workspaceId),
+          inArray(workspaceMembers.userId, watcherIds),
+        ),
+      );
+
+    if (found.length !== watcherIds.length) {
+      throw new BadRequestException('Watchers must be workspace members');
+    }
+  }
+
+  private async withThreadAttachments<
+    T extends { id: string; parentId: string | null },
+  >(rows: T[]) {
+    const threadIds = rows
+      .filter((row) => row.parentId)
+      .map((row) => row.id);
+    const grouped = await this.loadThreadAttachments(threadIds);
+    const labeled = await this.loadTicketLabels(
+      rows.filter((row) => row.parentId).map((row) => row.id),
+    );
+    const watched = await this.loadTicketWatchers(
+      rows.filter((row) => row.parentId).map((row) => row.id),
+    );
+
+    return rows.map((row) => ({
+      ...row,
+      attachments: grouped.get(row.id) ?? [],
+      labels: labeled.get(row.id) ?? [],
+      watchers: watched.get(row.id) ?? [],
+    }));
+  }
+
+  private async loadTicketLabels(channelIds: string[]) {
+    const grouped = new Map<
+      string,
+      { id: string; name: string; color: string }[]
+    >();
+    if (channelIds.length === 0) return grouped;
+
+    const rows = await this.drizzle.db
+      .select({
+        channelId: channelLabels.channelId,
+        id: labels.id,
+        name: labels.name,
+        color: labels.color,
+      })
+      .from(channelLabels)
+      .innerJoin(labels, eq(channelLabels.labelId, labels.id))
+      .where(inArray(channelLabels.channelId, channelIds))
+      .orderBy(asc(labels.name));
+
+    for (const row of rows) {
+      const list = grouped.get(row.channelId) ?? [];
+      list.push({ id: row.id, name: row.name, color: row.color });
+      grouped.set(row.channelId, list);
+    }
+
+    return grouped;
+  }
+
+  private async loadTicketWatchers(channelIds: string[]) {
+    const grouped = new Map<
+      string,
+      { id: string; name: string; image: string | null }[]
+    >();
+    if (channelIds.length === 0) return grouped;
+
+    const rows = await this.drizzle.db
+      .select({
+        channelId: channelWatchers.channelId,
+        id: user.id,
+        name: user.name,
+        image: user.image,
+      })
+      .from(channelWatchers)
+      .innerJoin(user, eq(channelWatchers.userId, user.id))
+      .where(inArray(channelWatchers.channelId, channelIds))
+      .orderBy(asc(user.name));
+
+    for (const row of rows) {
+      const list = grouped.get(row.channelId) ?? [];
+      list.push({ id: row.id, name: row.name, image: row.image });
+      grouped.set(row.channelId, list);
+    }
+
+    return grouped;
+  }
+
+  private async loadThreadAttachments(channelIds: string[]) {
+    const grouped = new Map<
+      string,
+      {
+        id: string;
+        filename: string;
+        contentType: string;
+        sizeBytes: number;
+      }[]
+    >();
+    if (channelIds.length === 0) return grouped;
+
+    const rows = await this.drizzle.db
+      .select({
+        channelId: attachments.channelId,
+        id: attachments.id,
+        filename: attachments.filename,
+        contentType: attachments.contentType,
+        sizeBytes: attachments.sizeBytes,
+      })
+      .from(attachments)
+      .where(
+        and(
+          inArray(attachments.channelId, channelIds),
+          eq(attachments.purpose, ATTACHMENT_PURPOSE.THREAD),
+          eq(attachments.status, 'uploaded'),
+        ),
+      )
+      .orderBy(asc(attachments.createdAt));
+
+    for (const row of rows) {
+      const list = grouped.get(row.channelId) ?? [];
+      list.push({
+        id: row.id,
+        filename: row.filename,
+        contentType: row.contentType,
+        sizeBytes: row.sizeBytes,
+      });
+      grouped.set(row.channelId, list);
+    }
+
+    return grouped;
+  }
+
+  private async allocateChannelKey(
+    workspaceId: string,
+    key: string,
+    explicit: boolean,
+    excludeId?: string,
+  ) {
+    const taken = await this.channelKeyTaken(workspaceId, key, excludeId);
+    if (!taken) return key;
+    if (explicit) {
+      throw new BadRequestException('A channel with this key already exists');
+    }
+
+    for (let n = 2; n <= 99; n += 1) {
+      const suffix = String(n);
+      const candidate = `${key.slice(0, Math.max(2, 5 - suffix.length))}${suffix}`;
+      const exists = await this.channelKeyTaken(
+        workspaceId,
+        candidate,
+        excludeId,
+      );
+      if (!exists) return candidate;
+    }
+
+    throw new BadRequestException('Could not generate a unique channel key');
+  }
+
+  private async assertChannelKeyAvailable(
+    workspaceId: string,
+    key: string,
+    excludeId: string,
+  ) {
+    if (await this.channelKeyTaken(workspaceId, key, excludeId)) {
+      throw new BadRequestException('A channel with this key already exists');
+    }
+  }
+
+  /**
+   * Mirrors the `channels_workspace_id_name_unq` partial unique index for text
+   * channels. Voice names are only unique among voice channels, so `general`
+   * can exist as both.
+   */
+  private async assertChannelNameAvailable(
+    workspaceId: string,
+    name: string,
+    channelType: CreatableChannelType,
+    excludeId?: string,
+  ) {
+    const [existing] = await this.drizzle.db
+      .select({ id: channels.id })
+      .from(channels)
+      .where(
+        and(
+          eq(channels.workspaceId, workspaceId),
+          isNull(channels.parentId),
+          eq(channels.channelType, channelType),
+          eq(channels.name, name),
+          excludeId ? ne(channels.id, excludeId) : undefined,
+        ),
+      )
+      .limit(1);
+
+    if (existing) {
+      throw new BadRequestException('A channel with this name already exists');
+    }
+  }
+
+  private async channelKeyTaken(
+    workspaceId: string,
+    key: string,
+    excludeId?: string,
+  ) {
+    const [existing] = await this.drizzle.db
+      .select({ id: channels.id })
+      .from(channels)
+      .where(
+        excludeId
+          ? and(
+              eq(channels.workspaceId, workspaceId),
+              isNull(channels.parentId),
+              eq(channels.ticketKey, key),
+              ne(channels.id, excludeId),
+            )
+          : and(
+              eq(channels.workspaceId, workspaceId),
+              isNull(channels.parentId),
+              eq(channels.ticketKey, key),
+            ),
+      )
+      .limit(1);
+
+    return Boolean(existing);
+  }
+
+  private async loadLabelsByIds(workspaceId: string, ids: string[]) {
+    if (ids.length === 0) return [];
+    const rows = await this.drizzle.db
+      .select({
+        id: labels.id,
+        name: labels.name,
+        color: labels.color,
+      })
+      .from(labels)
+      .where(and(eq(labels.workspaceId, workspaceId), inArray(labels.id, ids)));
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    return ids.flatMap((id) => {
+      const row = byId.get(id);
+      return row ? [row] : [];
+    });
+  }
+
+  private async buildTicketEvents(input: {
+    channelId: string;
+    actorId: string | null;
+    createdAt: Date;
+    existing: {
+      status: string | null;
+      priority: string | null;
+      assigneeId: string | null;
+      dueAt: Date | null;
+      labels: TicketEventLabel[];
+      watchers: TicketEventWatcher[];
+      archived: boolean;
+    };
+    next: {
+      status?: string;
+      priority?: string;
+      assigneeId?: string | null;
+      dueAt?: Date | null;
+      labels?: TicketEventLabel[];
+      watchers?: TicketEventWatcher[];
+      archived?: boolean;
+    };
+  }) {
+    const rows: {
+      id: string;
+      channelId: string;
+      actorId: string | null;
+      type: TicketEventType;
+      fromValue: unknown;
+      toValue: unknown;
+      createdAt: Date;
+    }[] = [];
+
+    const push = (
+      type: TicketEventType,
+      fromValue: unknown,
+      toValue: unknown,
+    ) => {
+      rows.push({
+        id: crypto.randomUUID(),
+        channelId: input.channelId,
+        actorId: input.actorId,
+        type,
+        fromValue,
+        toValue,
+        createdAt: input.createdAt,
+      });
+    };
+
+    if (
+      input.next.status !== undefined &&
+      input.next.status !== input.existing.status
+    ) {
+      push('status_changed', input.existing.status, input.next.status);
+    }
+
+    if (
+      input.next.priority !== undefined &&
+      input.next.priority !== input.existing.priority
+    ) {
+      push('priority_changed', input.existing.priority, input.next.priority);
+    }
+
+    if (
+      input.next.assigneeId !== undefined &&
+      input.next.assigneeId !== input.existing.assigneeId
+    ) {
+      const [fromAssignee, toAssignee] = await Promise.all([
+        this.loadAssigneeBrief(input.existing.assigneeId),
+        this.loadAssigneeBrief(input.next.assigneeId),
+      ]);
+      push('assignee_changed', fromAssignee, toAssignee);
+    }
+
+    if (
+      input.next.dueAt !== undefined &&
+      !this.sameDueAt(input.existing.dueAt, input.next.dueAt)
+    ) {
+      push(
+        'due_changed',
+        input.existing.dueAt?.toISOString() ?? null,
+        input.next.dueAt?.toISOString() ?? null,
+      );
+    }
+
+    if (
+      input.next.labels !== undefined &&
+      !this.sameLabelIds(input.existing.labels, input.next.labels)
+    ) {
+      push('labels_changed', input.existing.labels, input.next.labels);
+    }
+
+    if (
+      input.next.watchers !== undefined &&
+      !this.sameWatcherIds(input.existing.watchers, input.next.watchers)
+    ) {
+      push('watchers_changed', input.existing.watchers, input.next.watchers);
+    }
+
+    if (
+      input.next.archived !== undefined &&
+      input.next.archived !== input.existing.archived
+    ) {
+      push('archived_changed', input.existing.archived, input.next.archived);
+    }
+
+    return rows;
+  }
+
+  private sameDueAt(current: Date | null, next: Date | null) {
+    if (current === null && next === null) return true;
+    if (current === null || next === null) return false;
+    return current.getTime() === next.getTime();
+  }
+
+  private sameLabelIds(current: TicketEventLabel[], next: TicketEventLabel[]) {
+    if (current.length !== next.length) return false;
+    const currentIds = current.map((label) => label.id).toSorted();
+    const nextIds = next.map((label) => label.id).toSorted();
+    return currentIds.every((id, index) => id === nextIds[index]);
+  }
+
+  private sameWatcherIds(
+    current: TicketEventWatcher[],
+    next: TicketEventWatcher[],
+  ) {
+    if (current.length !== next.length) return false;
+    const currentIds = current.map((watcher) => watcher.id).toSorted();
+    const nextIds = next.map((watcher) => watcher.id).toSorted();
+    return currentIds.every((id, index) => id === nextIds[index]);
+  }
+
+  private async loadWatcherBriefs(watcherIds: string[]) {
+    if (watcherIds.length === 0) return [];
+    const rows = await this.drizzle.db
+      .select({ id: user.id, name: user.name, image: user.image })
+      .from(user)
+      .where(inArray(user.id, watcherIds));
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    return watcherIds.flatMap((id) => {
+      const row = byId.get(id);
+      return row ? [row] : [];
+    });
+  }
+
+  private async loadAssigneeBrief(assigneeId: string | null) {
+    if (!assigneeId) return null;
+    const [row] = await this.drizzle.db
+      .select({ id: user.id, name: user.name })
+      .from(user)
+      .where(eq(user.id, assigneeId));
+    return row ?? { id: assigneeId, name: 'Unknown' };
+  }
+
+  private publishTicketEvents(
+    ticketId: string,
+    parentId: string | null,
+    events: TicketEvent[],
+  ) {
+    for (const event of events) {
+      this.chatGateway.emitChannelEvent(ticketId, event);
+      if (parentId && isParentChannelEventType(event.type)) {
+        this.chatGateway.emitChannelEvent(parentId, event);
+      }
+    }
+  }
+
+  private ticketEventSelect() {
+    return this.drizzle.db
+      .select({
+        id: channelEvents.id,
+        channelId: channelEvents.channelId,
+        type: channelEvents.type,
+        fromValue: channelEvents.fromValue,
+        toValue: channelEvents.toValue,
+        createdAt: channelEvents.createdAt,
+        actor: {
+          id: user.id,
+          name: user.name,
+          image: user.image,
+        },
+        ticketId: channels.id,
+        ticketName: channels.name,
+        ticketNumber: channels.ticketNumber,
+        parentId: channels.parentId,
+        parentName: parentChannels.name,
+        parentTicketKey: parentChannels.ticketKey,
+      })
+      .from(channelEvents)
+      .leftJoin(user, eq(channelEvents.actorId, user.id))
+      .innerJoin(channels, eq(channelEvents.channelId, channels.id))
+      .leftJoin(parentChannels, eq(channels.parentId, parentChannels.id));
+  }
+
+  private async loadTicketEvents(
+    channelIds: string[],
+    types?: TicketEventType[],
+  ) {
+    const grouped = new Map<string, TicketEvent[]>();
+    if (channelIds.length === 0) return grouped;
+
+    const conditions = [inArray(channelEvents.channelId, channelIds)];
+    if (types?.length) {
+      conditions.push(inArray(channelEvents.type, types));
+    }
+
+    const rows = await this.ticketEventSelect()
+      .where(and(...conditions))
+      .orderBy(asc(channelEvents.createdAt), asc(channelEvents.id));
+
+    for (const row of rows) {
+      const event = this.toTicketEvent(row);
+      const list = grouped.get(event.channelId) ?? [];
+      list.push(event);
+      grouped.set(event.channelId, list);
+    }
+
+    return grouped;
+  }
+
+  private async loadTicketEventsByIds(ids: string[]) {
+    if (ids.length === 0) return [];
+    const rows = await this.ticketEventSelect().where(
+      inArray(channelEvents.id, ids),
+    );
+    const byId = new Map(rows.map((row) => [row.id, this.toTicketEvent(row)]));
+    return ids.flatMap((id) => {
+      const event = byId.get(id);
+      return event ? [event] : [];
+    });
+  }
+
+  private toTicketEvent(row: {
+    id: string;
+    channelId: string;
+    type: string;
+    fromValue: unknown;
+    toValue: unknown;
+    createdAt: Date;
+    actor: {
+      id: string | null;
+      name: string | null;
+      image: string | null;
+    } | null;
+    ticketId: string | null;
+    ticketName: string | null;
+    ticketNumber: number | null;
+    parentId: string | null;
+    parentName: string | null;
+    parentTicketKey: string | null;
+  }): TicketEvent {
+    const prefix = ticketPrefixOf({
+      ticketKey: row.parentTicketKey,
+      name: row.parentName ?? row.ticketName ?? '',
+    });
+    const ticketNumber = row.ticketNumber ?? 0;
+
+    return {
+      id: row.id,
+      channelId: row.channelId,
+      parentId: row.parentId,
+      type: row.type as TicketEventType,
+      fromValue: row.fromValue,
+      toValue: row.toValue,
+      createdAt: row.createdAt.toISOString(),
+      actor:
+        row.actor?.id && row.actor.name
+          ? {
+              id: row.actor.id,
+              name: row.actor.name,
+              image: row.actor.image,
+            }
+          : null,
+      ticket:
+        row.ticketId && row.ticketName
+          ? {
+              id: row.ticketId,
+              name: row.ticketName,
+              displayId:
+                ticketNumber > 0
+                  ? ticketDisplayId(prefix, ticketNumber)
+                  : prefix,
+            }
+          : null,
+    };
+  }
+
+  private async loadClaimableThreadAttachments(
+    parentId: string,
+    userId: string,
+    attachmentIds: string[],
+  ) {
+    if (attachmentIds.length === 0) return [];
+
+    const rows = await this.drizzle.db
+      .select()
+      .from(attachments)
+      .where(
+        and(
+          inArray(attachments.id, attachmentIds),
+          eq(attachments.uploaderId, userId),
+          eq(attachments.channelId, parentId),
+        ),
+      );
+
+    if (rows.length !== attachmentIds.length) {
+      throw new BadRequestException('Invalid attachment reference');
+    }
+
+    for (const row of rows) {
+      if (row.messageId || row.purpose === ATTACHMENT_PURPOSE.THREAD) {
+        throw new BadRequestException('Invalid attachment reference');
+      }
+      if (row.status === 'uploaded') continue;
+      const head = await this.storage.head(row.storageKey);
+      if (!head) {
+        throw new BadRequestException(`Attachment ${row.id} not uploaded`);
+      }
+    }
+
+    return rows;
+  }
+
+  async findTicketThreadByNumber(
+    workspaceId: string,
+    boardChannelId: string,
+    ticketNumber: number,
+  ) {
+    const [row] = await this.drizzle.db
+      .select({ id: channels.id })
+      .from(channels)
+      .where(
+        and(
+          eq(channels.workspaceId, workspaceId),
+          eq(channels.parentId, boardChannelId),
+          eq(channels.ticketNumber, ticketNumber),
+        ),
+      )
+      .limit(1);
+    return row?.id ?? null;
+  }
+
+  async recordAndPublishChannelEvents(
+    channelId: string,
+    parentId: string | null,
+    events: Array<{
+      type: TicketEventType;
+      actorId: string | null;
+      fromValue: unknown;
+      toValue: unknown;
+      createdAt?: Date;
+    }>,
+  ): Promise<TicketEvent[]> {
+    if (events.length === 0) return [];
+
+    const eventRows = events.map((event) => ({
+      id: crypto.randomUUID(),
+      channelId,
+      actorId: event.actorId,
+      type: event.type,
+      fromValue: event.fromValue,
+      toValue: event.toValue,
+      createdAt: event.createdAt ?? new Date(),
+    }));
+
+    await this.drizzle.db.insert(channelEvents).values(eventRows);
+    const published = await this.loadTicketEventsByIds(
+      eventRows.map((row) => row.id),
+    );
+    this.publishTicketEvents(channelId, parentId, published);
+    return published;
+  }
+
+  async applyIntegrationTicketStatus(
+    workspaceId: string,
+    ticketChannelId: string,
+    status: string,
+    actorUserId: string | null,
+    options?: { source?: 'github' },
+  ) {
+    const nextStatus = parseTicketStatus(status);
+    const [row] = await this.drizzle.db
+      .select()
+      .from(channels)
+      .where(
+        and(
+          eq(channels.id, ticketChannelId),
+          eq(channels.workspaceId, workspaceId),
+          isNotNull(channels.parentId),
+        ),
+      );
+    if (!row) return null;
+
+    const [existing] = await this.withThreadAttachments([row]);
+    if (!existing || existing.status === nextStatus) {
+      return existing ?? null;
+    }
+
+    const now = new Date();
+    const patch = {
+      status: nextStatus,
+      updatedAt: now,
+      completedAt: nextCompletedAt(existing.status, nextStatus, now),
+    };
+
+    const eventRows = await this.buildTicketEvents({
+      channelId: ticketChannelId,
+      actorId: actorUserId,
+      createdAt: now,
+      existing: {
+        status: existing.status,
+        priority: existing.priority,
+        assigneeId: existing.assigneeId,
+        dueAt: existing.dueAt,
+        labels: existing.labels ?? [],
+        watchers: existing.watchers ?? [],
+        archived: existing.archivedAt !== null,
+      },
+      next: { status: nextStatus },
+    });
+
+    if (options?.source === 'github') {
+      for (const row of eventRows) {
+        if (row.type === 'status_changed') {
+          row.type = 'github_status_changed';
+          row.actorId = null;
+        }
+      }
+    }
+
+    await this.drizzle.db.transaction(async (tx) => {
+      await tx
+        .update(channels)
+        .set({
+          status: patch.status,
+          updatedAt: patch.updatedAt,
+          boardPosition: null,
+          ...(patch.completedAt !== undefined
+            ? { completedAt: patch.completedAt }
+            : {}),
+        })
+        .where(eq(channels.id, ticketChannelId));
+      if (eventRows.length) {
+        await tx.insert(channelEvents).values(eventRows);
+      }
+    });
+
+    if (eventRows.length) {
+      const published = await this.loadTicketEventsByIds(
+        eventRows.map((event) => event.id),
+      );
+      this.publishTicketEvents(
+        ticketChannelId,
+        existing.parentId,
+        published,
+      );
+    }
+
+    const [updated] = await this.drizzle.db
+      .select()
+      .from(channels)
+      .where(eq(channels.id, ticketChannelId));
+    if (!updated) return null;
+    const [enriched] = await this.withThreadAttachments([updated]);
+    return enriched ?? null;
+  }
+}

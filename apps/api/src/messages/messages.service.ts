@@ -1,0 +1,1212 @@
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
+import { and, asc, count, desc, eq, gt, inArray, lt, ne, or, sql, type SQL } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
+import { DrizzleService } from '../database/drizzle.service';
+import {
+  attachments,
+  bots,
+  channelMembers,
+  channelWatchers,
+  channels,
+  messages,
+  messageReactions,
+  pinnedMessages,
+  workspaceMembers,
+} from '../database/schema';
+import { user } from '../database/schema/auth';
+import { ChatGateway } from '../gateway/chat.gateway';
+import { InboxService } from '../inbox/inbox.service';
+import { PushService } from '../push/push.service';
+import { toPushNotificationPayload } from '../push/push-payload';
+import { splitRecipientsByLevel } from '../notification-settings/notification-level';
+import { NotificationSettingsService } from '../notification-settings/notification-settings.service';
+import { StorageService } from '../storage/storage.service';
+import {
+  ATTACHMENT_PURPOSE,
+  attachmentKindLimitMessage,
+  MAX_ATTACHMENTS_PER_MESSAGE,
+} from '../attachments/attachments.helpers';
+import {
+  messageNotificationRecipientIds,
+  ticketCommentInboxRecipientIds,
+} from './message-notification-recipients';
+import {
+  normalizeReactionEmoji,
+  type MessageReactionSummary,
+  type MessageReactionsPayload,
+} from './message-reactions';
+import { PERMISSIONS } from '../workspaces/permissions';
+import { WorkspacePermissionsService } from '../workspaces/workspace-permissions.service';
+import { BotsService } from '../bots/bots.service';
+import { LinkPreviewsService } from '../link-previews/link-previews.service';
+import { GithubIntegrationService } from '../integrations/github/github.service';
+import {
+  aroundWindowSizes,
+  encodeMessageCursor,
+  parseMessageCursor,
+} from './message-cursor';
+
+export type MessageAttachmentPublic = {
+  id: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+};
+
+export type MessageReplyToPublic = {
+  id: string;
+  content: string;
+  senderId: string;
+  sender: {
+    name: string | null;
+    image: string | null;
+    isBot: boolean;
+  } | null;
+};
+
+type MessageListRow = {
+  id: string;
+  channelId: string;
+  senderId: string;
+  content: string;
+  replyToId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  sender: {
+    name: string | null;
+    image: string | null;
+    isBot: boolean;
+  } | null;
+};
+
+export const MAX_PINNED_MESSAGES = 50;
+
+const pinnedByUser = alias(user, 'pinned_by_user');
+const reactionUser = alias(user, 'reaction_user');
+
+@Injectable()
+export class MessagesService {
+  constructor(
+    private readonly drizzle: DrizzleService,
+    private readonly workspacePermissionsService: WorkspacePermissionsService,
+    private readonly chatGateway: ChatGateway,
+    private readonly storage: StorageService,
+    private readonly inboxService: InboxService,
+    private readonly pushService: PushService,
+    private readonly botsService: BotsService,
+    private readonly notificationSettings: NotificationSettingsService,
+    private readonly linkPreviews: LinkPreviewsService,
+    @Inject(forwardRef(() => GithubIntegrationService))
+    private readonly githubIntegration: GithubIntegrationService,
+  ) {}
+
+  private async verifyChannelAccess(
+    channelId: string,
+    userId: string,
+    permission:
+      | typeof PERMISSIONS.VIEW_CHANNEL
+      | typeof PERMISSIONS.SEND_MESSAGES,
+  ) {
+    return this.workspacePermissionsService.assertChannelPermissionByChannelId(
+      channelId,
+      userId,
+      permission,
+    );
+  }
+
+  /**
+   * A DM stays readable after the other person is gone, but nothing in it can
+   * change: no new messages, edits, deletes, reactions or pins. No-op elsewhere.
+   */
+  private async assertDmWritable(
+    channel: { id: string; workspaceId: string; channelType: string },
+    actorId: string,
+  ) {
+    if (channel.channelType !== 'dm') return;
+
+    const peers = await this.drizzle.db
+      .select({ inWorkspace: sql<boolean>`${workspaceMembers.id} is not null` })
+      .from(channelMembers)
+      .leftJoin(
+        workspaceMembers,
+        and(
+          eq(workspaceMembers.userId, channelMembers.userId),
+          eq(workspaceMembers.workspaceId, channel.workspaceId),
+        ),
+      )
+      .where(
+        and(
+          eq(channelMembers.channelId, channel.id),
+          ne(channelMembers.userId, actorId),
+        ),
+      );
+
+    if (peers.some((peer) => !peer.inWorkspace)) {
+      throw new ForbiddenException('This person is no longer in the workspace');
+    }
+  }
+
+  private async loadAttachmentsByMessageIds(
+    messageIds: string[],
+  ): Promise<Map<string, MessageAttachmentPublic[]>> {
+    const grouped = new Map<string, MessageAttachmentPublic[]>();
+    if (!messageIds.length) return grouped;
+
+    const attachmentRows = await this.drizzle.db
+      .select({
+        messageId: attachments.messageId,
+        id: attachments.id,
+        filename: attachments.filename,
+        contentType: attachments.contentType,
+        sizeBytes: attachments.sizeBytes,
+      })
+      .from(attachments)
+      .where(inArray(attachments.messageId, messageIds));
+
+    for (const row of attachmentRows) {
+      if (!row.messageId) continue;
+      const list = grouped.get(row.messageId) ?? [];
+      list.push({
+        id: row.id,
+        filename: row.filename,
+        contentType: row.contentType,
+        sizeBytes: row.sizeBytes,
+      });
+      grouped.set(row.messageId, list);
+    }
+
+    return grouped;
+  }
+
+  private async loadReactionsByMessageIds(
+    messageIds: string[],
+    viewerUserId: string,
+  ): Promise<Map<string, MessageReactionSummary[]>> {
+    const grouped = new Map<string, MessageReactionSummary[]>();
+    if (!messageIds.length) return grouped;
+
+    const rows = await this.drizzle.db
+      .select({
+        messageId: messageReactions.messageId,
+        emoji: messageReactions.emoji,
+        userId: messageReactions.userId,
+        userName: reactionUser.name,
+        createdAt: messageReactions.createdAt,
+      })
+      .from(messageReactions)
+      .leftJoin(reactionUser, eq(messageReactions.userId, reactionUser.id))
+      .where(inArray(messageReactions.messageId, messageIds))
+      .orderBy(messageReactions.createdAt);
+
+    const byMessage = new Map<
+      string,
+      Map<string, { id: string; name: string }[]>
+    >();
+
+    for (const row of rows) {
+      const emojiMap =
+        byMessage.get(row.messageId) ??
+        new Map<string, { id: string; name: string }[]>();
+      const users = emojiMap.get(row.emoji) ?? [];
+      users.push({
+        id: row.userId,
+        name: row.userName ?? 'Unknown',
+      });
+      emojiMap.set(row.emoji, users);
+      byMessage.set(row.messageId, emojiMap);
+    }
+
+    for (const messageId of messageIds) {
+      const emojiMap = byMessage.get(messageId);
+      if (!emojiMap) {
+        grouped.set(messageId, []);
+        continue;
+      }
+
+      const summaries = [...emojiMap.entries()].map(([emoji, users]) => ({
+        emoji,
+        count: users.length,
+        reactedByMe: users.some((entry) => entry.id === viewerUserId),
+        users,
+      }));
+
+      grouped.set(messageId, summaries);
+    }
+
+    return grouped;
+  }
+
+  private async loadReplyToByIds(
+    replyToIds: Array<string | null | undefined>,
+  ): Promise<Map<string, MessageReplyToPublic>> {
+    const unique = [
+      ...new Set(
+        replyToIds.filter((id): id is string => typeof id === 'string' && id.length > 0),
+      ),
+    ];
+    const mapped = new Map<string, MessageReplyToPublic>();
+    if (!unique.length) return mapped;
+
+    const rows = await this.drizzle.db
+      .select({
+        id: messages.id,
+        content: messages.content,
+        senderId: messages.senderId,
+        sender: {
+          name: user.name,
+          image: user.image,
+          isBot: sql<boolean>`(${bots.userId} is not null)`,
+        },
+      })
+      .from(messages)
+      .leftJoin(user, eq(messages.senderId, user.id))
+      .leftJoin(bots, eq(bots.userId, messages.senderId))
+      .where(inArray(messages.id, unique));
+
+    for (const row of rows) {
+      mapped.set(row.id, {
+        ...row,
+        sender: row.sender
+          ? { ...row.sender, isBot: row.sender.isBot === true }
+          : null,
+      });
+    }
+
+    return mapped;
+  }
+
+  private async resolveReplyToId(
+    channelId: string,
+    replyToId: string | null | undefined,
+  ): Promise<string | null> {
+    if (!replyToId) return null;
+
+    const [target] = await this.drizzle.db
+      .select({
+        id: messages.id,
+        channelId: messages.channelId,
+      })
+      .from(messages)
+      .where(eq(messages.id, replyToId));
+
+    if (!target || target.channelId !== channelId) {
+      throw new BadRequestException('Reply target not found in this channel');
+    }
+
+    return target.id;
+  }
+
+  private async findOneWithAttachments(messageId: string, viewerUserId?: string) {
+    const [row] = await this.drizzle.db
+      .select({
+        id: messages.id,
+        channelId: messages.channelId,
+        senderId: messages.senderId,
+        content: messages.content,
+        replyToId: messages.replyToId,
+        createdAt: messages.createdAt,
+        updatedAt: messages.updatedAt,
+        sender: {
+          name: user.name,
+          image: user.image,
+          isBot: sql<boolean>`(${bots.userId} is not null)`,
+        },
+      })
+      .from(messages)
+      .leftJoin(user, eq(messages.senderId, user.id))
+      .leftJoin(bots, eq(bots.userId, messages.senderId))
+      .where(eq(messages.id, messageId));
+
+    if (!row) throw new NotFoundException('Message not found');
+
+    const [enriched] = await this.enrichMessageRows(
+      [row],
+      viewerUserId ?? row.senderId,
+    );
+    if (!enriched) throw new NotFoundException('Message not found');
+    return enriched;
+  }
+
+  async create(
+    channelId: string,
+    senderId: string,
+    content: string,
+    attachmentIds: string[] = [],
+    replyToId?: string | null,
+  ) {
+    const channel = await this.verifyChannelAccess(
+      channelId,
+      senderId,
+      PERMISSIONS.SEND_MESSAGES,
+    );
+    await this.assertDmWritable(channel, senderId);
+
+    if (!content.trim() && attachmentIds.length === 0) {
+      throw new BadRequestException('Empty message');
+    }
+    if (attachmentIds.length > MAX_ATTACHMENTS_PER_MESSAGE) {
+      throw new BadRequestException(
+        `Maximum ${MAX_ATTACHMENTS_PER_MESSAGE} attachments per message`,
+      );
+    }
+
+    const messageId = crypto.randomUUID();
+    const now = new Date();
+
+    const rows = attachmentIds.length
+      ? await this.drizzle.db
+          .select()
+          .from(attachments)
+          .where(
+            and(
+              inArray(attachments.id, attachmentIds),
+              eq(attachments.uploaderId, senderId),
+              eq(attachments.channelId, channelId),
+              eq(attachments.purpose, ATTACHMENT_PURPOSE.MESSAGE),
+            ),
+          )
+      : [];
+
+    if (rows.length !== attachmentIds.length) {
+      throw new BadRequestException('Invalid attachment reference');
+    }
+
+    const kindError = attachmentKindLimitMessage(rows, 'message');
+    if (kindError) {
+      throw new BadRequestException(kindError);
+    }
+
+    for (const row of rows) {
+      if (row.messageId) {
+        throw new BadRequestException('Invalid attachment reference');
+      }
+      if (row.status === 'uploaded') continue;
+      const head = await this.storage.head(row.storageKey);
+      if (!head) {
+        throw new BadRequestException(`Attachment ${row.id} not uploaded`);
+      }
+    }
+
+    const resolvedReplyToId = await this.resolveReplyToId(channelId, replyToId);
+
+    await this.drizzle.db.transaction(async (tx) => {
+      await tx.insert(messages).values({
+        id: messageId,
+        channelId,
+        senderId,
+        content,
+        replyToId: resolvedReplyToId,
+        createdAt: now,
+        updatedAt: now,
+      });
+      if (rows.length) {
+        await tx
+          .update(attachments)
+          .set({ messageId, status: 'uploaded' })
+          .where(inArray(attachments.id, rows.map((r) => r.id)));
+      }
+    });
+
+    const message = await this.findOneWithAttachments(messageId, senderId);
+    this.chatGateway.emitNewMessage(channelId, message);
+    this.scheduleLinkPreviews(channelId, messageId, content);
+    await Promise.all([
+      this.notifyMessageRecipients(channel, senderId, message, content),
+      content.trim()
+        ? this.inboxService.notifyMentions({
+            workspaceId: channel.workspaceId,
+            channelId,
+            messageId,
+            actorId: senderId,
+            content,
+          })
+        : Promise.resolve(),
+    ]);
+    if (/^@?github\b/i.test(content.trim())) {
+      void this.githubIntegration
+        .handleChatCommand(channel.workspaceId, channelId, senderId, content)
+        .catch(() => undefined);
+    }
+    return message;
+  }
+
+  async findAll(
+    channelId: string,
+    userId: string,
+    options: {
+      cursor?: string;
+      around?: string;
+      direction?: 'older' | 'newer';
+      limit?: number;
+    } = {},
+  ) {
+    await this.verifyChannelAccess(channelId, userId, PERMISSIONS.VIEW_CHANNEL);
+
+    const fetchLimit = Math.min(Math.max(options.limit ?? 50, 1), 100);
+    if (options.around) {
+      return this.findAround(channelId, userId, options.around, fetchLimit);
+    }
+
+    const direction = options.direction === 'newer' ? 'newer' : 'older';
+    if (direction === 'newer' && !options.cursor) {
+      throw new BadRequestException('cursor is required when direction=newer');
+    }
+
+    const extra = this.cursorCondition(options.cursor, direction);
+    const page = await this.fetchMessagePage({
+      channelId,
+      userId,
+      extra,
+      direction,
+      limit: fetchLimit,
+    });
+
+    const oldest = page.rows[page.rows.length - 1];
+    const newest = page.rows[0];
+    const nextCursor =
+      direction === 'older' && page.hasMore && oldest
+        ? encodeMessageCursor(oldest.createdAt, oldest.id)
+        : null;
+    const prevCursor =
+      direction === 'newer' && page.hasMore && newest
+        ? encodeMessageCursor(newest.createdAt, newest.id)
+        : null;
+
+    return { data: page.data, nextCursor, prevCursor };
+  }
+
+  private async findAround(
+    channelId: string,
+    userId: string,
+    messageId: string,
+    limit: number,
+  ) {
+    const [target] = await this.drizzle.db
+      .select({
+        id: messages.id,
+        createdAt: messages.createdAt,
+      })
+      .from(messages)
+      .where(and(eq(messages.id, messageId), eq(messages.channelId, channelId)));
+
+    if (!target) throw new NotFoundException('Message not found');
+
+    const { older, newer } = aroundWindowSizes(limit);
+    const [olderPage, newerPage, targetPage] = await Promise.all([
+      older > 0
+        ? this.fetchMessagePage({
+            channelId,
+            userId,
+            extra: this.cursorCondition(
+              encodeMessageCursor(target.createdAt, target.id),
+              'older',
+            ),
+            direction: 'older',
+            limit: older,
+          })
+        : {
+            data: [],
+            rows: [] as MessageListRow[],
+            hasMore: false,
+          },
+      newer > 0
+        ? this.fetchMessagePage({
+            channelId,
+            userId,
+            extra: this.cursorCondition(
+              encodeMessageCursor(target.createdAt, target.id),
+              'newer',
+            ),
+            direction: 'newer',
+            limit: newer,
+          })
+        : {
+            data: [],
+            rows: [] as MessageListRow[],
+            hasMore: false,
+          },
+      this.fetchMessagePage({
+        channelId,
+        userId,
+        extra: and(eq(messages.id, target.id)),
+        direction: 'older',
+        limit: 1,
+      }),
+    ]);
+
+    const targetMessage = targetPage.data[0];
+    if (!targetMessage) throw new NotFoundException('Message not found');
+
+    const data = [...newerPage.data, targetMessage, ...olderPage.data];
+    const oldest = olderPage.rows[olderPage.rows.length - 1];
+    const newest = newerPage.rows[0] ?? target;
+    const nextCursor =
+      olderPage.hasMore && oldest
+        ? encodeMessageCursor(oldest.createdAt, oldest.id)
+        : null;
+    const prevCursor =
+      newerPage.hasMore && newest
+        ? encodeMessageCursor(newest.createdAt, newest.id)
+        : null;
+
+    return { data, nextCursor, prevCursor };
+  }
+
+  private cursorCondition(
+    cursor: string | undefined,
+    direction: 'older' | 'newer',
+  ): SQL | undefined {
+    if (!cursor) return undefined;
+    const parsed = parseMessageCursor(cursor);
+    if (!parsed) return undefined;
+    if (direction === 'newer') {
+      return or(
+        gt(messages.createdAt, parsed.createdAt),
+        and(eq(messages.createdAt, parsed.createdAt), gt(messages.id, parsed.id)),
+      )!;
+    }
+    return or(
+      lt(messages.createdAt, parsed.createdAt),
+      and(eq(messages.createdAt, parsed.createdAt), lt(messages.id, parsed.id)),
+    )!;
+  }
+
+  private async fetchMessagePage(params: {
+    channelId: string;
+    userId: string;
+    extra?: SQL;
+    direction: 'older' | 'newer';
+    limit: number;
+  }) {
+    const conditions: SQL[] = [eq(messages.channelId, params.channelId)];
+    if (params.extra) conditions.push(params.extra);
+
+    const rows = await this.drizzle.db
+      .select({
+        id: messages.id,
+        channelId: messages.channelId,
+        senderId: messages.senderId,
+        content: messages.content,
+        replyToId: messages.replyToId,
+        createdAt: messages.createdAt,
+        updatedAt: messages.updatedAt,
+        sender: {
+          name: user.name,
+          image: user.image,
+          isBot: sql<boolean>`(${bots.userId} is not null)`,
+        },
+      })
+      .from(messages)
+      .leftJoin(user, eq(messages.senderId, user.id))
+      .leftJoin(bots, eq(bots.userId, messages.senderId))
+      .where(and(...conditions))
+      .orderBy(
+        params.direction === 'newer'
+          ? asc(messages.createdAt)
+          : desc(messages.createdAt),
+        params.direction === 'newer' ? asc(messages.id) : desc(messages.id),
+      )
+      .limit(params.limit + 1);
+
+    const hasMore = rows.length > params.limit;
+    const sliced = hasMore ? rows.slice(0, params.limit) : rows;
+    const ordered =
+      params.direction === 'newer' ? [...sliced].reverse() : sliced;
+    const data = await this.enrichMessageRows(ordered, params.userId);
+    return { data, rows: ordered, hasMore };
+  }
+
+  private async enrichMessageRows(rows: MessageListRow[], userId: string) {
+    const grouped = await this.loadAttachmentsByMessageIds(
+      rows.map((row) => row.id),
+    );
+    const reactionsGrouped = await this.loadReactionsByMessageIds(
+      rows.map((row) => row.id),
+      userId,
+    );
+    const replyToById = await this.loadReplyToByIds(
+      rows.map((row) => row.replyToId),
+    );
+    const linkPreviewsGrouped = await this.linkPreviews.loadByMessageIds(
+      rows.map((row) => row.id),
+    );
+    return rows.map((row) => ({
+      ...row,
+      attachments: grouped.get(row.id) ?? [],
+      reactions: reactionsGrouped.get(row.id) ?? [],
+      linkPreviews: linkPreviewsGrouped.get(row.id) ?? [],
+      replyTo: row.replyToId ? (replyToById.get(row.replyToId) ?? null) : null,
+      sender: row.sender
+        ? { ...row.sender, isBot: row.sender.isBot === true }
+        : null,
+    }));
+  }
+
+  /**
+   * Unfurls links in the background so sending never waits on a third-party
+   * site. Previews that arrive are pushed to the channel as a follow-up event.
+   */
+  private scheduleLinkPreviews(
+    channelId: string,
+    messageId: string,
+    content: string,
+  ) {
+    if (!/https?:\/\//i.test(content)) return;
+    void this.linkPreviews
+      .syncForMessage(messageId, content)
+      .then((linkPreviews) => {
+        if (!linkPreviews) return;
+        this.chatGateway.emitMessageLinkPreviewsUpdated(channelId, {
+          messageId,
+          channelId,
+          linkPreviews,
+        });
+      })
+      .catch(() => undefined);
+  }
+
+  /** Removes all link previews from the sender's own message, for everyone. */
+  async removeLinkPreviews(channelId: string, id: string, userId: string) {
+    const channel = await this.verifyChannelAccess(
+      channelId,
+      userId,
+      PERMISSIONS.VIEW_CHANNEL,
+    );
+    await this.assertDmWritable(channel, userId);
+
+    const [existing] = await this.drizzle.db
+      .select({ senderId: messages.senderId })
+      .from(messages)
+      .where(and(eq(messages.id, id), eq(messages.channelId, channelId)));
+
+    if (!existing) throw new NotFoundException('Message not found');
+
+    if (existing.senderId !== userId) {
+      throw new ForbiddenException(
+        'You can only remove embeds from your own messages',
+      );
+    }
+
+    await this.linkPreviews.suppressForMessage(id);
+
+    const payload = { messageId: id, channelId, linkPreviews: [] };
+    this.chatGateway.emitMessageLinkPreviewsUpdated(channelId, payload);
+    return payload;
+  }
+
+  async update(channelId: string, id: string, userId: string, content: string) {
+    const channel = await this.verifyChannelAccess(
+      channelId,
+      userId,
+      PERMISSIONS.VIEW_CHANNEL,
+    );
+    await this.assertDmWritable(channel, userId);
+
+    const [existing] = await this.drizzle.db
+      .select()
+      .from(messages)
+      .where(and(eq(messages.id, id), eq(messages.channelId, channelId)));
+
+    if (!existing) throw new NotFoundException('Message not found');
+
+    if (existing.senderId !== userId) {
+      throw new ForbiddenException('You can only edit your own messages');
+    }
+
+    await this.drizzle.db
+      .update(messages)
+      .set({ content, updatedAt: new Date() })
+      .where(eq(messages.id, id));
+
+    await this.linkPreviews.reconcileForMessage(id, content);
+    const result = await this.findOneWithAttachments(id, userId);
+    this.chatGateway.emitMessageUpdated(channelId, result);
+    this.scheduleLinkPreviews(channelId, id, content);
+    if (content.trim()) {
+      await this.inboxService.notifyMentions({
+        workspaceId: channel.workspaceId,
+        channelId,
+        messageId: id,
+        actorId: userId,
+        content,
+      });
+    }
+    return result;
+  }
+
+  async remove(channelId: string, id: string, userId: string) {
+    const channel = await this.verifyChannelAccess(
+      channelId,
+      userId,
+      PERMISSIONS.VIEW_CHANNEL,
+    );
+    await this.assertDmWritable(channel, userId);
+
+    const [existing] = await this.drizzle.db
+      .select()
+      .from(messages)
+      .where(and(eq(messages.id, id), eq(messages.channelId, channelId)));
+
+    if (!existing) throw new NotFoundException('Message not found');
+
+    if (existing.senderId !== userId) {
+      throw new ForbiddenException('You can only delete your own messages');
+    }
+
+    const toDelete = await this.drizzle.db
+      .select({ storageKey: attachments.storageKey })
+      .from(attachments)
+      .where(eq(attachments.messageId, id));
+
+    await this.drizzle.db.delete(messages).where(eq(messages.id, id));
+
+    void Promise.all(
+      toDelete.map((a) =>
+        this.storage.delete(a.storageKey).catch(() => {}),
+      ),
+    );
+
+    this.chatGateway.emitMessageDeleted(channelId, id);
+  }
+
+  async toggleReaction(
+    channelId: string,
+    messageId: string,
+    userId: string,
+    rawEmoji: string,
+  ): Promise<MessageReactionsPayload> {
+    const channel = await this.verifyChannelAccess(
+      channelId,
+      userId,
+      PERMISSIONS.VIEW_CHANNEL,
+    );
+    await this.assertDmWritable(channel, userId);
+
+    const emoji = normalizeReactionEmoji(rawEmoji);
+
+    const [existingMessage] = await this.drizzle.db
+      .select()
+      .from(messages)
+      .where(and(eq(messages.id, messageId), eq(messages.channelId, channelId)));
+
+    if (!existingMessage) throw new NotFoundException('Message not found');
+
+    const [existingReaction] = await this.drizzle.db
+      .select()
+      .from(messageReactions)
+      .where(
+        and(
+          eq(messageReactions.messageId, messageId),
+          eq(messageReactions.userId, userId),
+          eq(messageReactions.emoji, emoji),
+        ),
+      );
+
+    if (existingReaction) {
+      await this.drizzle.db
+        .delete(messageReactions)
+        .where(eq(messageReactions.id, existingReaction.id));
+    } else {
+      await this.drizzle.db.insert(messageReactions).values({
+        id: crypto.randomUUID(),
+        messageId,
+        userId,
+        emoji,
+        createdAt: new Date(),
+      });
+
+      if (existingMessage.senderId !== userId) {
+        await this.inboxService.notifyReaction({
+          workspaceId: channel.workspaceId,
+          channelId,
+          messageId,
+          actorId: userId,
+          recipientId: existingMessage.senderId,
+          emoji,
+        });
+      }
+    }
+
+    const reactionsGrouped = await this.loadReactionsByMessageIds(
+      [messageId],
+      userId,
+    );
+    const payload: MessageReactionsPayload = {
+      messageId,
+      channelId,
+      reactions: reactionsGrouped.get(messageId) ?? [],
+    };
+
+    this.chatGateway.emitMessageReactionsUpdated(channelId, payload);
+    return payload;
+  }
+
+  async listPins(channelId: string, userId: string) {
+    const channel = await this.verifyChannelAccess(
+      channelId,
+      userId,
+      PERMISSIONS.VIEW_CHANNEL,
+    );
+
+    const canManageMessages =
+      await this.workspacePermissionsService.hasChannelPermission(
+        channel.workspaceId,
+        channel.parentId ?? channel.id,
+        userId,
+        PERMISSIONS.MANAGE_MESSAGES,
+      );
+
+    return {
+      canManageMessages,
+      data: await this.listPinsForChannel(channelId, userId),
+    };
+  }
+
+  async pin(channelId: string, messageId: string, userId: string) {
+    const channel =
+      await this.workspacePermissionsService.assertChannelPermissionByChannelId(
+        channelId,
+        userId,
+        PERMISSIONS.MANAGE_MESSAGES,
+      );
+    await this.assertDmWritable(channel, userId);
+
+    const [existingMessage] = await this.drizzle.db
+      .select()
+      .from(messages)
+      .where(and(eq(messages.id, messageId), eq(messages.channelId, channelId)));
+
+    if (!existingMessage) throw new NotFoundException('Message not found');
+
+    const [alreadyPinned] = await this.drizzle.db
+      .select()
+      .from(pinnedMessages)
+      .where(
+        and(
+          eq(pinnedMessages.channelId, channelId),
+          eq(pinnedMessages.messageId, messageId),
+        ),
+      );
+
+    if (alreadyPinned) {
+      return this.findOnePin(channelId, messageId, userId);
+    }
+
+    const [countRow] = await this.drizzle.db
+      .select({ value: count() })
+      .from(pinnedMessages)
+      .where(eq(pinnedMessages.channelId, channelId));
+
+    if ((countRow?.value ?? 0) >= MAX_PINNED_MESSAGES) {
+      throw new BadRequestException(
+        `This channel already has ${MAX_PINNED_MESSAGES} pinned messages`,
+      );
+    }
+
+    await this.drizzle.db.insert(pinnedMessages).values({
+      id: crypto.randomUUID(),
+      channelId,
+      messageId,
+      pinnedBy: userId,
+      pinnedAt: new Date(),
+    });
+
+    const pin = await this.findOnePin(channelId, messageId, userId);
+    this.chatGateway.emitMessagePinned(channelId, pin);
+    return pin;
+  }
+
+  async unpin(channelId: string, messageId: string, userId: string) {
+    const channel =
+      await this.workspacePermissionsService.assertChannelPermissionByChannelId(
+        channelId,
+        userId,
+        PERMISSIONS.MANAGE_MESSAGES,
+      );
+    await this.assertDmWritable(channel, userId);
+
+    const [existing] = await this.drizzle.db
+      .select()
+      .from(pinnedMessages)
+      .where(
+        and(
+          eq(pinnedMessages.channelId, channelId),
+          eq(pinnedMessages.messageId, messageId),
+        ),
+      );
+
+    if (!existing) throw new NotFoundException('Pinned message not found');
+
+    await this.drizzle.db
+      .delete(pinnedMessages)
+      .where(eq(pinnedMessages.id, existing.id));
+
+    this.chatGateway.emitMessageUnpinned(channelId, messageId);
+  }
+
+  private async findOnePin(channelId: string, messageId: string, userId: string) {
+    const listed = await this.listPinsForChannel(channelId, userId);
+    const pin = listed.find((row) => row.messageId === messageId);
+    if (!pin) throw new NotFoundException('Pinned message not found');
+    return pin;
+  }
+
+  private async listPinsForChannel(channelId: string, viewerUserId: string) {
+    const rows = await this.drizzle.db
+      .select({
+        id: pinnedMessages.id,
+        channelId: pinnedMessages.channelId,
+        messageId: pinnedMessages.messageId,
+        pinnedBy: pinnedMessages.pinnedBy,
+        pinnedAt: pinnedMessages.pinnedAt,
+        pinnedByName: pinnedByUser.name,
+        pinnedByImage: pinnedByUser.image,
+        messageIdValue: messages.id,
+        messageChannelId: messages.channelId,
+        senderId: messages.senderId,
+        content: messages.content,
+        replyToId: messages.replyToId,
+        createdAt: messages.createdAt,
+        updatedAt: messages.updatedAt,
+        senderName: user.name,
+        senderImage: user.image,
+        senderIsBot: sql<boolean>`(${bots.userId} is not null)`,
+      })
+      .from(pinnedMessages)
+      .innerJoin(messages, eq(pinnedMessages.messageId, messages.id))
+      .leftJoin(user, eq(messages.senderId, user.id))
+      .leftJoin(bots, eq(bots.userId, messages.senderId))
+      .leftJoin(pinnedByUser, eq(pinnedMessages.pinnedBy, pinnedByUser.id))
+      .where(eq(pinnedMessages.channelId, channelId))
+      .orderBy(desc(pinnedMessages.pinnedAt));
+
+    const grouped = await this.loadAttachmentsByMessageIds(
+      rows.map((row) => row.messageId),
+    );
+    const reactionsGrouped = await this.loadReactionsByMessageIds(
+      rows.map((row) => row.messageId),
+      viewerUserId,
+    );
+    const replyToById = await this.loadReplyToByIds(
+      rows.map((row) => row.replyToId),
+    );
+    const linkPreviewsGrouped = await this.linkPreviews.loadByMessageIds(
+      rows.map((row) => row.messageId),
+    );
+
+    return rows.map((row) => ({
+      id: row.id,
+      channelId: row.channelId,
+      messageId: row.messageId,
+      pinnedBy: row.pinnedBy,
+      pinnedAt: row.pinnedAt,
+      pinnedByUser: row.pinnedByName
+        ? { name: row.pinnedByName, image: row.pinnedByImage }
+        : null,
+      message: {
+        id: row.messageIdValue,
+        channelId: row.messageChannelId,
+        senderId: row.senderId,
+        content: row.content,
+        replyToId: row.replyToId,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        sender: row.senderName
+          ? {
+              name: row.senderName,
+              image: row.senderImage,
+              isBot: Boolean(row.senderIsBot),
+            }
+          : null,
+        attachments: grouped.get(row.messageId) ?? [],
+        reactions: reactionsGrouped.get(row.messageId) ?? [],
+        linkPreviews: linkPreviewsGrouped.get(row.messageId) ?? [],
+        replyTo: row.replyToId
+          ? (replyToById.get(row.replyToId) ?? null)
+          : null,
+      },
+    }));
+  }
+
+  private async notifyMessageRecipients(
+    channel: typeof channels.$inferSelect,
+    senderId: string,
+    message: {
+      id: string;
+      content: string;
+      sender?: { name: string | null; image: string | null } | null;
+      attachments?: { filename: string }[];
+    },
+    content: string,
+  ) {
+    const { toastRecipientIds, quietRecipientIds, commentInboxRecipientIds } =
+      await this.listMessageNotificationRecipients(channel, senderId, content);
+
+    if (
+      toastRecipientIds.length === 0 &&
+      quietRecipientIds.length === 0 &&
+      commentInboxRecipientIds.length === 0
+    ) {
+      return;
+    }
+
+    let parent: {
+      id: string;
+      name: string;
+      ticketKey: string | null;
+    } | null = null;
+
+    if (channel.parentId && toastRecipientIds.length > 0) {
+      const [parentRow] = await this.drizzle.db
+        .select({
+          id: channels.id,
+          name: channels.name,
+          ticketKey: channels.ticketKey,
+        })
+        .from(channels)
+        .where(eq(channels.id, channel.parentId));
+      parent = parentRow ?? null;
+    }
+
+    if (toastRecipientIds.length > 0 || quietRecipientIds.length > 0) {
+      const payload = {
+        workspaceId: channel.workspaceId,
+        channel: {
+          id: channel.id,
+          name: channel.name,
+          parentId: channel.parentId,
+          ticketNumber: channel.ticketNumber,
+          ticketKey: channel.ticketKey,
+          channelType: channel.channelType,
+        },
+        parent,
+        message,
+      };
+
+      for (const userId of toastRecipientIds) {
+        this.chatGateway.emitMessageNotification(userId, payload);
+      }
+      // Quiet recipients only need their unread count bumped: the client skips
+      // sound and popups for `silent`, and no push is sent.
+      for (const userId of quietRecipientIds) {
+        this.chatGateway.emitMessageNotification(userId, {
+          ...payload,
+          silent: true,
+        });
+      }
+      if (toastRecipientIds.length > 0) {
+        void this.pushService.notifyUsers(
+          toastRecipientIds,
+          toPushNotificationPayload(payload),
+        );
+      }
+    }
+
+    if (commentInboxRecipientIds.length > 0) {
+      await this.inboxService.notifyTicketComments({
+        workspaceId: channel.workspaceId,
+        channelId: channel.id,
+        messageId: message.id,
+        actorId: senderId,
+        recipientIds: commentInboxRecipientIds,
+      });
+    }
+  }
+
+  private async listMessageNotificationRecipients(
+    channel: typeof channels.$inferSelect,
+    senderId: string,
+    content: string,
+  ) {
+    const mentionedIds = await this.inboxService.resolveMentionedUserIds({
+      workspaceId: channel.workspaceId,
+      channelId: channel.id,
+      actorId: senderId,
+      content,
+    });
+    const senderIsBot = await this.botsService.isBotUser(senderId);
+
+    if (channel.parentId) {
+      const watchers = await this.drizzle.db
+        .select({ userId: channelWatchers.userId })
+        .from(channelWatchers)
+        .where(eq(channelWatchers.channelId, channel.id));
+      const watcherIds = watchers.map((row) => row.userId);
+
+      const toastRecipientIds = await this.botsService.excludeBots(
+        messageNotificationRecipientIds({
+          isTicket: true,
+          senderId,
+          assigneeId: channel.assigneeId,
+          watcherIds,
+          memberIds: [],
+          mentionedUserIds: mentionedIds,
+        }),
+      );
+      const commentInboxRecipientIds = await this.botsService.excludeBots(
+        ticketCommentInboxRecipientIds({
+          senderId,
+          assigneeId: channel.assigneeId,
+          watcherIds,
+          mentionedUserIds: mentionedIds,
+        }),
+      );
+
+      return {
+        toastRecipientIds,
+        quietRecipientIds: [] as string[],
+        commentInboxRecipientIds,
+      };
+    }
+
+    const memberIds =
+      await this.workspacePermissionsService.listChannelAudienceUserIds(
+        channel.id,
+      );
+
+    const recipientIds = await this.botsService.excludeBots(
+      senderIsBot
+        ? mentionedIds.filter((id) => id !== senderId)
+        : messageNotificationRecipientIds({
+            isTicket: false,
+            senderId,
+            assigneeId: null,
+            watcherIds: [],
+            memberIds,
+            mentionedUserIds: mentionedIds,
+          }),
+    );
+
+    // DMs are always loud; per-channel settings only apply to channels.
+    if (channel.channelType === 'dm') {
+      return {
+        toastRecipientIds: recipientIds,
+        quietRecipientIds: [] as string[],
+        commentInboxRecipientIds: [] as string[],
+      };
+    }
+
+    const levels = await this.notificationSettings.listLevels(
+      channel.id,
+      recipientIds,
+    );
+    const { loudIds, quietIds } = splitRecipientsByLevel({
+      recipientIds,
+      mentionedIds,
+      levels,
+    });
+
+    return {
+      toastRecipientIds: loudIds,
+      quietRecipientIds: quietIds,
+      commentInboxRecipientIds: [] as string[],
+    };
+  }
+}

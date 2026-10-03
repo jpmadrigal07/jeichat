@@ -1,0 +1,1 @@
+ALTER TABLE "channel_members" ADD COLUMN "dm_hidden_at" timestamp with time zone;

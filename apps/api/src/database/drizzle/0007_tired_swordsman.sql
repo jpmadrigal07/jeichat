@@ -1,0 +1,1 @@
+ALTER TABLE "attachments" ADD COLUMN "purpose" text DEFAULT 'message' NOT NULL;

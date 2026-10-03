@@ -7,8 +7,27 @@ import {
   QueryClientProvider,
 } from '@tanstack/react-query';
 import { lazy, Suspense, useState } from 'react';
+import { ThemeProvider } from 'next-themes';
 import { Toaster, toast } from 'react-hot-toast';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { isApiError } from '@/lib/api-error';
+import { PwaHost } from '@/app/_components/pwa-host';
+
+const IOS_VIEWPORT =
+  'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';
+
+function lockIosInputZoom() {
+  document.querySelectorAll('meta[name="viewport"]').forEach((meta) => {
+    if (meta.getAttribute('content') !== IOS_VIEWPORT) {
+      meta.setAttribute('content', IOS_VIEWPORT);
+    }
+  });
+}
+
+if (typeof document !== 'undefined') {
+  lockIosInputZoom();
+  queueMicrotask(lockIosInputZoom);
+}
 
 const ReactQueryDevtools = lazy(() =>
   import('@tanstack/react-query-devtools').then((d) => ({
@@ -37,8 +56,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
     () =>
       new QueryClient({
         queryCache: new QueryCache({
-          onError: (error) => {
+          onError: (error, query) => {
             if (isApiError(error) && error.isCancelled) return;
+            // Background queries (e.g. polled voice participants) fail quietly.
+            if (query.meta?.silent === true) return;
             toast.error(getErrorMessage(error));
           },
         }),
@@ -64,16 +85,26 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
-      <Toaster position="bottom-right" />
-      {process.env.NODE_ENV === 'development' ? (
-        <Suspense fallback={null}>
-          <ReactQueryDevtools
-            buttonPosition="bottom-right"
-            initialIsOpen={false}
-          />
-        </Suspense>
-      ) : null}
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="dark"
+        enableSystem
+        disableTransitionOnChange
+      >
+        <TooltipProvider>
+          <PwaHost />
+          {children}
+        </TooltipProvider>
+        <Toaster position="bottom-right" />
+        {process.env.NODE_ENV === 'development' ? (
+          <Suspense fallback={null}>
+            <ReactQueryDevtools
+              buttonPosition="bottom-right"
+              initialIsOpen={false}
+            />
+          </Suspense>
+        ) : null}
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

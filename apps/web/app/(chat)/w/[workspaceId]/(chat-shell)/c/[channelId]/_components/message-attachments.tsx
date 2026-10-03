@@ -1,0 +1,160 @@
+'use client';
+
+import type { ReactNode } from 'react';
+import { X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import type { MessageAttachment } from '../_libs/messages';
+import { cn } from '@/lib/utils';
+import { attachmentFileUrl } from '../_helpers/attachment-file-url';
+import { AttachmentFileCard } from './attachment-file-card';
+import { AttachmentImage } from './attachment-image';
+
+type MessageAttachmentsProps = {
+  attachments: MessageAttachment[];
+  onRemove?: (attachmentId: string) => void;
+  compact?: boolean;
+  className?: string;
+};
+
+function AttachmentVideo({ attachment }: { attachment: MessageAttachment }) {
+  return (
+    <video
+      controls
+      preload="metadata"
+      src={attachmentFileUrl(attachment.id)}
+      className="aspect-video w-100 max-w-full rounded-lg bg-black"
+    />
+  );
+}
+
+function AttachmentAudio({ attachment }: { attachment: MessageAttachment }) {
+  return (
+    <audio
+      controls
+      src={attachmentFileUrl(attachment.id)}
+      className="max-w-full"
+    />
+  );
+}
+
+function AttachmentItem({
+  attachment,
+  compact,
+}: {
+  attachment: MessageAttachment;
+  compact?: boolean;
+}) {
+  const { contentType } = attachment;
+
+  if (contentType.startsWith('image/')) {
+    return (
+      <AttachmentImage
+        attachment={attachment}
+        size={compact ? 'sm' : 'default'}
+      />
+    );
+  }
+  if (!compact && contentType.startsWith('video/')) {
+    return <AttachmentVideo attachment={attachment} />;
+  }
+  if (!compact && contentType.startsWith('audio/')) {
+    return <AttachmentAudio attachment={attachment} />;
+  }
+  return <AttachmentFileCard attachment={attachment} compact={compact} />;
+}
+
+function RemovableAttachment({
+  id,
+  filename,
+  onRemove,
+  className,
+  children,
+}: {
+  id: string;
+  filename: string;
+  onRemove?: (attachmentId: string) => void;
+  className?: string;
+  children: ReactNode;
+}) {
+  if (!onRemove) return children;
+
+  return (
+    <div className={cn('group relative w-fit', className)}>
+      {children}
+      <Button
+        type="button"
+        size="icon-xs"
+        variant="secondary"
+        className="absolute top-1 right-1 opacity-0 group-hover:opacity-100"
+        aria-label={`Remove ${filename}`}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onRemove(id);
+        }}
+      >
+        <X />
+      </Button>
+    </div>
+  );
+}
+
+// One row per attachment group that scrolls horizontally on its own, so wide
+// or numerous attachments never widen the message list. The padding/negative
+// margin pair keeps card rings and focus rings from being clipped.
+const scrollRowClass =
+  '-m-1 flex items-start overflow-x-auto overscroll-x-contain p-1 *:shrink-0';
+
+export function MessageAttachments({
+  attachments,
+  onRemove,
+  compact,
+  className,
+}: MessageAttachmentsProps) {
+  if (!attachments.length) return null;
+
+  const images = attachments.filter((a) =>
+    a.contentType.startsWith('image/'),
+  );
+  const others = attachments.filter(
+    (a) => !a.contentType.startsWith('image/'),
+  );
+  const imageIds = images.map((a) => a.id);
+
+  return (
+    <div className={cn('flex min-w-0 flex-col gap-2', className)}>
+      {images.length > 0 ? (
+        <div className={cn(scrollRowClass, 'gap-1.5')}>
+          {images.map((attachment) => (
+            <RemovableAttachment
+              key={attachment.id}
+              id={attachment.id}
+              filename={attachment.filename}
+              onRemove={onRemove}
+            >
+              <AttachmentImage
+                attachment={attachment}
+                size={compact ? 'sm' : 'default'}
+                gallery={imageIds}
+              />
+            </RemovableAttachment>
+          ))}
+        </div>
+      ) : null}
+      {others.length > 0 ? (
+        <div className={cn(scrollRowClass, compact ? 'gap-1' : 'gap-1.5')}>
+          {others.map((attachment) => (
+            <RemovableAttachment
+              key={attachment.id}
+              id={attachment.id}
+              filename={attachment.filename}
+              onRemove={onRemove}
+            >
+              <AttachmentItem attachment={attachment} compact={compact} />
+            </RemovableAttachment>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}

@@ -2,10 +2,26 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AuthIntegrationModule } from './auth/auth.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
+import { ExportModule } from './export/export.module';
+import { GatewayModule } from './gateway/gateway.module';
+import { WorkspacesModule } from './workspaces/workspaces.module';
+import { ChannelsModule } from './channels/channels.module';
+import { MessagesModule } from './messages/messages.module';
+import { StorageModule } from './storage/storage.module';
+import { AttachmentsModule } from './attachments/attachments.module';
+import { InboxModule } from './inbox/inbox.module';
+import { NotificationSettingsModule } from './notification-settings/notification-settings.module';
+import { UsersModule } from './users/users.module';
+import { SearchModule } from './search/search.module';
+import { PushModule } from './push/push.module';
+import { BotsModule } from './bots/bots.module';
+import { GithubIntegrationModule } from './integrations/github/github.module';
+import { VoiceModule } from './voice/voice.module';
 
 // Load .env from repo root (works from apps/api/dist or apps/api/src) or cwd
 const envFilePath =
@@ -21,8 +37,24 @@ const envFilePath =
       isGlobal: true,
       envFilePath,
     }),
+    ScheduleModule.forRoot(),
     DatabaseModule,
+    StorageModule,
     AuthIntegrationModule,
+    GatewayModule,
+    WorkspacesModule,
+    ChannelsModule,
+    MessagesModule,
+    ExportModule,
+    AttachmentsModule,
+    InboxModule,
+    NotificationSettingsModule,
+    UsersModule,
+    SearchModule,
+    PushModule,
+    BotsModule,
+    GithubIntegrationModule,
+    VoiceModule,
   ],
   controllers: [AppController],
   providers: [AppService],

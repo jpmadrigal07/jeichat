@@ -1,0 +1,364 @@
+'use client';
+
+import { useRef, useState, useEffect } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { ChevronDown, Paperclip } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Collapsible } from '@/components/ui/collapsible';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import {
+  ATTACHMENT_ACCEPT_ATTR,
+  countAttachmentKinds,
+  MAX_DOCUMENT_ATTACHMENTS,
+  MAX_IMAGE_ATTACHMENTS,
+} from '@/lib/attachment-mime';
+import { cn } from '@/lib/utils';
+import { useUpdateChannel } from '@chat/_hooks/use-channels';
+import type { Channel } from '@chat/_libs/channels';
+import type { MentionableMember } from '@chat/_helpers/mentions';
+import { ticketDisplayId, ticketPrefixOf } from '@chat/_helpers/ticket-fields';
+import type {
+  TaggableChannel,
+  TaggableMessage,
+  TaggableTicket,
+} from '@chat/_helpers/ticket-mentions';
+import { useAttachmentUploads } from '../_hooks/use-attachment-uploads';
+import { AttachmentPreviewTray } from './attachment-preview-tray';
+import { ChannelDropZone } from './channel-drop-overlay';
+import { MessageAttachments } from './message-attachments';
+import { TicketDescription } from './ticket-description';
+import { TicketProperties } from './ticket-properties';
+
+const TICKET_DETAILS_PARAM = 'details';
+const TICKET_DETAILS_COLLAPSED = 'collapsed';
+
+export function ThreadIssueHeader({
+  workspaceId,
+  channel,
+  parentChannel,
+  members,
+  tickets,
+  channels,
+  mentionMessages,
+}: {
+  workspaceId: string;
+  channel: Channel;
+  parentChannel?: Channel;
+  members: MentionableMember[];
+  tickets: TaggableTicket[];
+  channels?: TaggableChannel[];
+  mentionMessages?: TaggableMessage[];
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const removeByServerIdRef = useRef<(id: string) => void>(() => undefined);
+  const insertAttachmentMarkdownRef = useRef<
+    ((attachmentId: string, alt: string) => void) | null
+  >(null);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [descriptionEditing, setDescriptionEditing] = useState(false);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const detailsOpen =
+    searchParams.get(TICKET_DETAILS_PARAM) !== TICKET_DETAILS_COLLAPSED;
+  const updateChannel = useUpdateChannel(workspaceId);
+  const uploads = useAttachmentUploads(channel.id, {
+    onUploaded: (attachmentId) => {
+      updateChannel.mutate(
+        {
+          channelId: channel.id,
+          addAttachmentIds: [attachmentId],
+        },
+        {
+          onSuccess: () => removeByServerIdRef.current(attachmentId),
+        },
+      );
+    },
+    onFileUploaded: (attachmentId, file) => {
+      insertAttachmentMarkdownRef.current?.(attachmentId, file.name);
+    },
+  });
+  removeByServerIdRef.current = uploads.removeByServerId;
+
+  const savedAttachments = channel.attachments ?? [];
+  const savedIds = new Set(savedAttachments.map((attachment) => attachment.id));
+  const pendingItems = uploads.items.filter(
+    (item) => !item.serverId || !savedIds.has(item.serverId),
+  );
+  const pendingIds = new Set(
+    uploads.items.flatMap((item) =>
+      item.serverId ? [item.serverId] : [],
+    ),
+  );
+  const savedOnly = savedAttachments.filter(
+    (attachment) => !pendingIds.has(attachment.id),
+  );
+  const counts = countAttachmentKinds([
+    ...savedOnly,
+    ...pendingItems.map((item) => item.file),
+  ]);
+  const atUploadLimit =
+    counts.images >= MAX_IMAGE_ATTACHMENTS &&
+    counts.documents >= MAX_DOCUMENT_ATTACHMENTS;
+
+  function setDetailsOpen(open: boolean) {
+    if (!open) {
+      setDescriptionExpanded(false);
+      setDescriptionEditing(false);
+    }
+    const params = new URLSearchParams(searchParams.toString());
+    if (open) params.delete(TICKET_DETAILS_PARAM);
+    else params.set(TICKET_DETAILS_PARAM, TICKET_DETAILS_COLLAPSED);
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+
+  function saveTitle(value: string, input: HTMLInputElement) {
+    const name = value.trim();
+    if (!name) {
+      input.value = channel.name;
+      toast.error('Ticket title is required');
+      return;
+    }
+    if (name === channel.name) return;
+    updateChannel.mutate({ channelId: channel.id, name });
+  }
+
+  function saveDescription(description: string | null) {
+    updateChannel.mutate({ channelId: channel.id, description });
+  }
+
+  function addFiles(
+    files: File[],
+    options?: { insertMarkdownOnComplete?: boolean },
+  ) {
+    uploads.addFiles(files, countAttachmentKinds(savedOnly), options);
+  }
+
+  function removeSaved(attachmentId: string) {
+    uploads.removeByServerId(attachmentId);
+    updateChannel.mutate({
+      channelId: channel.id,
+      removeAttachmentIds: [attachmentId],
+    });
+  }
+
+  return (
+    <Collapsible
+      open={detailsOpen}
+      onOpenChange={setDetailsOpen}
+      className="border-b"
+    >
+      <ChannelDropZone
+        onAdd={addFiles}
+        className={cn(
+          'relative flex w-full flex-col gap-3 px-4',
+          detailsOpen ? 'py-4' : 'py-2',
+        )}
+      >
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="absolute right-4 top-3 z-10"
+                  aria-expanded={detailsOpen}
+                  aria-label={
+                    detailsOpen ? 'Minimize ticket' : 'Expand ticket'
+                  }
+                  onClick={() => setDetailsOpen(!detailsOpen)}
+                >
+                  <ChevronDown
+                    className={cn(
+                      'transition-transform',
+                      detailsOpen && 'rotate-180',
+                    )}
+                  />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {detailsOpen ? 'Minimize ticket' : 'Expand ticket'}
+              </TooltipContent>
+            </Tooltip>
+            <div
+              className={cn(
+                'grid w-full gap-4',
+                detailsOpen
+                  ? 'grid-cols-1 sm:grid-cols-[2fr_1fr]'
+                  : 'grid-cols-1',
+              )}
+            >
+              <div
+                className={cn(
+                  'flex min-h-0 min-w-0 flex-col gap-3',
+                  detailsOpen &&
+                    !descriptionExpanded &&
+                    !descriptionEditing &&
+                    'sm:h-0 sm:min-h-full sm:overflow-hidden',
+                )}
+              >
+                <div className="min-w-0 shrink-0 pr-10">
+                  {channel.ticketNumber ? (
+                    <p className="text-xs text-muted-foreground">
+                      {ticketDisplayId(
+                        ticketPrefixOf(parentChannel ?? channel),
+                        channel.ticketNumber,
+                      )}
+                    </p>
+                  ) : null}
+                  <TicketTitleField
+                    channelId={channel.id}
+                    name={channel.name}
+                    onSave={saveTitle}
+                  />
+                </div>
+                {detailsOpen ? (
+                  <TicketDescription
+                    key={channel.id}
+                    workspaceId={workspaceId}
+                    description={channel.description}
+                    members={members}
+                    tickets={tickets}
+                    channels={channels}
+                    mentionMessages={mentionMessages}
+                    onSave={saveDescription}
+                    expanded={descriptionExpanded}
+                    onExpandedChange={setDescriptionExpanded}
+                    editing={descriptionEditing}
+                    onEditingChange={setDescriptionEditing}
+                    onPasteImages={(files) =>
+                      addFiles(files, { insertMarkdownOnComplete: true })
+                    }
+                    onRegisterAttachmentMarkdownInsert={(insert) => {
+                      insertAttachmentMarkdownRef.current = insert;
+                    }}
+                  />
+                ) : null}
+              </div>
+              {detailsOpen ? (
+                <div className="flex min-w-0 flex-col gap-3 border-t pt-4 sm:border-t-0 sm:pt-0">
+                  <TicketProperties
+                    workspaceId={workspaceId}
+                    channel={channel}
+                    boardTicketKey={parentChannel?.ticketKey}
+                    className="min-w-0"
+                  />
+                  <div className="flex min-w-0 flex-col gap-2 px-2">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      Attachments
+                    </p>
+                    <div className="flex min-w-0 flex-col gap-2">
+                      <MessageAttachments
+                        attachments={savedAttachments}
+                        onRemove={removeSaved}
+                        compact
+                      />
+                      <AttachmentPreviewTray
+                        items={pendingItems}
+                        onRemove={uploads.remove}
+                        onRetry={uploads.retry}
+                        compact
+                      />
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        multiple
+                        hidden
+                        accept={ATTACHMENT_ACCEPT_ATTR}
+                        onChange={(e) => {
+                          addFiles(Array.from(e.target.files ?? []));
+                          e.target.value = '';
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="self-start"
+                        disabled={atUploadLimit}
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <Paperclip data-icon="inline-start" />
+                        Add files
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </ChannelDropZone>
+    </Collapsible>
+  );
+}
+
+function TicketTitleField({
+  channelId,
+  name,
+  onSave,
+}: {
+  channelId: string;
+  name: string;
+  onSave: (value: string, input: HTMLInputElement) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const inputId = `ticket-title-${channelId}`;
+
+  useEffect(() => {
+    if (!editing) return;
+    const input = document.getElementById(inputId);
+    if (!(input instanceof HTMLInputElement)) return;
+    input.focus();
+    input.select();
+  }, [editing, inputId]);
+
+  const titleClassName =
+    'h-auto w-full min-w-0 border-transparent bg-transparent px-0 py-1 text-lg font-semibold shadow-none md:text-lg dark:bg-transparent';
+
+  if (editing) {
+    return (
+      <Input
+        id={inputId}
+        key={`title-edit-${channelId}-${name}`}
+        aria-label="Ticket title"
+        defaultValue={name}
+        className={titleClassName}
+        onBlur={(e) => {
+          onSave(e.currentTarget.value, e.currentTarget);
+          setEditing(false);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
+          if (e.key === 'Escape') {
+            e.currentTarget.value = name;
+            setEditing(false);
+          }
+        }}
+      />
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className={cn(
+        titleClassName,
+        'block cursor-text rounded-md text-left wrap-break-word whitespace-normal',
+        'hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30',
+      )}
+      aria-label="Ticket title. Click to edit"
+      onClick={() => setEditing(true)}
+    >
+      {name}
+    </button>
+  );
+}

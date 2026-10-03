@@ -1,0 +1,317 @@
+import { api } from '@/lib/api';
+
+export type ThreadAttachment = {
+  id: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+};
+
+export type TicketLabel = {
+  id: string;
+  name: string;
+  color: string;
+};
+
+export type TicketWatcher = {
+  id: string;
+  name: string;
+  image: string | null;
+  isBot?: boolean;
+};
+
+export type DmPeer = {
+  id: string;
+  name: string;
+  image: string | null;
+  /** False once the peer has left or been removed; the DM turns read-only. */
+  inWorkspace: boolean;
+};
+
+export type Channel = {
+  id: string;
+  workspaceId: string;
+  parentId: string | null;
+  name: string;
+  description: string | null;
+  status: string | null;
+  priority: string | null;
+  assigneeId: string | null;
+  dueAt: string | null;
+  archivedAt?: string | null;
+  ticketNumber: number | null;
+  ticketKey: string | null;
+  /** Manual order within a board status column; null sorts first. */
+  boardPosition?: number | null;
+  channelType: 'channel' | 'dm' | 'voice';
+  dmPeer: DmPeer | null;
+  isPrivate: boolean;
+  createdAt: string;
+  updatedAt: string;
+  /** Newest message time; only populated for DMs, null until the first message. */
+  lastMessageAt?: string | null;
+  /** When the viewer removed this DM from their list; only populated for DMs. */
+  dmHiddenAt?: string | null;
+  attachments?: ThreadAttachment[];
+  labels?: TicketLabel[];
+  watchers?: TicketWatcher[];
+};
+
+export function channelsQueryKey(workspaceId: string) {
+  return ['workspaces', workspaceId, 'channels'] as const;
+}
+
+export function unreadCountsQueryKey(workspaceId: string) {
+  return [...channelsQueryKey(workspaceId), 'unread'] as const;
+}
+
+export type UnreadCounts = Record<string, number>;
+
+export async function fetchChannels(
+  workspaceId: string,
+  ctx?: { signal?: AbortSignal },
+): Promise<Channel[]> {
+  const { data } = await api.get<Channel[]>(
+    `/workspaces/${workspaceId}/channels`,
+    { signal: ctx?.signal },
+  );
+  return data;
+}
+
+export async function fetchChannel(
+  workspaceId: string,
+  channelId: string,
+  ctx?: { signal?: AbortSignal },
+): Promise<Channel> {
+  const { data } = await api.get<Channel>(
+    `/workspaces/${workspaceId}/channels/${channelId}`,
+    { signal: ctx?.signal },
+  );
+  return data;
+}
+
+export async function createChannel(
+  workspaceId: string,
+  payload: {
+    name: string;
+    description?: string;
+    ticketKey?: string;
+    isPrivate?: boolean;
+    memberIds?: string[];
+    channelType?: 'channel' | 'voice';
+  },
+): Promise<Channel> {
+  const { data } = await api.post<Channel>(
+    `/workspaces/${workspaceId}/channels`,
+    payload,
+  );
+  return data;
+}
+
+export async function createOrGetDm(
+  workspaceId: string,
+  targetUserId: string,
+): Promise<Channel> {
+  const { data } = await api.post<Channel>(
+    `/workspaces/${workspaceId}/channels/dms`,
+    { userId: targetUserId },
+  );
+  return data;
+}
+
+/** Removes a DM from the viewer's sidebar list; the conversation is kept. */
+export async function hideDm(
+  workspaceId: string,
+  channelId: string,
+): Promise<{ channelId: string; dmHiddenAt: string }> {
+  const { data } = await api.post<{ channelId: string; dmHiddenAt: string }>(
+    `/workspaces/${workspaceId}/channels/${channelId}/hide`,
+  );
+  return data;
+}
+
+/** Puts a removed DM back in the viewer's sidebar list. */
+export async function unhideDm(
+  workspaceId: string,
+  channelId: string,
+): Promise<{ channelId: string; dmHiddenAt: null }> {
+  const { data } = await api.post<{ channelId: string; dmHiddenAt: null }>(
+    `/workspaces/${workspaceId}/channels/${channelId}/unhide`,
+  );
+  return data;
+}
+
+export async function createThread(
+  workspaceId: string,
+  channelId: string,
+  payload: {
+    name: string;
+    description?: string;
+    attachmentIds?: string[];
+    status?: string;
+    assigneeId?: string | null;
+  },
+): Promise<Channel> {
+  const { data } = await api.post<Channel>(
+    `/workspaces/${workspaceId}/channels/${channelId}/threads`,
+    payload,
+  );
+  return data;
+}
+
+export type UpdateChannelPayload = {
+  name?: string;
+  description?: string | null;
+  ticketKey?: string;
+  addAttachmentIds?: string[];
+  removeAttachmentIds?: string[];
+  status?: string;
+  priority?: string;
+  assigneeId?: string | null;
+  dueAt?: string | null;
+  labelIds?: string[];
+  labels?: TicketLabel[];
+  watcherIds?: string[];
+  watchers?: TicketWatcher[];
+  isPrivate?: boolean;
+  archived?: boolean;
+};
+
+export async function updateChannel(
+  workspaceId: string,
+  channelId: string,
+  payload: UpdateChannelPayload,
+): Promise<Channel> {
+  const { labels: _labels, watchers: _watchers, ...body } = payload;
+  const { data } = await api.patch<Channel>(
+    `/workspaces/${workspaceId}/channels/${channelId}`,
+    body,
+  );
+  return data;
+}
+
+export async function deleteChannel(
+  workspaceId: string,
+  channelId: string,
+): Promise<void> {
+  await api.delete(`/workspaces/${workspaceId}/channels/${channelId}`);
+}
+
+export async function fetchUnreadCounts(
+  workspaceId: string,
+  ctx?: { signal?: AbortSignal },
+): Promise<UnreadCounts> {
+  const { data } = await api.get<UnreadCounts>(
+    `/workspaces/${workspaceId}/channels/unread-counts`,
+    { signal: ctx?.signal },
+  );
+  return data;
+}
+
+export async function markChannelAsRead(
+  workspaceId: string,
+  channelId: string,
+): Promise<void> {
+  await api.post(
+    `/workspaces/${workspaceId}/channels/${channelId}/read`,
+  );
+}
+
+export type ChannelThread = Channel & {
+  messageCount: number;
+  lastMessageAt: string | null;
+};
+
+export function channelThreadsQueryKey(
+  workspaceId: string,
+  channelId: string,
+) {
+  return [...channelsQueryKey(workspaceId), channelId, 'threads'] as const;
+}
+
+export function archivedChannelThreadsQueryKey(
+  workspaceId: string,
+  channelId: string,
+) {
+  return [...channelsQueryKey(workspaceId), channelId, 'archived-threads'] as const;
+}
+
+export async function fetchChannelThreads(
+  workspaceId: string,
+  channelId: string,
+  ctx?: { signal?: AbortSignal },
+): Promise<ChannelThread[]> {
+  const { data } = await api.get<ChannelThread[]>(
+    `/workspaces/${workspaceId}/channels/${channelId}/threads`,
+    { signal: ctx?.signal },
+  );
+  return data;
+}
+
+export async function reorderChannelThreads(
+  workspaceId: string,
+  channelId: string,
+  payload: { status: string; ticketIds: string[] },
+): Promise<ChannelThread[]> {
+  const { data } = await api.patch<ChannelThread[]>(
+    `/workspaces/${workspaceId}/channels/${channelId}/threads/order`,
+    payload,
+  );
+  return data;
+}
+
+export async function fetchArchivedChannelThreads(
+  workspaceId: string,
+  channelId: string,
+  ctx?: { signal?: AbortSignal },
+): Promise<ChannelThread[]> {
+  const { data } = await api.get<ChannelThread[]>(
+    `/workspaces/${workspaceId}/channels/${channelId}/threads`,
+    { params: { archived: true }, signal: ctx?.signal },
+  );
+  return data;
+}
+
+export function channelPageHref(workspaceId: string, channelId: string) {
+  return `/w/${workspaceId}/c/${channelId}`;
+}
+
+export function ticketPageHref(
+  workspaceId: string,
+  parentId: string,
+  ticketId: string,
+) {
+  return `${channelPageHref(workspaceId, parentId)}/b/${ticketId}`;
+}
+
+/** Canonical URL for any channel row — tickets nest under their parent channel. */
+export function conversationPageHref(
+  workspaceId: string,
+  channel: { id: string; parentId: string | null },
+) {
+  return channel.parentId
+    ? ticketPageHref(workspaceId, channel.parentId, channel.id)
+    : channelPageHref(workspaceId, channel.id);
+}
+
+export type TicketLayout = 'card' | 'list';
+
+export function channelBoardHref(
+  workspaceId: string,
+  channelId: string,
+  layout: TicketLayout = 'card',
+  currentSearch?: Pick<URLSearchParams, 'toString'>,
+) {
+  const params = new URLSearchParams(currentSearch?.toString() ?? '');
+  params.delete('view');
+  if (layout === 'list') params.set('layout', 'list');
+  else params.delete('layout');
+  const query = params.toString();
+  const path = `${channelPageHref(workspaceId, channelId)}/b`;
+  return query ? `${path}?${query}` : path;
+}
+
+export function parseTicketLayout(value?: string | string[]): TicketLayout {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return raw === 'list' ? 'list' : 'card';
+}
