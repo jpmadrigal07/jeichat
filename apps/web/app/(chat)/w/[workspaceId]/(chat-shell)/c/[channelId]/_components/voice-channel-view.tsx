@@ -24,6 +24,7 @@ import { VoiceChannelParticipants } from '@chat/_components/voice-participant-li
 import { chatVoiceFooterClass } from '@chat/_helpers/chat-footer-classes';
 import { useIsActiveVoiceChannel, useVoice } from '@chat/_hooks/use-voice';
 import type { Channel } from '@chat/_libs/channels';
+import { VoiceScreenShares } from './voice-screen-shares';
 
 export function VoiceChannelView({
   workspaceId,
@@ -76,7 +77,8 @@ export function VoiceChannelView({
 
   return (
     <ChatPane header={header}>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 md:p-6">
+        {isConnectedHere ? <VoiceScreenShares workspaceId={workspaceId} /> : null}
         <VoiceChannelParticipants
           workspaceId={workspaceId}
           channelId={channel.id}

@@ -5,6 +5,7 @@ export type VoiceParticipant = {
   name: string;
   muted: boolean;
   deafened: boolean;
+  screenSharing: boolean;
   joinedAt: string;
 };
 
@@ -16,7 +17,7 @@ export type VoiceToken = {
   serverUrl: string;
   token: string;
   roomName: string;
-  /** False when the viewer may listen but not talk in this channel. */
+  /** False when the viewer may listen and watch but not talk or share their screen. */
   canSpeak: boolean;
 };
 

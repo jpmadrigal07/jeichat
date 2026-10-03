@@ -8,6 +8,8 @@ import {
   Mic,
   MicOff,
   PhoneOff,
+  ScreenShare,
+  ScreenShareOff,
   Volume2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -22,12 +24,12 @@ import { useWorkspaces } from '../_hooks/use-workspaces';
 import { useVoice } from '../_hooks/use-voice';
 import { channelPageHref } from '../_libs/channels';
 
-/** Mute, deafen, and hang up for the call you're in. */
+/** Mute, deafen, share your screen, and hang up for the call you're in. */
 export function VoiceControlButtons({
   size = 'panel',
   className,
 }: {
-  /** `panel` stretches the three buttons across the sidebar's voice panel. */
+  /** `panel` stretches the buttons across the sidebar's voice panel. */
   size?: 'panel' | 'lg';
   className?: string;
 }) {
@@ -39,6 +41,9 @@ export function VoiceControlButtons({
     isJoining,
     toggleMute,
     toggleDeafen,
+    canScreenShare,
+    isScreenSharing,
+    toggleScreenShare,
     leave,
   } = useVoice();
   // Mute/deafen only mean something once the call is up; until then they stay neutral.
@@ -58,11 +63,14 @@ export function VoiceControlButtons({
         ? 'Unmute'
         : 'Mute';
   const deafenLabel = isDeafened ? 'Undeafen' : 'Deafen';
+  const shareLabel = isScreenSharing ? 'Stop sharing' : 'Share your screen';
 
   return (
     <div
       className={cn(
-        size === 'lg' ? 'flex items-center gap-3' : 'grid grid-cols-3 gap-1',
+        size === 'lg'
+          ? 'flex items-center gap-3'
+          : cn('grid gap-1', canScreenShare ? 'grid-cols-4' : 'grid-cols-3'),
         className,
       )}
     >
@@ -108,6 +116,29 @@ export function VoiceControlButtons({
         </TooltipTrigger>
         <TooltipContent>{deafenLabel}</TooltipContent>
       </Tooltip>
+      {canScreenShare ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant={isScreenSharing ? 'default' : 'ghost'}
+              size={buttonSize}
+              className={buttonClass}
+              aria-label={shareLabel}
+              aria-pressed={isScreenSharing}
+              disabled={!connected}
+              onClick={toggleScreenShare}
+            >
+              {isScreenSharing ? (
+                <ScreenShareOff className={iconClass} />
+              ) : (
+                <ScreenShare className={iconClass} />
+              )}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{shareLabel}</TooltipContent>
+        </Tooltip>
+      ) : null}
       <Tooltip>
         <TooltipTrigger asChild>
           <Button

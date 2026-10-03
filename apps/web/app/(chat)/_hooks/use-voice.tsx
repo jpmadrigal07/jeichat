@@ -6,6 +6,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -22,6 +23,10 @@ import {
   DisconnectReason,
   Room,
   RoomEvent,
+  ScreenSharePresets,
+  Track,
+  type LocalTrackPublication,
+  type VideoPreset,
 } from 'livekit-client';
 import toast from 'react-hot-toast';
 import {
@@ -36,6 +41,40 @@ export type VoiceChannelRef = { workspaceId: string; channelId: string };
 
 type VoiceSession = VoiceChannelRef & { canSpeak: boolean };
 
+/**
+ * Screen share quality levels. Above 360p, simulcast also sends lower copies so
+ * each viewer gets the one that fits their window and connection.
+ */
+const SCREEN_SHARE_QUALITY = {
+  '360p': {
+    preset: ScreenSharePresets.h360fps15,
+    simulcastLayers: [],
+  },
+  '720p': {
+    preset: ScreenSharePresets.h720fps15,
+    simulcastLayers: [ScreenSharePresets.h360fps15],
+  },
+  /** ~2.5 Mbps; keeps text and code sharp. */
+  '1080p': {
+    preset: ScreenSharePresets.h1080fps15,
+    simulcastLayers: [ScreenSharePresets.h720fps15, ScreenSharePresets.h360fps15],
+  },
+} satisfies Record<string, { preset: VideoPreset; simulcastLayers: VideoPreset[] }>;
+
+/** 360p while testing; raise to '720p' or '1080p' when ready. */
+const SCREEN_SHARE = SCREEN_SHARE_QUALITY['360p'];
+
+const noopSubscribe = () => () => {};
+
+/** Phones and some browsers (iOS Safari) can't capture the screen at all. */
+function useCanCaptureScreen() {
+  return useSyncExternalStore(
+    noopSubscribe,
+    () => typeof navigator.mediaDevices?.getDisplayMedia === 'function',
+    () => false,
+  );
+}
+
 type VoiceContextValue = {
   room: Room;
   /** The channel being joined or currently connected to; null when not in voice. */
@@ -45,6 +84,9 @@ type VoiceContextValue = {
   canSpeak: boolean;
   isMuted: boolean;
   isDeafened: boolean;
+  /** True when this browser can share a screen and you're allowed to. */
+  canScreenShare: boolean;
+  isScreenSharing: boolean;
   /** False until the browser lets the page play audio; `startAudio` must run from a click. */
   canPlayAudio: boolean;
   startAudio: () => void;
@@ -52,6 +94,7 @@ type VoiceContextValue = {
   leave: () => void;
   toggleMute: () => void;
   toggleDeafen: () => void;
+  toggleScreenShare: () => void;
 };
 
 const VoiceContext = createContext<VoiceContextValue | null>(null);
@@ -71,8 +114,16 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
   const [room] = useState(
     () =>
       new Room({
-        adaptiveStream: false,
-        dynacast: false,
+        // Only pull screen shares at the size they're shown, and stop sending
+        // simulcast layers nobody is watching.
+        adaptiveStream: true,
+        dynacast: true,
+        publishDefaults: {
+          // Screen share is the only video, so this only affects it.
+          simulcast: SCREEN_SHARE.simulcastLayers.length > 0,
+          screenShareEncoding: SCREEN_SHARE.preset.encoding,
+          screenShareSimulcastLayers: SCREEN_SHARE.simulcastLayers,
+        },
         audioCaptureDefaults: {
           echoCancellation: true,
           noiseSuppression: true,
@@ -86,7 +137,10 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
   useVoiceParticipantsSocket();
 
   const connectionState = useConnectionState(room);
-  const { isMicrophoneEnabled } = useLocalParticipant({ room });
+  const { isMicrophoneEnabled, isScreenShareEnabled } = useLocalParticipant({
+    room,
+  });
+  const canCaptureScreen = useCanCaptureScreen();
   const deafenedAttribute = useParticipantAttribute(VOICE_DEAFENED_ATTRIBUTE, {
     participant: room.localParticipant,
   });
@@ -139,9 +193,16 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
         toast.error('You were disconnected from voice.');
       }
     };
+    // Stopping from the browser's own "Stop sharing" bar skips toggleScreenShare.
+    const handleLocalTrackUnpublished = (publication: LocalTrackPublication) => {
+      if (publication.source !== Track.Source.ScreenShare) return;
+      if (sessionRef.current) announce(sessionRef.current);
+    };
     room.on(RoomEvent.Disconnected, handleDisconnected);
+    room.on(RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished);
     return () => {
       room.off(RoomEvent.Disconnected, handleDisconnected);
+      room.off(RoomEvent.LocalTrackUnpublished, handleLocalTrackUnpublished);
     };
     // `announce` only reads the stable queryClient.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -172,6 +233,8 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     canSpeak,
     isMuted: !isMicrophoneEnabled,
     isDeafened,
+    canScreenShare: canSpeak && canCaptureScreen,
+    isScreenSharing: session !== null && isScreenShareEnabled,
     canPlayAudio,
     startAudio: () => {
       startAudio().catch(() => undefined);
@@ -215,6 +278,27 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       ]).catch((error: unknown) =>
         toast.error(errorMessage(error, 'Could not change deafen')),
       );
+    },
+    toggleScreenShare: () => {
+      if (!session || !canSpeak) return;
+      const sharing = !isScreenShareEnabled;
+      room.localParticipant
+        .setScreenShareEnabled(sharing, {
+          audio: true,
+          resolution: SCREEN_SHARE.preset.resolution,
+          contentHint: 'detail',
+          selfBrowserSurface: 'exclude',
+          surfaceSwitching: 'include',
+        })
+        // Others' sidebars show a LIVE badge from the participants snapshot.
+        .then(() => announce(session))
+        .catch((error: unknown) => {
+          // Closing the browser's picker isn't an error worth reporting.
+          if (error instanceof DOMException && error.name === 'NotAllowedError') {
+            return;
+          }
+          toast.error(errorMessage(error, 'Could not share your screen'));
+        });
     },
   };
 

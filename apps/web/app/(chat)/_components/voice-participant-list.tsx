@@ -5,11 +5,13 @@ import {
   useIsSpeaking,
   useParticipantAttribute,
   useParticipants,
+  useTracks,
 } from '@livekit/components-react';
 import { ConnectionState, Track, type Participant } from 'livekit-client';
 import { HeadphoneOff, MicOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { personInitials } from '../_helpers/ticket-fields';
 import { useVoice, useIsActiveVoiceChannel } from '../_hooks/use-voice';
 import { useVoiceParticipants } from '../_hooks/use-voice-participants';
@@ -24,6 +26,7 @@ type ParticipantView = {
   speaking: boolean;
   muted: boolean;
   deafened: boolean;
+  screenSharing: boolean;
 };
 
 /**
@@ -107,6 +110,10 @@ function LiveParticipants({
 }) {
   const { room } = useVoice();
   const participants = useParticipants({ room });
+  const screenShares = useTracks([Track.Source.ScreenShare], { room });
+  const sharingIds = new Set(
+    screenShares.map((trackRef) => trackRef.participant.identity),
+  );
 
   if (participants.length === 0) return emptyState ?? null;
 
@@ -118,6 +125,7 @@ function LiveParticipants({
           workspaceId={workspaceId}
           variant={variant}
           participant={participant}
+          screenSharing={sharingIds.has(participant.identity)}
         />
       ))}
     </ParticipantContainer>
@@ -128,10 +136,12 @@ function LiveParticipantItem({
   workspaceId,
   variant,
   participant,
+  screenSharing,
 }: {
   workspaceId: string;
   variant: Variant;
   participant: Participant;
+  screenSharing: boolean;
 }) {
   const speaking = useIsSpeaking(participant);
   const muted = useIsMuted({
@@ -152,6 +162,7 @@ function LiveParticipantItem({
         speaking: speaking && !muted,
         muted,
         deafened,
+        screenSharing,
       }}
     />
   );
@@ -194,6 +205,14 @@ function VoiceParticipantItem({
 
   const statusIcons = (
     <span className="flex shrink-0 items-center gap-1 text-muted-foreground">
+      {participant.screenSharing ? (
+        <Badge
+          variant="destructive"
+          className="h-4 px-1 text-[0.5625rem] font-bold tracking-wide"
+        >
+          LIVE
+        </Badge>
+      ) : null}
       {participant.muted ? (
         <MicOff
           className={variant === 'sidebar' ? 'size-3' : 'size-4'}

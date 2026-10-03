@@ -29,6 +29,7 @@ export type VoiceParticipant = {
   name: string;
   muted: boolean;
   deafened: boolean;
+  screenSharing: boolean;
   joinedAt: string;
 };
 
@@ -36,7 +37,7 @@ export type VoiceToken = {
   serverUrl: string;
   token: string;
   roomName: string;
-  /** False when the user may listen but not talk (no SEND_MESSAGES in the channel). */
+  /** False when the user may listen and watch but not talk or share (no SEND_MESSAGES). */
   canSpeak: boolean;
 };
 
@@ -116,7 +117,13 @@ export class VoiceService {
       roomJoin: true,
       canSubscribe: true,
       canPublish: canSpeak,
-      canPublishSources: canSpeak ? [TrackSource.MICROPHONE] : [],
+      canPublishSources: canSpeak
+        ? [
+            TrackSource.MICROPHONE,
+            TrackSource.SCREEN_SHARE,
+            TrackSource.SCREEN_SHARE_AUDIO,
+          ]
+        : [],
       canPublishData: false,
       canUpdateOwnMetadata: true,
     });
@@ -337,6 +344,9 @@ function toVoiceParticipant(participant: ParticipantInfo): VoiceParticipant {
     // No published mic (listen-only, or permission denied) reads as muted.
     muted: !microphone || microphone.muted,
     deafened: participant.attributes[DEAFENED_ATTRIBUTE] === 'true',
+    screenSharing: participant.tracks.some(
+      (track) => track.source === TrackSource.SCREEN_SHARE,
+    ),
     joinedAt: new Date(joinedAtMs).toISOString(),
   };
 }
