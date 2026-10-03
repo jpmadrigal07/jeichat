@@ -4,6 +4,7 @@ import { useRef } from 'react';
 import { useTracks, VideoTrack } from '@livekit/components-react';
 import { Track } from 'livekit-client';
 import { Maximize } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +14,7 @@ import {
 } from '@/components/ui/tooltip';
 import { useVoice } from '@chat/_hooks/use-voice';
 import { useWorkspaceMembers } from '@chat/_hooks/use-workspaces';
+import { enterFullscreen } from '../_helpers/enter-fullscreen';
 
 type ScreenShareRef = ReturnType<
   typeof useTracks<[Track.Source.ScreenShare]>
@@ -77,7 +79,13 @@ function ScreenShareTile({
             className="absolute top-2 right-2 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100"
             aria-label={`View ${label.toLowerCase()} full screen`}
             onClick={() => {
-              void tileRef.current?.requestFullscreen().catch(() => undefined);
+              const tile = tileRef.current;
+              if (!tile) return;
+              void enterFullscreen(tile).then((entered) => {
+                if (!entered) {
+                  toast.error("This browser can't show the screen full screen.");
+                }
+              });
             }}
           >
             <Maximize />
