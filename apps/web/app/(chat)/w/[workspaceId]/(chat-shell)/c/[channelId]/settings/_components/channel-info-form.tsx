@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { isVoiceChannel } from '@chat/_helpers/channel-display';
 import {
   useChannels,
   useUpdateChannel,
@@ -20,12 +21,16 @@ export function ChannelInfoForm({
   const { data: channels, isLoading } = useChannels(workspaceId);
   const channel = channels?.find((ch) => ch.id === channelId);
   const updateChannel = useUpdateChannel(workspaceId);
+  // Only text channels number tickets with a key.
+  const hasKey = Boolean(
+    channel && !channel.parentId && !isVoiceChannel(channel),
+  );
 
   function handleUpdate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const name = (formData.get('name') as string).trim();
-    const ticketKey = (formData.get('ticketKey') as string).trim();
+    const ticketKey = ((formData.get('ticketKey') as string | null) ?? '').trim();
     const description =
       (formData.get('description') as string).trim() || null;
 
@@ -35,7 +40,7 @@ export function ChannelInfoForm({
       channelId: channel.id,
       name,
       description,
-      ticketKey: channel.parentId ? undefined : ticketKey || undefined,
+      ticketKey: hasKey ? ticketKey || undefined : undefined,
     });
   }
 
@@ -60,7 +65,9 @@ export function ChannelInfoForm({
       <div className="mb-6">
         <h1 className="text-lg font-semibold">General</h1>
         <p className="text-sm text-muted-foreground">
-          Update this channel&apos;s name, key, and description.
+          {hasKey
+            ? "Update this channel's name, key, and description."
+            : "Update this channel's name and description."}
         </p>
       </div>
 
@@ -74,7 +81,7 @@ export function ChannelInfoForm({
             required
           />
         </div>
-        {!channel.parentId ? (
+        {hasKey ? (
           <div className="flex flex-col gap-2">
             <Label htmlFor="ch-settings-key">Key</Label>
             <Input

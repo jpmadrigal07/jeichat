@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Hash, Volume2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,7 @@ import {
   FieldLabel,
   FieldLegend,
   FieldSet,
+  FieldTitle,
 } from '@/components/ui/field';
 import {
   Tooltip,
@@ -30,18 +32,44 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { PresenceAvatar } from '@chat/_components/presence-avatar';
 import { BotBadge } from '@chat/_components/bot-badge';
 import { useCreateChannel } from '../_hooks/use-channels';
 import { useWorkspaceMembers } from '../_hooks/use-workspaces';
 
+type ChannelKind = 'channel' | 'voice';
+
+const CHANNEL_KINDS: Array<{
+  value: ChannelKind;
+  label: string;
+  description: string;
+  icon: typeof Hash;
+}> = [
+  {
+    value: 'channel',
+    label: 'Text',
+    description: 'Messages, files, and tickets',
+    icon: Hash,
+  },
+  {
+    value: 'voice',
+    label: 'Voice',
+    description: 'Hang out and talk together',
+    icon: Volume2,
+  },
+];
+
 export function CreateChannelDialog({
   workspaceId,
   currentUserId,
+  defaultType = 'channel',
   children,
 }: {
   workspaceId: string;
   currentUserId: string;
+  /** Which channel type is picked when the dialog opens. */
+  defaultType?: ChannelKind;
   children: React.ReactNode;
 }) {
   const createChannel = useCreateChannel(workspaceId);
@@ -58,7 +86,12 @@ export function CreateChannelDialog({
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const name = formData.get('name') as string;
-    const ticketKey = (formData.get('ticketKey') as string).trim();
+    const channelType: ChannelKind =
+      formData.get('channelType') === 'voice' ? 'voice' : 'channel';
+    const ticketKey =
+      channelType === 'voice'
+        ? ''
+        : ((formData.get('ticketKey') as string | null) ?? '').trim();
     const description = (formData.get('description') as string) || undefined;
     const memberIds = formData.getAll('memberIds').filter(
       (value): value is string => typeof value === 'string' && value.length > 0,
@@ -72,6 +105,7 @@ export function CreateChannelDialog({
         description,
         ticketKey: ticketKey || undefined,
         isPrivate,
+        channelType,
         memberIds: isPrivate ? memberIds : [],
       },
       {
@@ -94,13 +128,41 @@ export function CreateChannelDialog({
         <TooltipTrigger asChild>
           <DialogTrigger asChild>{children}</DialogTrigger>
         </TooltipTrigger>
-        <TooltipContent side="right">Create channel</TooltipContent>
+        <TooltipContent side="right">
+          {defaultType === 'voice' ? 'Create voice channel' : 'Create channel'}
+        </TooltipContent>
       </Tooltip>
       <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create a channel</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form
+          onSubmit={handleSubmit}
+          className="group/create-channel flex flex-col gap-4"
+        >
+          <FieldSet>
+            <FieldLegend variant="label">Channel type</FieldLegend>
+            <RadioGroup name="channelType" defaultValue={defaultType}>
+              {CHANNEL_KINDS.map((kind) => {
+                const Icon = kind.icon;
+                const id = `ch-type-${kind.value}`;
+                return (
+                  <FieldLabel key={kind.value} htmlFor={id}>
+                    <Field orientation="horizontal">
+                      <FieldContent>
+                        <FieldTitle>
+                          <Icon className="size-3.5" />
+                          {kind.label}
+                        </FieldTitle>
+                        <FieldDescription>{kind.description}</FieldDescription>
+                      </FieldContent>
+                      <RadioGroupItem value={kind.value} id={id} />
+                    </Field>
+                  </FieldLabel>
+                );
+              })}
+            </RadioGroup>
+          </FieldSet>
           <div className="flex flex-col gap-2">
             <Label htmlFor="ch-name">Channel name</Label>
             <Input
@@ -111,7 +173,8 @@ export function CreateChannelDialog({
               autoFocus
             />
           </div>
-          <div className="flex flex-col gap-2">
+          {/* Voice channels hold no tickets, so they need no key. */}
+          <div className="flex flex-col gap-2 group-has-[#ch-type-voice[data-state=checked]]/create-channel:hidden">
             <Label htmlFor="ch-key">Key</Label>
             <Input
               id="ch-key"

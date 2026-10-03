@@ -15,7 +15,11 @@ import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChatPageHeader } from '@chat/_components/chat-page-header';
 import { useChannels } from '@chat/_hooks/use-channels';
-import { channelBreadcrumbLabel, isDmChannel } from '@chat/_helpers/channel-display';
+import {
+  channelBreadcrumbLabel,
+  isDmChannel,
+  isVoiceChannel,
+} from '@chat/_helpers/channel-display';
 import { channelPageHref } from '@chat/_libs/channels';
 
 type NavItem = {
@@ -38,6 +42,9 @@ export function ChannelSettingsShell({
   const pathname = usePathname();
   const { data: channels, isLoading } = useChannels(workspaceId);
   const channel = channels?.find((ch) => ch.id === channelId);
+  // Tickets, their GitHub sync, and message notifications only exist in text channels.
+  const hasTickets =
+    !channel?.parentId && !isDmChannel(channel) && !isVoiceChannel(channel);
 
   const navItems: NavItem[] = [
     {
@@ -60,19 +67,19 @@ export function ChannelSettingsShell({
       href: `/w/${workspaceId}/c/${channelId}/settings/notifications`,
       label: 'Notifications',
       icon: Bell,
-      visible: !channel?.parentId && !isDmChannel(channel),
+      visible: hasTickets,
     },
     {
       href: `/w/${workspaceId}/c/${channelId}/settings/github`,
       label: 'GitHub',
       icon: GitBranch,
-      visible: !channel?.parentId && !isDmChannel(channel),
+      visible: hasTickets,
     },
     {
       href: `/w/${workspaceId}/c/${channelId}/settings/archived`,
       label: 'Archived tickets',
       icon: Archive,
-      visible: !channel?.parentId && !isDmChannel(channel),
+      visible: hasTickets,
     },
     {
       href: `/w/${workspaceId}/c/${channelId}/settings/delete`,

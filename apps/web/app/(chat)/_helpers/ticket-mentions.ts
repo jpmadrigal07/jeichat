@@ -1,5 +1,5 @@
 import type { Channel } from '../_libs/channels';
-import { isDmChannel } from './channel-display';
+import { isDmChannel, isVoiceChannel } from './channel-display';
 import {
   activeMention,
   mentionRanges,
@@ -97,7 +97,8 @@ export function taggableChannels(channels: Channel[]): TaggableChannel[] {
   return channels
     .flatMap((item) => {
       if (item.parentId) return [];
-      if (isDmChannel(item)) return [];
+      // Voice channels have no messages, so there's nothing to link to.
+      if (isDmChannel(item) || isVoiceChannel(item)) return [];
       const name = item.name.trim();
       if (!name) return [];
       return [{ id: item.id, name }];

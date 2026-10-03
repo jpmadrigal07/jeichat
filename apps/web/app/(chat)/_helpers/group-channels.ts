@@ -38,7 +38,6 @@ export function groupChannelsByParent(channels: Channel[]) {
   }
 
   dms.sort((a, b) => dmActivityTime(b) - dmActivityTime(a));
-
   return { topLevel, dms, threadsByParent };
 }
 

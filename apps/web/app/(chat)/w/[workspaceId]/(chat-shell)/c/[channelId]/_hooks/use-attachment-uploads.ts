@@ -15,6 +15,11 @@ import {
   type FileRejection,
 } from '@/lib/attachment-mime';
 import { fetchPresign, putToR2 } from '../_libs/attachments';
+import {
+  loadDraftAttachments,
+  saveDraftAttachments,
+  type DraftAttachmentRecord,
+} from '../_libs/draft-attachments';
 
 export type UploadStatus = 'queued' | 'uploading' | 'uploaded' | 'error';
 
@@ -26,8 +31,31 @@ export type PendingAttachment = {
   progress: number;
   serverId: string | null;
   error: string | null;
+  uploadedAt?: number;
   insertMarkdownOnComplete?: boolean;
 };
+
+/**
+ * The API sweeps unsent attachments after 1h, so a restored draft re-uploads
+ * anything older than this rather than sending an id that may be gone.
+ */
+const DRAFT_SERVER_ID_MAX_AGE_MS = 45 * 60 * 1000;
+
+/** Changes only when the persisted shape changes — not on progress ticks. */
+function draftSignature(items: PendingAttachment[]) {
+  return items
+    .map((item) => `${item.localId}:${item.uploadedAt ? item.serverId : ''}`)
+    .join('|');
+}
+
+function toDraftRecord(item: PendingAttachment): DraftAttachmentRecord {
+  return {
+    localId: item.localId,
+    file: item.file,
+    serverId: item.uploadedAt ? item.serverId : null,
+    uploadedAt: item.uploadedAt ?? null,
+  };
+}
 
 function groupRejectionsByKind(rejected: FileRejection[]) {
   const map = new Map<FileRejection['kind'], FileRejection[]>();
@@ -83,8 +111,11 @@ export function useAttachmentUploads(
   options?: {
     onUploaded?: (attachmentId: string) => void;
     onFileUploaded?: (attachmentId: string, file: File) => void;
+    /** Keep un-sent attachments in IndexedDB so they survive navigation. */
+    persistDraft?: boolean;
   },
 ) {
+  const persistDraft = options?.persistDraft ?? false;
   const [items, setItems] = useState<PendingAttachment[]>([]);
   const itemsRef = useRef(items);
   itemsRef.current = items;
@@ -118,6 +149,7 @@ export function useAttachmentUploads(
         status: 'uploading',
         progress: 0,
         error: null,
+        uploadedAt: undefined,
       });
 
       try {
@@ -143,7 +175,11 @@ export function useAttachmentUploads(
         );
 
         const pending = itemsRef.current.find((item) => item.localId === localId);
-        updateItem(localId, { status: 'uploaded', progress: 1 });
+        updateItem(localId, {
+          status: 'uploaded',
+          progress: 1,
+          uploadedAt: Date.now(),
+        });
         onUploadedRef.current?.(presign.attachmentId);
         if (pending?.insertMarkdownOnComplete) {
           onFileUploadedRef.current?.(presign.attachmentId, file);
@@ -252,6 +288,59 @@ export function useAttachmentUploads(
     .map((i) => i.serverId as string);
 
   useEffect(() => () => reset(), [channelId, reset]);
+
+  // Channel whose draft has been restored; saving before that would overwrite
+  // the stored draft with the empty initial state.
+  const hydratedChannelRef = useRef<string | null>(null);
+  const savedSignatureRef = useRef('');
+
+  useEffect(() => {
+    hydratedChannelRef.current = null;
+    if (!persistDraft || !channelId) return;
+    let cancelled = false;
+    void loadDraftAttachments(channelId).then((records) => {
+      if (cancelled) return;
+      const now = Date.now();
+      const restored: PendingAttachment[] = records.map((record) => {
+        const fresh =
+          record.serverId !== null &&
+          record.uploadedAt !== null &&
+          now - record.uploadedAt < DRAFT_SERVER_ID_MAX_AGE_MS;
+        return {
+          localId: record.localId,
+          file: record.file,
+          previewUrl: isImageFile(record.file)
+            ? URL.createObjectURL(record.file)
+            : null,
+          status: fresh ? 'uploaded' : 'queued',
+          progress: fresh ? 1 : 0,
+          serverId: fresh ? record.serverId : null,
+          error: null,
+          uploadedAt: fresh ? (record.uploadedAt ?? undefined) : undefined,
+        };
+      });
+      const existingIds = new Set(itemsRef.current.map((i) => i.localId));
+      const added = restored.filter((item) => !existingIds.has(item.localId));
+      savedSignatureRef.current = draftSignature(restored);
+      hydratedChannelRef.current = channelId;
+      // Always set so files added while loading get saved alongside.
+      setItems((current) => [...added, ...current]);
+      for (const item of added) {
+        if (item.status === 'queued') void runUpload(item.localId, item.file);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [channelId, persistDraft, runUpload]);
+
+  useEffect(() => {
+    if (!persistDraft || hydratedChannelRef.current !== channelId) return;
+    const signature = draftSignature(items);
+    if (signature === savedSignatureRef.current) return;
+    savedSignatureRef.current = signature;
+    void saveDraftAttachments(channelId, items.map(toDraftRecord));
+  }, [channelId, items, persistDraft]);
 
   return {
     items,

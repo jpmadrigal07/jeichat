@@ -34,6 +34,7 @@ export function useSearchSuggestions(workspaceId: string) {
           .filter(
             (channel) =>
               !channel.parentId &&
+              channel.channelType !== 'voice' &&
               channelDisplayName(channel)
                 .toLowerCase()
                 .includes(parsed.incompleteQuery.toLowerCase()),

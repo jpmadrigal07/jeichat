@@ -32,6 +32,12 @@ services:
       BETTER_AUTH_URL: http://localhost:3001
       WEB_ORIGIN: http://localhost:3000
       NEXT_PUBLIC_API_CREDENTIALS: 'true'
+      # Voice channels (optional) — taken from your shell or a root .env; blank disables voice.
+      LIVEKIT_URL: ${LIVEKIT_URL:-}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+      LIVEKIT_API_URL: ${LIVEKIT_API_URL:-}
+      LIVEKIT_ROOM_PREFIX: ${LIVEKIT_ROOM_PREFIX:-}
     healthcheck:
       test: ['CMD-SHELL', 'curl -fsS http://127.0.0.1:3001/health || exit 1']
       interval: 10s

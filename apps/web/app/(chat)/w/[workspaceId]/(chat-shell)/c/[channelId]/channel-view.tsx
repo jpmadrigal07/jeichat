@@ -123,7 +123,7 @@ export function ChannelView({
     [pinsData],
   );
   const canManageMessages = pinsData?.canManageMessages ?? false;
-  const uploads = useAttachmentUploads(channelId);
+  const uploads = useAttachmentUploads(channelId, { persistDraft: true });
   const { mutate: markChannelRead } = useMarkChannelRead(workspaceId);
 
   useEffect(() => {
@@ -398,6 +398,7 @@ export function ChannelView({
         ) : (
           <MessageInput
             channelName={channel?.name}
+            draftKey={channelId}
             currentUserId={userId}
             workspaceId={workspaceId}
             members={mentionableMembers}

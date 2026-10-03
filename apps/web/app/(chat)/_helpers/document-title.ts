@@ -18,7 +18,7 @@ type TitleChannel = {
   name: string;
   parentId: string | null;
   ticketNumber: number | null;
-  channelType?: 'channel' | 'dm';
+  channelType?: 'channel' | 'dm' | 'voice';
   dmPeer?: { name: string } | null;
 };
 
@@ -104,6 +104,7 @@ export function formatChannelTitleLabel(
   if (channel.channelType === 'dm' && channel.dmPeer) {
     return channel.dmPeer.name;
   }
+  if (channel.channelType === 'voice') return channel.name;
   if (!channel.parentId) return `#${channel.name}`;
 
   const prefixSource = parent ?? { name: channel.name, ticketKey: null };

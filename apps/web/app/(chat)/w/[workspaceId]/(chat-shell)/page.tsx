@@ -17,11 +17,11 @@ export default function WorkspacePage() {
       if (media.matches || !channels?.length) return;
 
       const general = channels.find(
-        (c) => c.name === 'general' && c.channelType !== 'dm' && !c.parentId,
+        (c) => c.name === 'general' && c.channelType === 'channel' && !c.parentId,
       );
       const firstChannel =
         general ??
-        channels.find((c) => c.channelType !== 'dm' && !c.parentId) ??
+        channels.find((c) => c.channelType === 'channel' && !c.parentId) ??
         channels[0];
       if (!firstChannel) return;
 

@@ -43,7 +43,7 @@ export type Channel = {
   ticketKey: string | null;
   /** Manual order within a board status column; null sorts first. */
   boardPosition?: number | null;
-  channelType: 'channel' | 'dm';
+  channelType: 'channel' | 'dm' | 'voice';
   dmPeer: DmPeer | null;
   isPrivate: boolean;
   createdAt: string;
@@ -98,6 +98,7 @@ export async function createChannel(
     ticketKey?: string;
     isPrivate?: boolean;
     memberIds?: string[];
+    channelType?: 'channel' | 'voice';
   },
 ): Promise<Channel> {
   const { data } = await api.post<Channel>(
